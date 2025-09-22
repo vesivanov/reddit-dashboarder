@@ -1,0 +1,8 @@
+name = "reddit-highlights-api"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+routes = []
+
+[vars]
+NODE_ENV = "production"

@@ -1,0 +1,14 @@
+{
+  "name": "reddit-highlights-api",
+  "version": "1.0.0",
+  "description": "Reddit API worker for dashboard",
+  "main": "worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "private": true
+}
