@@ -1,53 +1,184 @@
 # Reddit Highlights Dashboard
 
-Dead-simple way to skim ~30 (or more) subreddits a few times a day without touching cron jobs, databases, or paid services. The setup consists of a single Cloudflare Worker that proxies Reddit feeds and a static dashboard that renders highlights in the browser.
+A dead-simple way to skim 30+ subreddits efficiently without dealing with cron jobs, databases, or paid services. This project consists of a single Cloudflare Worker that proxies Reddit feeds and a beautiful static dashboard that renders highlights in your browser.
 
-## Repo structure
+## ✨ Features
 
-- `worker/worker.js` — Cloudflare Worker that fetches subreddit JSON feeds, normalises fields, and caches the combined response for 10 minutes.
-- `static/index.html` — Tailwind-powered dashboard that calls the worker endpoint and renders cards for each subreddit.
+- **Fast & Efficient**: Cached responses reduce Reddit API calls and improve load times
+- **No Backend Required**: Pure static frontend with serverless worker
+- **Customizable**: Easy to modify subreddit lists and time ranges
+- **Responsive Design**: Clean, modern UI built with Tailwind CSS
+- **Free to Host**: Uses Cloudflare Workers (free tier) + any static hosting
 
-## 1. Deploy the Cloudflare Worker
+## 🏗️ Architecture
 
-Option A — Dashboard deploy (no CLI):
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Static HTML   │───▶│ Cloudflare Worker│───▶│   Reddit API    │
+│   Dashboard     │    │   (Proxy/Cache)  │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
 
-1. In the Cloudflare dashboard, go to **Workers & Pages → Create → HTTP handler**.
-2. Replace the starter code with the contents of `worker/worker.js`.
-3. Deploy and note the URL (ends with `.workers.dev`).
-4. Optionally tweak cache TTL by changing `s-maxage` in the `Cache-Control` header.
+## 📁 Project Structure
 
-Option B — CLI deploy with Wrangler:
+```
+reddit-dashboard/
+├── worker/
+│   ├── worker.js          # Cloudflare Worker (API proxy & cache)
+│   ├── package.json       # Worker dependencies
+│   └── wrangler.toml      # Cloudflare Worker config
+├── static/
+│   ├── index.html         # Main dashboard (Tailwind CSS)
+│   └── react-dashboard.html # Alternative React version
+├── .gitignore             # Git ignore rules
+└── README.md              # This file
+```
 
-1. Install Wrangler: `npm i -g wrangler@3`.
-2. Authenticate: `wrangler login`.
-3. From the `worker/` directory, review `wrangler.toml` and run: `wrangler deploy`.
-4. Copy the deployed URL from the output.
+## 🚀 Quick Start
 
-## 2. Host the static dashboard
+### Step 1: Deploy the Cloudflare Worker
 
-1. Pick any static host (Netlify, Vercel, GitHub Pages, Cloudflare Pages, etc.).
-2. Upload the contents of `static/index.html` as-is.
-3. Edit the `WORKER_URL` constant near the top of the file to point to your Worker (e.g. `https://demo-example.worker.dev/api`). For local dev, use `http://127.0.0.1:8787/api`.
-4. Publish the site.
+Choose one of these deployment methods:
 
-## 3. Use the dashboard
+#### Option A: Dashboard Deploy (No CLI Required)
 
-- Open the page.
-- Adjust the comma-separated subreddit list.
-- Choose `top` or `new`, select a time range (`top` mode), and click **Refresh**.
-- Responses are cached for ~10 minutes at the edge, so refreshes stay fast and inexpensive.
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Navigate to **Workers & Pages → Create → HTTP handler**
+3. Replace the starter code with the contents of `worker/worker.js`
+4. Click **Deploy** and copy the URL (ends with `.workers.dev`)
+5. **Optional**: Adjust cache TTL by modifying `s-maxage` in the `Cache-Control` header
 
-## Local development
+#### Option B: CLI Deploy with Wrangler
 
-1. Start the Worker:
-   - With Wrangler: `cd worker && wrangler dev --ip 127.0.0.1 --port 8787`
-   - Or with Miniflare: `npx miniflare worker/worker.js --modules --host 127.0.0.1 --port 8787`
-2. Serve the static site: `cd static && python3 -m http.server 8000 --bind 127.0.0.1`
-3. Open `http://127.0.0.1:8000/` and click Refresh.
+```bash
+# Install Wrangler globally
+npm install -g wrangler@3
 
-## Optional upgrades
+# Authenticate with Cloudflare
+wrangler login
 
-- Save subreddit lists in `localStorage`.
-- Add client-side search or filters.
-- Add dark mode styles with Tailwind `dark:` variants.
-- Increase cache TTL to reduce Reddit origin calls if you check less frequently.
+# Deploy from worker directory
+cd worker
+wrangler deploy
+```
+
+Copy the deployed URL from the output (e.g., `https://your-worker.your-subdomain.workers.dev`)
+
+### Step 2: Host the Static Dashboard
+
+Choose any static hosting platform:
+
+| Platform | Instructions |
+|----------|-------------|
+| **Netlify** | Drag & drop `static/` folder to [netlify.com/drop](https://netlify.com/drop) |
+| **Vercel** | Connect your GitHub repo or use [vercel.com/new](https://vercel.com/new) |
+| **GitHub Pages** | Push to GitHub and enable Pages in repository settings |
+| **Cloudflare Pages** | Connect your repo at [pages.cloudflare.com](https://pages.cloudflare.com) |
+
+**Important**: After hosting, edit the `WORKER_URL` constant in your HTML file:
+
+```javascript
+// Change this line in your HTML file
+const WORKER_URL = 'https://your-worker.your-subdomain.workers.dev/api';
+```
+
+### Step 3: Configure Your Dashboard
+
+1. **Open your hosted dashboard**
+2. **Add subreddits**: Enter comma-separated subreddit names (e.g., `programming,webdev,javascript`)
+3. **Choose sorting**: Select `top` or `new`
+4. **Set time range**: For `top` posts, choose time period (hour, day, week, month, year, all)
+5. **Click Refresh**: Your dashboard will load the latest posts
+
+> 💡 **Pro Tip**: Responses are cached for ~10 minutes, so refreshes are fast and don't hit Reddit's API limits
+
+## 🛠️ Local Development
+
+### Prerequisites
+- Node.js 16+ 
+- Python 3 (for local server)
+
+### Setup
+
+1. **Start the Cloudflare Worker locally**:
+   ```bash
+   cd worker
+   wrangler dev --ip 127.0.0.1 --port 8787
+   ```
+
+2. **Serve the static dashboard**:
+   ```bash
+   cd static
+   python3 -m http.server 8000 --bind 127.0.0.1
+   ```
+
+3. **Open your browser**: Navigate to `http://127.0.0.1:8000/`
+
+4. **Update the worker URL** in your HTML file for local development:
+   ```javascript
+   const WORKER_URL = 'http://127.0.0.1:8787/api';
+   ```
+
+## 🎨 Customization Ideas
+
+### Easy Enhancements
+- **💾 Save subreddit lists**: Use `localStorage` to remember your favorite subreddits
+- **🔍 Add search**: Implement client-side filtering by post title/content
+- **🌙 Dark mode**: Add Tailwind `dark:` variants for better night viewing
+- **📱 Mobile optimization**: Enhance responsive design for mobile devices
+
+### Advanced Features
+- **⚡ Increase cache TTL**: Modify `s-maxage` for less frequent updates
+- **📊 Analytics**: Add post engagement metrics (upvotes, comments)
+- **🏷️ Categories**: Group subreddits by topic (tech, news, entertainment)
+- **🔔 Notifications**: Browser notifications for high-engagement posts
+
+## 📋 API Reference
+
+### Worker Endpoint
+```
+GET /api?subreddits=sub1,sub2&sort=top&t=day
+```
+
+**Parameters:**
+- `subreddits` (required): Comma-separated subreddit names
+- `sort` (optional): `top` or `new` (default: `top`)
+- `t` (optional): Time range for `top` posts (`hour`, `day`, `week`, `month`, `year`, `all`)
+
+**Response:**
+```json
+{
+  "subreddits": [
+    {
+      "name": "programming",
+      "posts": [
+        {
+          "title": "Post title",
+          "url": "https://reddit.com/...",
+          "score": 1234,
+          "comments": 56,
+          "created_utc": 1640995200
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## 🙏 Acknowledgments
+
+- Built with [Cloudflare Workers](https://workers.cloudflare.com/)
+- Styled with [Tailwind CSS](https://tailwindcss.com/)
+- Powered by [Reddit API](https://www.reddit.com/dev/api/)
