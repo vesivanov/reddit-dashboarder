@@ -1,4 +1,6 @@
 {
+  "buildCommand": null,
+  "outputDirectory": ".",
   "functions": {
     "api/reddit.js": {
       "maxDuration": 30
