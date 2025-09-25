@@ -2,6 +2,12 @@
   "functions": {
     "api/reddit.js": {
       "maxDuration": 30
+    },
+    "api/health.js": {
+      "maxDuration": 10
+    },
+    "api/test.js": {
+      "maxDuration": 15
     }
   },
   "headers": [
@@ -12,6 +18,12 @@
         { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index.html"
     }
   ]
 }
