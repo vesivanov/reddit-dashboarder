@@ -1,21 +1,22 @@
 # Reddit Highlights Dashboard
 
-A dead-simple way to skim 30+ subreddits efficiently without dealing with cron jobs, databases, or paid services. This project consists of a single Cloudflare Worker that proxies Reddit feeds and a beautiful static dashboard that renders highlights in your browser.
+A dead-simple way to skim 30+ subreddits efficiently without dealing with cron jobs, databases, or paid services. This project consists of a Vercel serverless API that proxies Reddit feeds and a beautiful static dashboard that renders highlights in your browser.
 
 ## ✨ Features
 
 - **Fast & Efficient**: Cached responses reduce Reddit API calls and improve load times
-- **No Backend Required**: Pure static frontend with serverless worker
+- **Serverless Architecture**: Vercel API routes handle Reddit data fetching
+- **Persistent Settings**: Your subreddits and preferences are saved locally with backup/restore
 - **Customizable**: Easy to modify subreddit lists and time ranges
-- **Responsive Design**: Clean, modern UI built with Tailwind CSS
-- **Free to Host**: Uses Cloudflare Workers (free tier) + any static hosting
+- **Responsive Design**: Clean, modern UI built with Tailwind CSS and React
+- **Free to Host**: Deployed on Vercel's free tier
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Static HTML   │───▶│ Cloudflare Worker│───▶│   Reddit API    │
-│   Dashboard     │    │   (Proxy/Cache)  │    │                 │
+│   Static HTML   │───▶│  Vercel API      │───▶│   Reddit API    │
+│   Dashboard     │    │  (Serverless)    │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
@@ -23,101 +24,85 @@ A dead-simple way to skim 30+ subreddits efficiently without dealing with cron j
 
 ```
 reddit-dashboard/
-├── worker/
-│   ├── worker.js          # Cloudflare Worker (API proxy & cache)
-│   ├── package.json       # Worker dependencies
-│   └── wrangler.toml      # Cloudflare Worker config
-├── static/
-│   ├── index.html         # Main dashboard (Tailwind CSS)
-│   └── react-dashboard.html # Alternative React version
+├── api/
+│   └── reddit.js          # Vercel API route (Reddit proxy & cache)
+├── index.html             # Main dashboard (React + Tailwind CSS)
+├── package.json           # Project dependencies and scripts
+├── vercel.json            # Vercel deployment configuration
 ├── .gitignore             # Git ignore rules
 └── README.md              # This file
 ```
 
 ## 🚀 Quick Start
 
-### Step 1: Deploy the Cloudflare Worker
+### Option 1: Deploy to Vercel (Recommended)
 
-Choose one of these deployment methods:
+1. **Fork this repository** or push it to your GitHub account
+2. **Go to [vercel.com](https://vercel.com)** and sign in with GitHub
+3. **Click "New Project"** and import your repository
+4. **Deploy** - Vercel will automatically detect the configuration
+5. **Your dashboard is live!** - No additional configuration needed
 
-#### Option A: Dashboard Deploy (No CLI Required)
+### Option 2: Deploy to Other Platforms
 
-1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Navigate to **Workers & Pages → Create → HTTP handler**
-3. Replace the starter code with the contents of `worker/worker.js`
-4. Click **Deploy** and copy the URL (ends with `.workers.dev`)
-5. **Optional**: Adjust cache TTL by modifying `s-maxage` in the `Cache-Control` header
+For other platforms, you'll need to:
+1. Deploy the static files (`index.html`) 
+2. Set up the API route (`api/reddit.js`) as a serverless function
+3. Update the API URL in the dashboard if needed
 
-#### Option B: CLI Deploy with Wrangler
+### Step 3: Using Your Dashboard
 
-```bash
-# Install Wrangler globally
-npm install -g wrangler@3
-
-# Authenticate with Cloudflare
-wrangler login
-
-# Deploy from worker directory
-cd worker
-wrangler deploy
-```
-
-Copy the deployed URL from the output (e.g., `https://your-worker.your-subdomain.workers.dev`)
-
-### Step 2: Host the Static Dashboard
-
-Choose any static hosting platform:
-
-| Platform | Instructions |
-|----------|-------------|
-| **Netlify** | Drag & drop `static/` folder to [netlify.com/drop](https://netlify.com/drop) |
-| **Vercel** | Connect your GitHub repo or use [vercel.com/new](https://vercel.com/new) |
-| **GitHub Pages** | Push to GitHub and enable Pages in repository settings |
-| **Cloudflare Pages** | Connect your repo at [pages.cloudflare.com](https://pages.cloudflare.com) |
-
-**Important**: After hosting, edit the `WORKER_URL` constant in your HTML file:
-
-```javascript
-// Change this line in your HTML file
-const WORKER_URL = 'https://your-worker.your-subdomain.workers.dev/api';
-```
-
-### Step 3: Configure Your Dashboard
-
-1. **Open your hosted dashboard**
+1. **Open your deployed dashboard**
 2. **Add subreddits**: Enter comma-separated subreddit names (e.g., `programming,webdev,javascript`)
-3. **Choose sorting**: Select `top` or `new`
-4. **Set time range**: For `top` posts, choose time period (hour, day, week, month, year, all)
-5. **Click Refresh**: Your dashboard will load the latest posts
+3. **Choose settings**: Select sorting mode, time range, and other preferences
+4. **Click Refresh**: Your dashboard will load the latest posts
+5. **Settings persist**: Your subreddits and preferences are automatically saved
 
-> 💡 **Pro Tip**: Responses are cached for ~10 minutes, so refreshes are fast and don't hit Reddit's API limits
+## 🔧 Features
+
+### Persistent Settings
+- **Auto-save**: Subreddits and settings are automatically saved to localStorage
+- **Backup/Restore**: Export your settings to clipboard or import from backup
+- **Dual storage**: Primary + backup storage prevents data loss
+
+### Advanced Options
+- **Sorting modes**: `new` (chronological) or `top` (by popularity)
+- **Time ranges**: Hour, day, week, month for top posts
+- **Page limits**: Control how many pages to fetch (rate limiting)
+- **Keyword filtering**: Search within fetched posts
 
 ## 🛠️ Local Development
 
 ### Prerequisites
-- Node.js 16+ 
-- Python 3 (for local server)
+- Node.js 18+
+- Vercel CLI (optional): `npm i -g vercel`
 
 ### Setup
 
-1. **Start the Cloudflare Worker locally**:
+1. **Clone the repository**:
    ```bash
-   cd worker
-   wrangler dev --ip 127.0.0.1 --port 8787
+   git clone <your-repo-url>
+   cd reddit-dashboard
    ```
 
-2. **Serve the static dashboard**:
+2. **Start local development server**:
    ```bash
-   cd static
-   python3 -m http.server 8000 --bind 127.0.0.1
+   # Option 1: Using Vercel CLI (recommended)
+   vercel dev
+
+   # Option 2: Using any static server
+   python3 -m http.server 8000
+   # Then visit http://localhost:8000
    ```
 
-3. **Open your browser**: Navigate to `http://127.0.0.1:8000/`
+3. **The API routes work automatically** - Vercel dev server handles both static files and API routes
 
-4. **Update the worker URL** in your HTML file for local development:
-   ```javascript
-   const WORKER_URL = 'http://127.0.0.1:8787/api';
-   ```
+### Testing API Directly
+
+You can test the API endpoint directly:
+```bash
+curl "http://localhost:3000/api/reddit?subs=programming&mode=new&limit=5"
+```
 
 ## 🎨 Customization Ideas
 

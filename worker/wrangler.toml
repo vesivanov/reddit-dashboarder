@@ -2,7 +2,8 @@ name = "reddit-highlights-api"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
-routes = []
+# Enable workers.dev subdomain
+workers_dev = true
 
 [vars]
 NODE_ENV = "production"
