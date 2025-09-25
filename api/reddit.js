@@ -2,8 +2,8 @@
 // Usage example:
 //   GET /api/reddit?subs=programming,technology&mode=new&days=3&limit=100&max_pages=30
 
-// Polite User-Agent + small retry/backoff helper
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+// More realistic User-Agent to avoid Reddit blocking
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -20,7 +20,13 @@ async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const res = await fetch(url, { 
-        headers: { 'User-Agent': UA },
+        headers: { 
+          'User-Agent': UA,
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -33,6 +39,13 @@ async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
       // Handle rate limiting specifically
       if (res.status === 429) {
         const errorMsg = `Rate limited by Reddit: ${text.slice(0,120)}`;
+        console.error(`fetchJSON: ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+      
+      // Handle 403 Forbidden (Reddit blocking)
+      if (res.status === 403) {
+        const errorMsg = `Reddit is blocking requests (403 Forbidden). This is likely due to rate limiting or IP restrictions. Try again later or use Reddit OAuth for higher limits.`;
         console.error(`fetchJSON: ${errorMsg}`);
         throw new Error(errorMsg);
       }
@@ -77,14 +90,20 @@ async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
   throw lastErr || new Error('fetchJSON failed');
 }
 
-// run a list of async tasks with limited concurrency
-async function runWithConcurrency(tasks, limit = 3) {
+// run a list of async tasks with limited concurrency and delays
+async function runWithConcurrency(tasks, limit = 2) { // Reduced concurrency
   const results = new Array(tasks.length);
   let next = 0;
   async function worker() {
     while (next < tasks.length) {
       const i = next++;
-      try { results[i] = await tasks[i](); }
+      try { 
+        // Add delay between subreddit requests to avoid rate limiting
+        if (i > 0) {
+          await sleep(2000 + Math.random() * 1000);
+        }
+        results[i] = await tasks[i](); 
+      }
       catch (e) { results[i] = { error: e.message }; }
     }
   }
@@ -223,8 +242,8 @@ export default async function handler(req, res) {
           const oldest = posts[posts.length - 1];
           if (!after || !oldest || oldest.created_utc < cutoff) break;
 
-          // small pause to be nice to Reddit
-          await sleep(250 + Math.random() * 250);
+          // longer pause to be nice to Reddit and avoid rate limiting
+          await sleep(1000 + Math.random() * 1000);
         }
         console.log(`Collected ${collected.length} posts from r/${sub} across ${page} pages`);
         const capped = page >= maxPagesValue;
@@ -241,8 +260,8 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log('Running tasks with concurrency limit of 3...');
-    const perSubResults = await runWithConcurrency(tasks, 3);
+    console.log('Running tasks with concurrency limit of 2 and delays...');
+    const perSubResults = await runWithConcurrency(tasks, 2);
     const results = perSubResults;
     console.log('All subreddit tasks completed. Results:', results.map(r => ({ 
       subreddit: r.subreddit, 
