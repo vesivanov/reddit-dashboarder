@@ -214,19 +214,65 @@ export default async function handler(req, res) {
 
         if (modeValue === 'top') {
           console.log(`Fetching top posts for r/${sub} with time=${time}, limit=${limitValue}`);
-          const top = await fetchJSON(`https://www.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limitValue}&raw_json=1`);
-          const posts = normalize(top);
-          console.log(`Got ${posts.length} top posts for r/${sub}`);
+          // Try multiple endpoints - some might be less blocked
+          let posts = [];
+          const endpoints = [
+            `https://www.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limitValue}&raw_json=1`,
+            `https://www.reddit.com/r/${encodeURIComponent(sub)}.json?sort=top&t=${encodeURIComponent(time)}&limit=${limitValue}`,
+            `https://old.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limitValue}`
+          ];
+          
+          for (const endpoint of endpoints) {
+            try {
+              console.log(`Trying endpoint: ${endpoint}`);
+              const top = await fetchJSON(endpoint);
+              posts = normalize(top);
+              if (posts.length > 0) {
+                console.log(`Got ${posts.length} top posts for r/${sub} from ${endpoint}`);
+                break;
+              }
+            } catch (e) {
+              console.log(`Endpoint failed: ${endpoint} - ${e.message}`);
+              continue;
+            }
+          }
           return { subreddit: sub, meta, posts, partial: false };
         }
 
-        // mode === 'new' with pagination + tiny delay between pages
+        // mode === 'new' with pagination - try multiple endpoints
         console.log(`Fetching new posts for r/${sub} with pagination (max ${maxPagesValue} pages)`);
         let after = '';
         let page = 0;
         const collected = [];
+        
+        // Try different endpoints for new posts
+        const baseEndpoints = [
+          `https://www.reddit.com/r/${encodeURIComponent(sub)}/new.json`,
+          `https://www.reddit.com/r/${encodeURIComponent(sub)}.json`,
+          `https://old.reddit.com/r/${encodeURIComponent(sub)}/new.json`
+        ];
+        
+        let workingEndpoint = null;
+        for (const baseEp of baseEndpoints) {
+          try {
+            const testEp = `${baseEp}?limit=1&raw_json=1`;
+            console.log(`Testing endpoint: ${testEp}`);
+            await fetchJSON(testEp);
+            workingEndpoint = baseEp;
+            console.log(`Found working endpoint: ${baseEp}`);
+            break;
+          } catch (e) {
+            console.log(`Endpoint failed: ${baseEp} - ${e.message}`);
+            continue;
+          }
+        }
+        
+        if (!workingEndpoint) {
+          throw new Error('All Reddit endpoints are blocked');
+        }
+        
         while (page < maxPagesValue) {
-          const ep = `https://www.reddit.com/r/${encodeURIComponent(sub)}/new.json?limit=${limitValue}${after ? `&after=${after}` : ''}&raw_json=1`;
+          const ep = `${workingEndpoint}?limit=${limitValue}${after ? `&after=${after}` : ''}&raw_json=1`;
           console.log(`Page ${page + 1} for r/${sub}: ${ep}`);
           const json = await fetchJSON(ep);
           const posts = normalize(json);
