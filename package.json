@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'No build step needed for static site'",
+    "build": "mkdir -p public && cp index.html public/ && cp -r api public/",
     "deploy": "vercel --prod"
   },
   "keywords": [
