@@ -38,14 +38,14 @@ async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
       
       // Handle rate limiting specifically
       if (res.status === 429) {
-        const errorMsg = `Rate limited by Reddit: ${text.slice(0,120)}`;
+        const errorMsg = `[RATE_LIMIT] Rate limited by Reddit: ${text.slice(0,120)}`;
         console.error(`fetchJSON: ${errorMsg}`);
         throw new Error(errorMsg);
       }
       
       // Handle 403 Forbidden (Reddit blocking)
       if (res.status === 403) {
-        const errorMsg = `Reddit is blocking requests (403 Forbidden). This is likely due to rate limiting or IP restrictions. Try again later or use Reddit OAuth for higher limits.`;
+        const errorMsg = `[RATE_LIMIT] Reddit is blocking requests (403 Forbidden). This is likely due to rate limiting or IP restrictions. Try again later or use Reddit OAuth for higher limits.`;
         console.error(`fetchJSON: ${errorMsg}`);
         throw new Error(errorMsg);
       }
@@ -58,7 +58,7 @@ async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
       
       // Check if response is HTML (rate limit page)
       if (text.includes('Too Many Requests') || text.includes('<!doctype html>')) {
-        const errorMsg = 'Reddit is rate limiting requests. Please wait a few minutes and try again. Consider using Reddit OAuth for higher limits.';
+        const errorMsg = '[RATE_LIMIT] Reddit is rate limiting requests. Please wait a few minutes and try again. Consider using Reddit OAuth for higher limits.';
         console.error(`fetchJSON: ${errorMsg}`);
         throw new Error(errorMsg);
       }
@@ -91,7 +91,7 @@ async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
 }
 
 // run a list of async tasks with limited concurrency and delays
-async function runWithConcurrency(tasks, limit = 2) { // Reduced concurrency
+async function runWithConcurrency(tasks, limit = 3) { // Slightly higher concurrency to reduce total time
   const results = new Array(tasks.length);
   let next = 0;
   async function worker() {
@@ -100,7 +100,7 @@ async function runWithConcurrency(tasks, limit = 2) { // Reduced concurrency
       try { 
         // Add delay between subreddit requests to avoid rate limiting
         if (i > 0) {
-          await sleep(2000 + Math.random() * 1000);
+          await sleep(300 + Math.random() * 300);
         }
         results[i] = await tasks[i](); 
       }
@@ -153,7 +153,7 @@ function withCORS(res) {
   return res;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Add comprehensive logging
   console.log('=== API Request Started ===');
   console.log('Method:', req.method);
@@ -287,8 +287,8 @@ export default async function handler(req, res) {
           const oldest = posts[posts.length - 1];
           if (!after || !oldest || oldest.created_utc < cutoff) break;
 
-          // longer pause to be nice to Reddit and avoid rate limiting
-          await sleep(1000 + Math.random() * 1000);
+          // modest pause between pages to avoid rate limiting while keeping things fast
+          await sleep(250 + Math.random() * 250);
         }
         console.log(`Collected ${collected.length} posts from r/${sub} across ${page} pages`);
         const capped = page >= maxPagesValue;
@@ -306,7 +306,7 @@ export default async function handler(req, res) {
     });
 
     console.log('Running tasks with concurrency limit of 2 and delays...');
-    const perSubResults = await runWithConcurrency(tasks, 2);
+    const perSubResults = await runWithConcurrency(tasks, 3);
     const results = perSubResults;
     console.log('All subreddit tasks completed. Results:', results.map(r => ({ 
       subreddit: r.subreddit, 
@@ -314,6 +314,7 @@ export default async function handler(req, res) {
       hasError: !!r.error 
     })));
 
+    const rateLimited = results.some(r => (r?.error || '').includes('[RATE_LIMIT]'));
     const responseData = {
       mode: modeValue,
       time,
@@ -322,10 +323,14 @@ export default async function handler(req, res) {
       max_pages: maxPagesValue,
       results,
       fetched_at: Date.now(),
+      rate_limited: rateLimited,
     };
 
     // Set cache headers
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=600');
+    if (rateLimited) {
+      res.setHeader('X-Rate-Limited', '1');
+    }
     
     console.log('=== API Request Completed Successfully ===');
     console.log('Response data summary:', {
@@ -349,3 +354,6 @@ export default async function handler(req, res) {
     });
   }
 }
+
+// Export for both Vercel and Express
+module.exports = handler;

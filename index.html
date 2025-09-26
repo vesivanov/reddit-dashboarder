@@ -170,37 +170,33 @@
         setSelectedPost(null);
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          const timeoutMs = Math.min(45000, 5000 + subs.length * 3000);
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
           const params = new URLSearchParams({
             subs: subs.join(','),
             mode,
             time,
             days: String(days),
-            limit: String(limit)
+            // If many subreddits are requested, cap per-page limit to reduce load
+            limit: String(subs.length > 6 ? Math.min(50, limit) : limit)
           });
           if (mode === 'new') {
-            params.set('max_pages', String(maxPages));
+            // Lower max pages by default for many subs to avoid timeouts
+            const effMaxPages = subs.length > 6 ? Math.min(10, maxPages) : maxPages;
+            params.set('max_pages', String(effMaxPages));
           }
 
-          // Try client-side Reddit API first, fallback to server API
-          let response;
-          let usedClientSide = false;
-          try {
-            // Client-side approach - make requests directly from browser
-            response = await fetchFromRedditClientSide(subs, mode, time, days, limit, maxPages, controller);
-            usedClientSide = true;
-            setFetchMethod('client');
-            console.log('Successfully used client-side fetching');
-          } catch (clientError) {
-            console.warn('Client-side fetch failed, trying server API:', clientError.message);
-            setFetchMethod('server');
-            // Fallback to server API
-            const qs = new URLSearchParams(params);
-            response = await fetch(`${apiUrl}?${qs.toString()}`, { cache: 'no-store', signal: controller.signal });
-          }
+          // Use server API directly (client-side has CORS issues)
+          setFetchMethod('server');
+          const qs = new URLSearchParams(params);
+          const response = await fetch(`${apiUrl}?${qs.toString()}`, { cache: 'no-store', signal: controller.signal });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const rateLimitedHeader = response.headers.get('X-Rate-Limited') === '1';
           const payload = await response.json();
           clearTimeout(timeoutId);
+          if (rateLimitedHeader || payload.rate_limited) {
+            setError('Reddit is rate limiting right now. Some subreddits returned no data. Try fewer subreddits, lower max pages, or wait a minute.');
+          }
           const results = Array.isArray(payload.results) ? payload.results : [];
           const perSub = subs.map(sub => {
             const match = results.find(r => (r.subreddit || '').toLowerCase() === sub.toLowerCase());
@@ -296,7 +292,7 @@
               className: 'px-4 py-2 rounded-xl bg-black text-white font-semibold shadow disabled:opacity-50',
               disabled: loading
             }, loading ? 'Fetching…' : 'Refresh')
-          )
+          ),
         ),
         h('div', { className: 'bg-white rounded-2xl shadow p-3 mb-3' },
           h('div', { className: 'flex flex-col md:flex-row gap-2 md:items-center' },
@@ -307,16 +303,37 @@
               onChange: event => setApiUrl(event.target.value)
             })
           ),
+          h('div', { className: 'flex flex-wrap items-center gap-2 mt-2' },
+            h('button', {
+              className: 'px-3 py-1 text-xs rounded-lg bg-zinc-100 hover:bg-zinc-200',
+              onClick: () => setApiUrl('/api/reddit')
+            }, 'Use Local API'),
+            h('button', {
+              className: 'px-3 py-1 text-xs rounded-lg bg-zinc-100 hover:bg-zinc-200',
+              onClick: () => {
+                const saved = localStorage.getItem('dashboard_remote_api_url') || '';
+                const input = prompt('Remote API base (e.g., https://your-app.vercel.app/api/reddit):', saved);
+                if (input) {
+                  localStorage.setItem('dashboard_remote_api_url', input);
+                  setApiUrl(input);
+                }
+              }
+            }, 'Use Remote API…')
+          ),
           h('div', { className: 'flex flex-col md:flex-row gap-2 md:items-center mt-2' },
             h('label', { className: 'text-sm text-zinc-600 md:w-28' }, 'Subreddits'),
             h('textarea', {
               className: 'flex-1 border rounded-lg px-3 py-2',
               rows: 2,
               value: subsInput,
-              placeholder: 'Enter subreddit names separated by commas (e.g., programming, technology, webdev)',
+              placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
               onChange: event => setSubsInput(event.target.value),
               onBlur: event => {
-                const list = event.target.value.split(',').map(item => item.trim()).filter(Boolean);
+                const list = event.target.value.split(',').map(item => {
+                  const trimmed = item.trim();
+                  // Remove r/ prefix if present, so both "agency" and "r/agency" work
+                  return trimmed.startsWith('r/') ? trimmed.substring(2) : trimmed;
+                }).filter(Boolean);
                 setSubs(list);
                 // Immediate backup save to localStorage
                 try {
@@ -545,158 +562,9 @@
         .replace(/&#39;/g, "'");
     }
 
-    // Client-side Reddit API fetching (bypasses server-side blocking)
-    async function fetchFromRedditClientSide(subs, mode, time, days, limit, maxPages, controller) {
-      console.log('Attempting client-side Reddit fetch for:', subs);
-      
-      const results = [];
-      const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
-      
-      for (const sub of subs) {
-        try {
-          // Fetch subreddit metadata
-          const aboutUrl = `https://www.reddit.com/r/${encodeURIComponent(sub)}/about.json`;
-          const aboutResponse = await fetch(aboutUrl, { 
-            signal: controller.signal,
-            headers: {
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache'
-            }
-          });
-          
-          let meta = null;
-          if (aboutResponse.ok) {
-            const aboutData = await aboutResponse.json();
-            meta = aboutData?.data ? {
-              subscribers: aboutData.data.subscribers || null,
-              active_user_count: aboutData.data.active_user_count || aboutData.data.accounts_active || null,
-              title: aboutData.data.title || null,
-              icon_img: aboutData.data.icon_img || null,
-              description: aboutData.data.public_description || aboutData.data.description || '',
-            } : null;
-          }
+    // Client-side Reddit API fetching removed due to CORS issues
 
-          let posts = [];
-          
-          if (mode === 'top') {
-            const topUrl = `https://www.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limit}&raw_json=1`;
-            const topResponse = await fetch(topUrl, { 
-              signal: controller.signal,
-              headers: {
-                'Accept': 'application/json',
-                'Cache-Control': 'no-cache'
-              }
-            });
-            
-            if (topResponse.ok) {
-              const topData = await topResponse.json();
-              posts = normalizeRedditData(topData);
-            }
-          } else {
-            // Fetch new posts with pagination
-            let after = '';
-            let page = 0;
-            const collected = [];
-            
-            while (page < Math.min(maxPages, 3)) { // Limit to 3 pages for client-side
-              const newUrl = `https://www.reddit.com/r/${encodeURIComponent(sub)}/new.json?limit=${limit}${after ? `&after=${after}` : ''}&raw_json=1`;
-              const newResponse = await fetch(newUrl, { 
-                signal: controller.signal,
-                headers: {
-                  'Accept': 'application/json',
-                  'Cache-Control': 'no-cache'
-                }
-              });
-              
-              if (!newResponse.ok) break;
-              
-              const newData = await newResponse.json();
-              const pagePosts = normalizeRedditData(newData);
-              if (!pagePosts.length) break;
-              
-              for (const post of pagePosts) {
-                if ((post.created_utc || 0) >= cutoff) {
-                  collected.push(post);
-                }
-              }
-              
-              after = newData?.data?.after || '';
-              page += 1;
-              
-              if (!after) break;
-              
-              // Small delay between pages
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            
-            posts = collected;
-          }
-          
-          results.push({
-            subreddit: sub,
-            meta,
-            posts,
-            partial: false,
-            error: null
-          });
-          
-          // Delay between subreddits
-          if (subs.indexOf(sub) < subs.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-          
-        } catch (error) {
-          console.error(`Client-side fetch failed for r/${sub}:`, error);
-          results.push({
-            subreddit: sub,
-            meta: null,
-            posts: [],
-            partial: false,
-            error: error.message
-          });
-        }
-      }
-      
-      // Return in the same format as server API
-      return {
-        ok: true,
-        json: async () => ({
-          mode,
-          time,
-          days,
-          limit,
-          max_pages: maxPages,
-          results,
-          fetched_at: Date.now(),
-        })
-      };
-    }
-
-    function normalizeRedditData(data) {
-      const children = data?.data?.children || [];
-      return children.map(child => {
-        const post = child.data || {};
-        return {
-          id: post.id,
-          subreddit: post.subreddit,
-          title: post.title,
-          selftext: post.selftext || '',
-          selftext_html: post.selftext_html || '',
-          author: post.author,
-          url: `https://www.reddit.com${post.permalink}`,
-          domain: post.domain,
-          score: post.score,
-          num_comments: post.num_comments,
-          created_utc: post.created_utc,
-          thumbnail: validThumbnail(post.thumbnail) ? post.thumbnail : null,
-        };
-      });
-    }
-
-    function validThumbnail(thumbnail) {
-      if (!thumbnail) return false;
-      return !['self', 'default', 'nsfw', 'image', 'spoiler'].includes(thumbnail);
-    }
+    // Removed unused client-side functions
 
     const root = createRoot(document.getElementById('root'));
     root.render(h(App));

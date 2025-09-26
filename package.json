@@ -5,6 +5,7 @@
   "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
+    "local": "node server.js",
     "build": "echo 'Static site - no build needed'",
     "deploy": "vercel --prod"
   },
@@ -19,5 +20,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
   }
 }
