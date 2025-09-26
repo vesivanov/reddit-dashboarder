@@ -386,14 +386,34 @@ async function handler(req, res) {
     const tasks = subsArray.map(sub => async () => {
       console.log(`Starting fetch for subreddit: r/${sub}`);
       try {
-        // Skip metadata fetching to avoid 403 errors - just use basic info
-        const meta = {
+        // Try to fetch subreddit metadata, but fallback to basic info if it fails
+        let meta = {
           subscribers: null,
           active_user_count: null,
           title: `r/${sub}`,
           icon_img: null,
           description: '',
         };
+        
+        // Try to get subreddit info
+        try {
+          console.log(`Attempting to fetch metadata for r/${sub}`);
+          const subInfoUrl = `https://oauth.reddit.com/r/${encodeURIComponent(sub)}/about.json`;
+          const subInfo = await fetchJSON(subInfoUrl);
+          if (subInfo?.data) {
+            meta = {
+              subscribers: subInfo.data.subscribers,
+              active_user_count: subInfo.data.active_user_count,
+              title: subInfo.data.title || `r/${sub}`,
+              icon_img: subInfo.data.icon_img,
+              description: subInfo.data.public_description || '',
+            };
+            console.log(`Got metadata for r/${sub}: ${meta.subscribers} subscribers`);
+          }
+        } catch (metaError) {
+          console.log(`Could not fetch metadata for r/${sub}: ${metaError.message}`);
+          // Keep the default meta object with null values
+        }
 
         if (modeValue === 'top') {
           console.log(`Fetching top posts for r/${sub} with time=${time}, limit=${limitValue}`);

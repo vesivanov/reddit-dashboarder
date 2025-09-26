@@ -117,3 +117,4 @@ wrangler.toml.bak
 # Build outputs
 dist/
 build/
+.vercel

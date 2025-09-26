@@ -76,15 +76,10 @@
       const [fetchedAt, setFetchedAt] = useState(null);
       const [keyword, setKeyword] = useState('');
       const [fetchMethod, setFetchMethod] = useState('server'); // Track which method was used
-      const [apiUrl, setApiUrl] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_api_url');
-          if (saved) return saved;
-        } catch (error) {
-          console.warn('Unable to read saved API URL', error);
-        }
-        return DEFAULT_API_URL;
-      });
+      const [authenticated, setAuthenticated] = useState(false);
+      const [authChecking, setAuthChecking] = useState(true);
+      const [subsExpanded, setSubsExpanded] = useState(false);
+      const [keywordExpanded, setKeywordExpanded] = useState(false);
 
       useEffect(() => {
         try {
@@ -106,15 +101,38 @@
       }, [subs]);
 
       useEffect(() => {
-        try {
-          localStorage.setItem('dashboard_api_url', apiUrl);
-        } catch (storageError) {
-          console.warn('Unable to persist API URL', storageError);
-        }
-      }, [apiUrl]);
-      useEffect(() => {
         try { localStorage.setItem('dashboard_max_pages', String(maxPages)); } catch {}
       }, [maxPages]);
+
+      useEffect(() => {
+        let cancelled = false;
+
+        async function checkAuth() {
+          setAuthChecking(true);
+          try {
+            const response = await fetch('/api/auth/status', { cache: 'no-store' });
+            if (!response.ok) throw new Error('Failed to check auth status');
+            const payload = await response.json();
+            if (!cancelled) {
+              setAuthenticated(Boolean(payload.authenticated));
+            }
+          } catch (statusError) {
+            if (!cancelled) {
+              setAuthenticated(false);
+            }
+          } finally {
+            if (!cancelled) {
+              setAuthChecking(false);
+            }
+          }
+        }
+
+        checkAuth();
+
+        return () => {
+          cancelled = true;
+        };
+      }, []);
 
       const allPosts = useMemo(() => {
         const rows = [];
@@ -193,10 +211,12 @@
           // Use server API directly (client-side has CORS issues)
           setFetchMethod('server');
           const qs = new URLSearchParams(params);
-          const response = await fetch(`${apiUrl}?${qs.toString()}`, { cache: 'no-store', signal: controller.signal });
+          const response = await fetch(`${DEFAULT_API_URL}?${qs.toString()}`, { cache: 'no-store', signal: controller.signal });
 
           if (response.status === 401) {
             setNeedsAuth(true);
+            setAuthenticated(false);
+            setAuthChecking(false);
             setError('Sign in with Reddit to fetch your dashboard.');
             setData([]);
             setFetchedAt(null);
@@ -223,6 +243,8 @@
             return { subreddit: sub, posts: [], meta: null, partial: false, error: null };
           });
           setNeedsAuth(false);
+          setAuthenticated(true);
+          setAuthChecking(false);
           setData(perSub);
           setFetchedAt(Date.now());
         } catch (fetchError) {
@@ -260,7 +282,7 @@
       return h('div', { className: 'max-w-7xl mx-auto p-4' },
         h('header', { className: 'flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4' },
           h('div', null,
-            h('h1', { className: 'text-2xl font-extrabold' }, 'Reddit Dashboard'),
+            h('h1', { className: 'text-2xl font-extrabold' }, 'Reddit Dashboarder'),
             h('p', { className: 'text-zinc-600 text-sm' }, 'Three-pane • Keyword filter • Day / 3 Days / Week • Full post body + subreddit stats')
           ),
           h('div', { className: 'flex flex-wrap items-center gap-2' },
@@ -309,111 +331,109 @@
               className: 'px-4 py-2 rounded-xl bg-black text-white font-semibold shadow disabled:opacity-50',
               disabled: loading
             }, loading ? 'Fetching…' : 'Refresh'),
-            h('button', {
-              type: 'button',
-              className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-100 transition',
-              onClick: () => { window.location.href = '/api/auth/start'; }
-            }, 'Sign in with Reddit'),
-            h('button', {
-              type: 'button',
-              className: 'px-3 py-2 rounded-xl border border-transparent bg-zinc-900 text-white hover:bg-zinc-800 transition',
-              onClick: () => { window.location.href = '/api/auth/logout'; }
-            }, 'Logout')
+            authChecking
+              ? h('div', {
+                  className: 'px-3 py-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 text-sm text-zinc-500 flex items-center gap-2'
+                },
+                  h('div', { className: 'w-3 h-3 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin' }),
+                  'Checking auth…'
+                )
+              : authenticated
+                ? h('button', {
+                    type: 'button',
+                    className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 transition-colors font-semibold shadow-sm',
+                    onClick: () => { window.location.href = '/api/auth/logout'; }
+                  }, 'Sign out')
+                : h('button', {
+                    type: 'button',
+                    className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 transition-colors font-semibold shadow-sm',
+                    onClick: () => { window.location.href = '/api/auth/start'; }
+                  }, 'Sign in')
           ),
         ),
         needsAuth ? h('div', { className: 'mb-3 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 space-y-1' },
           h('p', { className: 'font-semibold' }, 'Sign in required'),
           h('p', { className: 'text-sm' }, 'Sign in with Reddit to load personalized data for your dashboard.'),
         ) : null,
-        h('div', { className: 'bg-white rounded-2xl shadow p-3 mb-3' },
-          h('div', { className: 'flex flex-col md:flex-row gap-2 md:items-center' },
-            h('label', { className: 'text-sm text-zinc-600 md:w-28' }, 'API URL'),
-            h('input', {
-              className: 'flex-1 border rounded-lg px-3 py-2',
-              value: apiUrl,
-              onChange: event => setApiUrl(event.target.value)
-            })
-          ),
-          h('div', { className: 'flex flex-wrap items-center gap-2 mt-2' },
+        h('div', { className: 'mb-3 space-y-2' },
+          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
             h('button', {
-              className: 'px-3 py-1 text-xs rounded-lg bg-zinc-100 hover:bg-zinc-200',
-              onClick: () => setApiUrl('/api/reddit')
-            }, 'Use Local API'),
-            h('button', {
-              className: 'px-3 py-1 text-xs rounded-lg bg-zinc-100 hover:bg-zinc-200',
-              onClick: () => {
-                const saved = localStorage.getItem('dashboard_remote_api_url') || '';
-                const input = prompt('Remote API base (e.g., https://your-app.vercel.app/api/reddit):', saved);
-                if (input) {
-                  localStorage.setItem('dashboard_remote_api_url', input);
-                  setApiUrl(input);
-                }
-              }
-            }, 'Use Remote API…')
-          ),
-          h('div', { className: 'flex flex-col md:flex-row gap-2 md:items-center mt-2' },
-            h('label', { className: 'text-sm text-zinc-600 md:w-28' }, 'Subreddits'),
-            h('textarea', {
-              className: 'flex-1 border rounded-lg px-3 py-2',
-              rows: 2,
-              value: subsInput,
-              placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
-              onChange: event => setSubsInput(event.target.value),
-              onBlur: event => {
-                const list = event.target.value.split(',').map(item => {
-                  const trimmed = item.trim();
-                  // Remove r/ prefix if present, so both "agency" and "r/agency" work
-                  return trimmed.startsWith('r/') ? trimmed.substring(2) : trimmed;
-                }).filter(Boolean);
-                setSubs(list);
-                // Immediate backup save to localStorage
-                try {
-                  localStorage.setItem('dashboard_subs', JSON.stringify(list));
-                  localStorage.setItem('dashboard_subs_backup', JSON.stringify(list));
-                } catch (e) {
-                  console.warn('Failed to save subreddits:', e);
-                }
-              }
-            })
-          ),
-          h('div', { className: 'flex flex-col md:flex-row gap-2 md:items-center mt-2' },
-            h('label', { className: 'text-sm text-zinc-600 md:w-28' }, 'Keyword'),
-            h('input', {
-              className: 'flex-1 border rounded-lg px-3 py-2',
-              value: keyword,
-              onChange: event => setKeyword(event.target.value),
-              placeholder: 'Type a keyword or phrase'
-            })
-          ),
-          h('div', { className: 'flex flex-wrap gap-2 mt-3 pt-3 border-t border-zinc-200' },
-            h('button', {
-              className: 'px-3 py-1 text-xs rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200',
-              onClick: () => {
-                const backup = JSON.stringify({ subs, apiUrl, maxPages });
-                navigator.clipboard.writeText(backup);
-                alert('Settings copied to clipboard!');
-              }
-            }, '📋 Export Settings'),
-            h('button', {
-              className: 'px-3 py-1 text-xs rounded-lg bg-green-100 text-green-700 hover:bg-green-200',
-              onClick: () => {
-                const input = prompt('Paste your settings backup:');
-                if (input) {
+              className: 'w-full flex items-center justify-between text-left',
+              onClick: () => setSubsExpanded(!subsExpanded)
+            },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'font-medium' }, 'Subreddits'),
+                subs.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${subs.length} added`)
+              ),
+              h('span', { className: 'text-zinc-400' }, subsExpanded ? '▼' : '▶')
+            ),
+            subsExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200' },
+              h('textarea', {
+                className: 'w-full border rounded-lg px-3 py-2 text-sm',
+                rows: 3,
+                value: subsInput,
+                placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
+                onChange: event => setSubsInput(event.target.value),
+                onBlur: event => {
+                  const list = event.target.value.split(',').map(item => {
+                    const trimmed = item.trim();
+                    return trimmed.startsWith('r/') ? trimmed.substring(2) : trimmed;
+                  }).filter(Boolean);
+                  setSubs(list);
                   try {
-                    const parsed = JSON.parse(input);
-                    if (parsed.subs) setSubs(parsed.subs);
-                    if (parsed.apiUrl) setApiUrl(parsed.apiUrl);
-                    if (parsed.workerUrl) setApiUrl(parsed.workerUrl); // backward compatibility
-                    if (parsed.maxPages) setMaxPages(parsed.maxPages);
-                    alert('Settings restored!');
+                    localStorage.setItem('dashboard_subs', JSON.stringify(list));
+                    localStorage.setItem('dashboard_subs_backup', JSON.stringify(list));
                   } catch (e) {
-                    alert('Invalid backup format');
+                    console.warn('Failed to save subreddits:', e);
                   }
                 }
-              }
-            }, '📥 Import Settings'),
-            h('span', { className: 'text-xs text-zinc-500 self-center' },
-              `Saved: ${localStorage.getItem('dashboard_subs_last_saved')?.slice(11, 19) || 'Never'}`
+              }),
+              h('div', { className: 'flex flex-wrap gap-2 mt-2' },
+                h('button', {
+                  className: 'px-2 py-1 text-xs rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200',
+                  onClick: () => {
+                    const backup = JSON.stringify({ subs, maxPages });
+                    navigator.clipboard.writeText(backup);
+                    alert('Settings copied to clipboard!');
+                  }
+                }, '📋 Export'),
+                h('button', {
+                  className: 'px-2 py-1 text-xs rounded-lg bg-green-100 text-green-700 hover:bg-green-200',
+                  onClick: () => {
+                    const input = prompt('Paste your settings backup:');
+                    if (input) {
+                      try {
+                        const parsed = JSON.parse(input);
+                        if (parsed.subs) setSubs(parsed.subs);
+                        if (parsed.maxPages) setMaxPages(parsed.maxPages);
+                        alert('Settings restored!');
+                      } catch (e) {
+                        alert('Invalid backup format');
+                      }
+                    }
+                  }
+                }, '📥 Import')
+              )
+            )
+          ),
+          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
+            h('button', {
+              className: 'w-full flex items-center justify-between text-left',
+              onClick: () => setKeywordExpanded(!keywordExpanded)
+            },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'font-medium' }, 'Search'),
+                keyword && h('span', { className: 'px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs' }, `"${keyword}"`)
+              ),
+              h('span', { className: 'text-zinc-400' }, keywordExpanded ? '▼' : '▶')
+            ),
+            keywordExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200' },
+              h('input', {
+                className: 'w-full border rounded-lg px-3 py-2 text-sm',
+                value: keyword,
+                onChange: event => setKeyword(event.target.value),
+                placeholder: 'Type a keyword or phrase to search posts...'
+              })
             )
           )
         ),
@@ -428,42 +448,50 @@
         ),
         h('div', { className: 'grid grid-cols-1 lg:grid-cols-12 gap-4' },
           h('aside', { className: 'lg:col-span-3 bg-white rounded-2xl shadow p-3' },
-            h('div', { className: 'flex items-center justify-between mb-2' },
+            h('div', { className: 'flex items-center justify-between mb-3' },
               h('h2', { className: 'font-semibold' }, 'Subreddits'),
               h('button', {
-                className: 'text-xs px-2 py-1 rounded-lg bg-zinc-100',
+                className: 'text-xs px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200',
                 onClick: () => setSelectedSub('ALL')
               }, 'All')
             ),
             subs.length === 0 
-              ? h('div', { className: 'text-sm text-zinc-500 italic' }, 'No subreddits added yet')
-              : h('ul', { className: 'space-y-1 max-h-[70vh] overflow-auto' },
+              ? h('div', { className: 'text-sm text-zinc-500 italic text-center py-8' }, 
+                  h('div', { className: 'space-y-2' },
+                    h('div', null, 'No subreddits added yet'),
+                    h('div', { className: 'text-xs' }, 'Click "Subreddits" above to add some')
+                  )
+                )
+              : h('div', { className: 'space-y-2 max-h-[70vh] overflow-auto' },
                   subs.map(sub => {
                     const meta = subMetaMap.get(sub) || {};
                     const capped = subPartialMap.get(sub);
-                    return h('li', { key: sub },
+                    const postCount = allPosts.filter(post => post.subreddit?.toLowerCase() === sub.toLowerCase()).length;
+                    return h('div', { key: sub, className: 'border border-zinc-200 rounded-lg p-3 hover:border-zinc-300 transition-colors' },
                       h('button', {
                         onClick: () => setSelectedSub(sub),
-                        className: `w-full text-left px-2 py-2 rounded-lg hover:bg-zinc-100 ${selectedSub === sub ? 'bg-zinc-100 font-semibold' : 'text-zinc-800'}`
+                        className: `w-full text-left ${selectedSub === sub ? 'font-semibold' : ''}`
                       },
-                        h('div', { className: 'flex items-center justify-between' },
-                          h('span', null, `r/${sub}`),
-                          h('span', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
-                            capped ? h('span', { className: 'px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200' }, 'capped') : null,
-                            `${formatSubs(meta.subscribers)} subs${meta.active_user_count ? ` • ${formatSubs(meta.active_user_count)} active` : ''}`
-                          )
+                        h('div', { className: 'flex items-center justify-between mb-2' },
+                          h('span', { className: 'text-sm font-medium' }, `r/${sub}`),
+                          h('span', { className: 'text-xs text-zinc-500' }, `${postCount} posts`)
+                        ),
+                        h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
+                          h('span', null, `${formatSubs(meta.subscribers)} subscribers`),
+                          meta.active_user_count && h('span', null, `• ${formatSubs(meta.active_user_count)} active`),
+                          capped && h('span', { className: 'px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200' }, 'capped')
                         )
                       )
                     );
                   })
                 ),
-            h('p', { className: 'text-[11px] text-zinc-500 mt-2' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren’t available via public endpoints.')
+            subs.length > 0 && h('p', { className: 'text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-200' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren\'t available via public endpoints.')
           ),
           h('main', { className: 'lg:col-span-5 bg-white rounded-2xl shadow p-3 max-h-[80vh] overflow-auto' },
-            h('h2', { className: 'font-semibold mb-2' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
+            h('h2', { className: 'font-semibold mb-3' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
             visiblePosts.length === 0 && h('div', { className: 'text-sm text-zinc-500' }, 
               subs.length === 0 
-                ? 'Add some subreddits above to get started!'
+                ? 'Add some subreddits to get started!'
                 : 'No posts. Try Refresh or adjust filters.'
             ),
             h('ul', { className: 'divide-y' },
