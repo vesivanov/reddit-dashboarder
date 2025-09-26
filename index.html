@@ -69,6 +69,7 @@
       });
       const [loading, setLoading] = useState(false);
       const [error, setError] = useState('');
+      const [needsAuth, setNeedsAuth] = useState(false);
       const [data, setData] = useState([]);
       const [selectedSub, setSelectedSub] = useState('ALL');
       const [selectedPost, setSelectedPost] = useState(null);
@@ -159,6 +160,7 @@
 
       async function refresh() {
         if (!subs.length) {
+          setNeedsAuth(false);
           setError('Please add at least one subreddit.');
           setData([]);
           setFetchedAt(null);
@@ -167,11 +169,13 @@
 
         setLoading(true);
         setError('');
+        setNeedsAuth(false);
         setSelectedPost(null);
+        const controller = new AbortController();
+        const timeoutMs = Math.min(45000, 5000 + subs.length * 3000);
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
         try {
-          const controller = new AbortController();
-          const timeoutMs = Math.min(45000, 5000 + subs.length * 3000);
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
           const params = new URLSearchParams({
             subs: subs.join(','),
             mode,
@@ -190,10 +194,19 @@
           setFetchMethod('server');
           const qs = new URLSearchParams(params);
           const response = await fetch(`${apiUrl}?${qs.toString()}`, { cache: 'no-store', signal: controller.signal });
+
+          if (response.status === 401) {
+            setNeedsAuth(true);
+            setError('Sign in with Reddit to fetch your dashboard.');
+            setData([]);
+            setFetchedAt(null);
+            return;
+          }
+
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
           const rateLimitedHeader = response.headers.get('X-Rate-Limited') === '1';
           const payload = await response.json();
-          clearTimeout(timeoutId);
           if (rateLimitedHeader || payload.rate_limited) {
             setError('Reddit is rate limiting right now. Some subreddits returned no data. Try fewer subreddits, lower max pages, or wait a minute.');
           }
@@ -209,11 +222,14 @@
             };
             return { subreddit: sub, posts: [], meta: null, partial: false, error: null };
           });
+          setNeedsAuth(false);
           setData(perSub);
           setFetchedAt(Date.now());
         } catch (fetchError) {
+          setNeedsAuth(false);
           if (fetchError && fetchError.name === 'AbortError') {
-            setError('Request timed out (15s). Reddit may be rate limiting. Try fewer subreddits or try again.');
+            const seconds = Math.round(timeoutMs / 1000);
+            setError(`Request timed out (${seconds}s). Reddit may be rate limiting. Try fewer subreddits or try again.`);
           } else if (fetchError && typeof fetchError.message === 'string' && fetchError.message.toLowerCase().includes('rate')) {
             setError('Reddit is rate limiting right now. Please wait a minute and try again.');
           } else {
@@ -222,6 +238,7 @@
           setData([]);
           setFetchedAt(null);
         } finally {
+          clearTimeout(timeoutId);
           setLoading(false);
         }
       }
@@ -291,9 +308,23 @@
               onClick: refresh,
               className: 'px-4 py-2 rounded-xl bg-black text-white font-semibold shadow disabled:opacity-50',
               disabled: loading
-            }, loading ? 'Fetching…' : 'Refresh')
+            }, loading ? 'Fetching…' : 'Refresh'),
+            h('button', {
+              type: 'button',
+              className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-100 transition',
+              onClick: () => { window.location.href = '/api/auth/start'; }
+            }, 'Sign in with Reddit'),
+            h('button', {
+              type: 'button',
+              className: 'px-3 py-2 rounded-xl border border-transparent bg-zinc-900 text-white hover:bg-zinc-800 transition',
+              onClick: () => { window.location.href = '/api/auth/logout'; }
+            }, 'Logout')
           ),
         ),
+        needsAuth ? h('div', { className: 'mb-3 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 space-y-1' },
+          h('p', { className: 'font-semibold' }, 'Sign in required'),
+          h('p', { className: 'text-sm' }, 'Sign in with Reddit to load personalized data for your dashboard.'),
+        ) : null,
         h('div', { className: 'bg-white rounded-2xl shadow p-3 mb-3' },
           h('div', { className: 'flex flex-col md:flex-row gap-2 md:items-center' },
             h('label', { className: 'text-sm text-zinc-600 md:w-28' }, 'API URL'),

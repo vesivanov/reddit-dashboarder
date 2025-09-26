@@ -2,92 +2,261 @@
 // Usage example:
 //   GET /api/reddit?subs=programming,technology&mode=new&days=3&limit=100&max_pages=30
 
+const { readSignedCookie, makeSignedCookie, clearCookie } = require('../lib/cookies');
+
 // More realistic User-Agent to avoid Reddit blocking
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const USER_AGENT = process.env.REDDIT_USER_AGENT || DEFAULT_UA;
+const TOKEN_ENDPOINT = 'https://www.reddit.com/api/v1/access_token';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
-  let attempt = 0, lastErr;
-  console.log(`fetchJSON: Starting request to ${url} (max ${tries} tries)`);
-  
-  while (attempt < tries) {
-    try {
-      console.log(`fetchJSON: Attempt ${attempt + 1}/${tries} for ${url}`);
-      
-      // Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const res = await fetch(url, { 
-        headers: { 
-          'User-Agent': UA,
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        signal: controller.signal
+function appendSetCookie(res, cookie) {
+  if (!cookie) return;
+  const existing = res.getHeader('Set-Cookie');
+  if (!existing) {
+    res.setHeader('Set-Cookie', [cookie]);
+  } else if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', existing.concat(cookie));
+  } else {
+    res.setHeader('Set-Cookie', [existing, cookie]);
+  }
+}
+
+async function requestTokenRefresh(refreshTokenValue) {
+  const clientId = process.env.REDDIT_CLIENT_ID;
+  const clientSecret = process.env.REDDIT_CLIENT_SECRET;
+  const userAgent = process.env.REDDIT_USER_AGENT || USER_AGENT;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing Reddit OAuth client credentials');
+  }
+
+  const form = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshTokenValue,
+  });
+
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  const response = await fetch(TOKEN_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basic}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': userAgent,
+    },
+    body: form.toString(),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(`Refresh token request failed: ${text}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+function createTokenManager(req, res) {
+  let access = readSignedCookie(req, 'access');
+  let refresh = readSignedCookie(req, 'refresh');
+  let refreshingPromise = null;
+
+  async function refreshAccessToken() {
+    if (!refresh) return null;
+    if (!refreshingPromise) {
+      refreshingPromise = (async () => {
+        console.log('Token manager: refreshing Reddit access token');
+        const data = await requestTokenRefresh(refresh);
+        access = data.access_token;
+        const accessMaxAge = Math.max(0, (data.expires_in || 3600) - 10);
+        appendSetCookie(res, makeSignedCookie('access', access, { maxAge: accessMaxAge }));
+        if (data.refresh_token) {
+          refresh = data.refresh_token;
+          appendSetCookie(res, makeSignedCookie('refresh', refresh, { maxAge: 60 * 60 * 24 * 30 }));
+        }
+        return access;
+      })().catch((err) => {
+        console.error('Token manager: refresh failed', err);
+        access = null;
+        refresh = null;
+        appendSetCookie(res, clearCookie('access'));
+        appendSetCookie(res, clearCookie('refresh'));
+        throw err;
+      }).finally(() => {
+        refreshingPromise = null;
       });
-      clearTimeout(timeoutId);
-      
-      console.log(`fetchJSON: Got response ${res.status} ${res.statusText} for ${url}`);
-      
-      const text = await res.text(); // Reddit sometimes returns HTML rate pages
-      console.log(`fetchJSON: Response body length: ${text.length} chars`);
-      
-      // Handle rate limiting specifically
-      if (res.status === 429) {
-        const errorMsg = `[RATE_LIMIT] Rate limited by Reddit: ${text.slice(0,120)}`;
-        console.error(`fetchJSON: ${errorMsg}`);
-        throw new Error(errorMsg);
+    }
+    return refreshingPromise;
+  }
+
+  async function ensureToken() {
+    if (access) return access;
+    return refreshAccessToken();
+  }
+
+  return {
+    ensureToken,
+    refreshAccessToken,
+    hasRefresh: () => Boolean(refresh),
+  };
+}
+
+function toOAuthUrl(inputUrl) {
+  try {
+    const parsed = new URL(inputUrl);
+    if (parsed.hostname.endsWith('reddit.com') && parsed.hostname !== 'oauth.reddit.com') {
+      parsed.hostname = 'oauth.reddit.com';
+    }
+    return parsed.toString();
+  } catch (err) {
+    console.warn('Unable to normalise URL for OAuth, using original:', inputUrl, err.message);
+    return inputUrl;
+  }
+}
+
+function createFetchJSON(tokenManager) {
+  return async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
+    let attempt = 0;
+    let lastErr;
+    console.log(`fetchJSON: Starting request to ${url} (max ${tries} tries)`);
+
+    while (attempt < tries) {
+      let refreshed = false;
+
+      while (true) {
+        let token;
+        try {
+          token = await tokenManager.ensureToken();
+        } catch (tokenErr) {
+          throw tokenErr;
+        }
+
+        if (!token) {
+          const err = new Error('Not authenticated');
+          err.code = 'NOT_AUTHENTICATED';
+          throw err;
+        }
+
+        const targetUrl = toOAuthUrl(url);
+        console.log(`fetchJSON: Attempt ${attempt + 1}/${tries} for ${targetUrl}`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        try {
+          const res = await fetch(targetUrl, {
+            headers: {
+              'User-Agent': USER_AGENT,
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              Authorization: `Bearer ${token}`,
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+
+          console.log(`fetchJSON: Got response ${res.status} ${res.statusText} for ${targetUrl}`);
+
+          const text = await res.text();
+          console.log(`fetchJSON: Response body length: ${text.length} chars`);
+
+          if (res.status === 401) {
+            if (tokenManager.hasRefresh() && !refreshed) {
+              console.warn('fetchJSON: Access token expired, attempting refresh');
+              try {
+                const newToken = await tokenManager.refreshAccessToken();
+                if (!newToken) {
+                  const err = new Error('Not authenticated');
+                  err.code = 'NOT_AUTHENTICATED';
+                  throw err;
+                }
+                refreshed = true;
+                continue;
+              } catch (refreshErr) {
+                lastErr = refreshErr;
+                break;
+              }
+            }
+            const err = new Error('Not authenticated');
+            err.status = 401;
+            err.code = 'NOT_AUTHENTICATED';
+            throw err;
+          }
+
+          if (res.status === 429) {
+            const errorMsg = `[RATE_LIMIT] Rate limited by Reddit: ${text.slice(0,120)}`;
+            console.error(`fetchJSON: ${errorMsg}`);
+            throw new Error(errorMsg);
+          }
+
+          if (res.status === 403) {
+            const errorMsg = `[RATE_LIMIT] Reddit is blocking requests (403 Forbidden). This is likely due to rate limiting or IP restrictions. Try again later or use Reddit OAuth for higher limits.`;
+            console.error(`fetchJSON: ${errorMsg}`);
+            throw new Error(errorMsg);
+          }
+
+          if (!res.ok) {
+            const errorMsg = `Upstream ${res.status}: ${text.slice(0,120)}`;
+            console.error(`fetchJSON: ${errorMsg}`);
+            throw new Error(errorMsg);
+          }
+
+          if (text.includes('Too Many Requests') || text.includes('<!doctype html>')) {
+            const errorMsg = '[RATE_LIMIT] Reddit is rate limiting requests. Please wait a few minutes and try again. Consider using Reddit OAuth for higher limits.';
+            console.error(`fetchJSON: ${errorMsg}`);
+            throw new Error(errorMsg);
+          }
+
+          try {
+            const json = JSON.parse(text);
+            console.log(`fetchJSON: Successfully parsed JSON for ${targetUrl}`);
+            return json;
+          } catch (parseErr) {
+            const errorMsg = 'Invalid JSON body';
+            console.error(`fetchJSON: ${errorMsg}. Body preview: ${text.slice(0, 200)}`);
+            throw new Error(errorMsg);
+          }
+        } catch (err) {
+          clearTimeout(timeoutId);
+          if (err.code === 'NOT_AUTHENTICATED') {
+            throw err;
+          }
+
+          if (err.name === 'AbortError') {
+            console.error(`fetchJSON: Request aborted for ${targetUrl}`);
+            err = new Error('Request timeout');
+          }
+
+          if (err.status === 401 && refreshed) {
+            err.code = 'NOT_AUTHENTICATED';
+            throw err;
+          }
+
+          lastErr = err;
+          console.error(`fetchJSON: Attempt ${attempt + 1} failed for ${targetUrl}:`, err.message);
+          break;
+        }
       }
-      
-      // Handle 403 Forbidden (Reddit blocking)
-      if (res.status === 403) {
-        const errorMsg = `[RATE_LIMIT] Reddit is blocking requests (403 Forbidden). This is likely due to rate limiting or IP restrictions. Try again later or use Reddit OAuth for higher limits.`;
-        console.error(`fetchJSON: ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
-      
-      if (!res.ok) {
-        const errorMsg = `Upstream ${res.status}: ${text.slice(0,120)}`;
-        console.error(`fetchJSON: ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
-      
-      // Check if response is HTML (rate limit page)
-      if (text.includes('Too Many Requests') || text.includes('<!doctype html>')) {
-        const errorMsg = '[RATE_LIMIT] Reddit is rate limiting requests. Please wait a few minutes and try again. Consider using Reddit OAuth for higher limits.';
-        console.error(`fetchJSON: ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
-      
-      // try parse JSON
-      try { 
-        const json = JSON.parse(text);
-        console.log(`fetchJSON: Successfully parsed JSON for ${url}`);
-        return json;
-      } catch { 
-        const errorMsg = 'Invalid JSON body';
-        console.error(`fetchJSON: ${errorMsg}. Body preview: ${text.slice(0, 200)}`);
-        throw new Error(errorMsg);
-      }
-    } catch (e) {
-      lastErr = e;
-      attempt++;
-      console.error(`fetchJSON: Attempt ${attempt} failed for ${url}:`, e.message);
-      
+
+      attempt += 1;
       if (attempt < tries) {
-        // backoff with jitter (esp. on 429/5xx)
-        const delay = baseDelay * Math.pow(2, attempt-1) + Math.random()*250;
+        const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 250;
         console.log(`fetchJSON: Waiting ${Math.round(delay)}ms before retry ${attempt + 1}/${tries}`);
         await sleep(delay);
       }
     }
-  }
-  console.error(`fetchJSON: All ${tries} attempts failed for ${url}`);
-  throw lastErr || new Error('fetchJSON failed');
+
+    console.error(`fetchJSON: All ${tries} attempts failed for ${url}`);
+    if (lastErr && lastErr.code === 'NOT_AUTHENTICATED') {
+      throw lastErr;
+    }
+    throw lastErr || new Error('fetchJSON failed');
+  };
 }
 
 // run a list of async tasks with limited concurrency and delays
@@ -193,6 +362,20 @@ async function handler(req, res) {
   if (!subsArray.length) {
     console.log('Error: No subreddits provided');
     return withCORS(res).status(400).json({ error: 'Missing subs param' });
+  }
+
+  const tokenManager = createTokenManager(req, res);
+  let fetchJSON;
+  try {
+    const token = await tokenManager.ensureToken();
+    if (!token) {
+      console.log('No Reddit access token found; user must authenticate');
+      return withCORS(res).status(401).json({ error: 'Not authenticated' });
+    }
+    fetchJSON = createFetchJSON(tokenManager);
+  } catch (error) {
+    console.error('Error establishing Reddit token manager:', error);
+    return withCORS(res).status(500).json({ error: 'OAuth configuration error', message: error.message });
   }
 
   try {
@@ -347,6 +530,11 @@ async function handler(req, res) {
       message: error.message,
       stack: error.stack
     });
+
+    if (error.code === 'NOT_AUTHENTICATED' || error.status === 401) {
+      return withCORS(res).status(401).json({ error: 'Not authenticated' });
+    }
+
     return withCORS(res).status(500).json({ 
       error: 'Internal server error',
       message: error.message,
