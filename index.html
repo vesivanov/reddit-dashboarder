@@ -17,7 +17,7 @@
 <body class="bg-zinc-50 min-h-screen text-zinc-900">
   <div id="root"></div>
   <script>
-    const { useEffect, useMemo, useState } = React;
+    const { useEffect, useMemo, useState, useCallback } = React;
     const { createRoot } = ReactDOM;
     const h = React.createElement;
 
@@ -80,6 +80,34 @@
       const [authChecking, setAuthChecking] = useState(true);
       const [subsExpanded, setSubsExpanded] = useState(false);
       const [keywordExpanded, setKeywordExpanded] = useState(false);
+      const [insightsExpanded, setInsightsExpanded] = useState(false);
+      const [insightRange, setInsightRange] = useState(() => {
+        try {
+          return localStorage.getItem('dashboard_insight_range') || 'day';
+        } catch {
+          return 'day';
+        }
+      });
+      const [enabledInsights, setEnabledInsights] = useState(() => {
+        try {
+          const stored = localStorage.getItem('dashboard_insight_toggles');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            return {
+              topScoreDelta: parsed.topScoreDelta !== false,
+              subredditActivity: parsed.subredditActivity !== false,
+              keywordFrequency: parsed.keywordFrequency !== false,
+            };
+          }
+        } catch (error) {
+          console.warn('Unable to read insight toggles', error);
+        }
+        return {
+          topScoreDelta: true,
+          subredditActivity: true,
+          keywordFrequency: true,
+        };
+      });
 
       useEffect(() => {
         try {
@@ -103,6 +131,14 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_max_pages', String(maxPages)); } catch {}
       }, [maxPages]);
+
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_insight_range', insightRange); } catch {}
+      }, [insightRange]);
+
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_insight_toggles', JSON.stringify(enabledInsights)); } catch {}
+      }, [enabledInsights]);
 
       useEffect(() => {
         let cancelled = false;
@@ -175,6 +211,19 @@
         }
         return map;
       }, [data]);
+
+      const insightTimeframe = useMemo(() => buildInsightTimeframe(insightRange), [insightRange]);
+      const insightFilters = useMemo(() => ({
+        selectedSubreddits: selectedSub === 'ALL' ? undefined : [selectedSub],
+        keywordQuery: keyword.trim(),
+        timeframe: insightTimeframe,
+      }), [selectedSub, keyword, insightTimeframe]);
+      const dashboardInsights = useMemo(() => computeDashboardInsights(allPosts, insightFilters), [allPosts, insightFilters]);
+      const insightTimeframeLabel = useMemo(() => formatInsightTimeframe(insightTimeframe), [insightTimeframe]);
+
+      const handleToggleInsight = useCallback((key, enabled) => {
+        setEnabledInsights(current => ({ ...current, [key]: enabled }));
+      }, []);
 
       async function refresh() {
         if (!subs.length) {
@@ -355,7 +404,7 @@
           h('p', { className: 'font-semibold' }, 'Sign in required'),
           h('p', { className: 'text-sm' }, 'Sign in with Reddit to load personalized data for your dashboard.'),
         ) : null,
-        h('div', { className: 'mb-3 space-y-2' },
+          h('div', { className: 'mb-3 space-y-2' },
           h('div', { className: 'bg-white rounded-2xl shadow p-3' },
             h('button', {
               className: 'w-full flex items-center justify-between text-left',
@@ -434,6 +483,48 @@
                 onChange: event => setKeyword(event.target.value),
                 placeholder: 'Type a keyword or phrase to search posts...'
               })
+            )
+          ),
+          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
+            h('button', {
+              className: 'w-full flex items-center justify-between text-left',
+              onClick: () => setInsightsExpanded(!insightsExpanded)
+            },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'font-medium' }, 'Insights'),
+                h('span', { className: 'px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs' }, `${Object.values(enabledInsights).filter(Boolean).length} visible`)
+              ),
+              h('span', { className: 'text-zinc-400' }, insightsExpanded ? '▼' : '▶')
+            ),
+            insightsExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-3' },
+              h('div', { className: 'space-y-2' },
+                [
+                  ['topScoreDelta', 'Top score delta'],
+                  ['subredditActivity', 'Subreddit activity'],
+                  ['keywordFrequency', 'Keyword frequency'],
+                ].map(([key, label]) => h('label', { key, className: 'flex items-center gap-2 text-sm' },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: enabledInsights[key],
+                    onChange: event => handleToggleInsight(key, event.target.checked)
+                  }),
+                  h('span', { className: 'text-zinc-700' }, label)
+                ))
+              ),
+              h('label', { className: 'block text-sm space-y-1' },
+                h('span', { className: 'text-xs text-zinc-500 uppercase tracking-wide' }, 'Timeframe'),
+                h('select', {
+                  className: 'w-full border rounded-lg px-3 py-2 text-sm',
+                  value: insightRange,
+                  onChange: event => setInsightRange(event.target.value)
+                },
+                  h('option', { value: 'day' }, 'Past 24 hours'),
+                  h('option', { value: '3days' }, 'Past 3 days'),
+                  h('option', { value: 'week' }, 'Past 7 days'),
+                  h('option', { value: 'all' }, 'All available data')
+                )
+              ),
+              h('p', { className: 'text-xs text-zinc-500' }, `Window: ${insightTimeframeLabel}`)
             )
           )
         ),
@@ -523,33 +614,257 @@
               )
             )
           ),
-          h('section', { className: 'lg:col-span-4 bg-white rounded-2xl shadow p-3 max-h-[80vh] overflow-auto' },
-            h('h2', { className: 'font-semibold mb-2' }, 'Post'),
-            !selectedPost
-              ? h('div', { className: 'text-sm text-zinc-500' }, 'Select a post to preview.')
-              : h('article', null,
-                  h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
-                    h('span', { className: 'tracking-wide uppercase' }, timeAgo(selectedPost.created_utc)),
-                    h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${selectedPost.subreddit}`)
-                  ),
-                  h('h3', { className: 'text-lg font-bold mt-1 mb-2' }, selectedPost.title || ''),
-                  h('div', { className: 'flex flex-wrap items-center gap-2 text-sm mb-3' },
-                    h('span', { className: 'px-2 py-0.5 rounded bg-green-100 text-green-700 font-semibold' }, `▲ ${selectedPost.score} upvotes`),
-                    h('span', { className: 'px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-semibold' }, '💬 ' + String(selectedPost.num_comments) + ' comments'),
-                    h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
-                  ),
-                  renderBody(selectedPost),
-                  h('a', {
-                    href: selectedPost.url,
-                    target: '_blank',
-                    rel: 'noreferrer',
-                    className: 'inline-block mt-4 px-4 py-2 rounded-xl bg-black text-white font-semibold shadow'
-                  }, 'Open on Reddit')
-                )
+          h('div', { className: 'lg:col-span-4 flex flex-col gap-4 max-h-[80vh]' },
+            h(InsightsPanel, {
+              insights: dashboardInsights,
+              enabledInsights,
+              onToggle: handleToggleInsight,
+              timeframeLabel: insightTimeframeLabel,
+            }),
+            h('section', { className: 'bg-white rounded-2xl shadow p-3 flex-1 overflow-auto' },
+              h('h2', { className: 'font-semibold mb-2' }, 'Post'),
+              !selectedPost
+                ? h('div', { className: 'text-sm text-zinc-500' }, 'Select a post to preview.')
+                : h('article', null,
+                    h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
+                      h('span', { className: 'tracking-wide uppercase' }, timeAgo(selectedPost.created_utc)),
+                      h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${selectedPost.subreddit}`)
+                    ),
+                    h('h3', { className: 'text-lg font-bold mt-1 mb-2' }, selectedPost.title || ''),
+                    h('div', { className: 'flex flex-wrap items-center gap-2 text-sm mb-3' },
+                      h('span', { className: 'px-2 py-0.5 rounded bg-green-100 text-green-700 font-semibold' }, `▲ ${selectedPost.score} upvotes`),
+                      h('span', { className: 'px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-semibold' }, '💬 ' + String(selectedPost.num_comments) + ' comments'),
+                      h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
+                    ),
+                    renderBody(selectedPost),
+                    h('a', {
+                      href: selectedPost.url,
+                      target: '_blank',
+                      rel: 'noreferrer',
+                      className: 'inline-block mt-4 px-4 py-2 rounded-xl bg-black text-white font-semibold shadow'
+                    }, 'Open on Reddit')
+                  )
+            )
           )
         )
       );
 
+    }
+
+    const INSIGHT_LABELS = {
+      topScoreDelta: 'Risers',
+      subredditActivity: 'Active subreddits',
+      keywordFrequency: 'Trending keywords',
+    };
+
+    const INSIGHT_STOP_WORDS = new Set(['a','an','and','are','as','at','be','but','by','for','from','has','have','in','into','is','it','its','of','on','or','that','the','their','there','to','was','were','will','with','you','your','i','we','they','this','those','these','what','when','where','who','how','why']);
+
+    function buildInsightTimeframe(range) {
+      const now = Math.floor(Date.now() / 1000);
+      switch (range) {
+        case 'day':
+          return { start: now - 86400, end: now };
+        case '3days':
+          return { start: now - 86400 * 3, end: now };
+        case 'week':
+          return { start: now - 86400 * 7, end: now };
+        default:
+          return null;
+      }
+    }
+
+    function formatInsightTimeframe(timeframe) {
+      if (!timeframe || (!timeframe.start && !timeframe.end)) {
+        return 'All posts';
+      }
+      const startDate = timeframe.start ? new Date(timeframe.start * 1000) : null;
+      const endDate = timeframe.end ? new Date(timeframe.end * 1000) : new Date();
+      if (!startDate) {
+        return `Before ${endDate.toLocaleString()}`;
+      }
+      return `${startDate.toLocaleString()} → ${endDate.toLocaleString()}`;
+    }
+
+    function normalizePostForInsights(post) {
+      const score = typeof post.score === 'number' ? post.score : 0;
+      const previous = typeof post.previous_score === 'number'
+        ? post.previous_score
+        : typeof post.previousScore === 'number'
+          ? post.previousScore
+          : score;
+      const explicitDelta = typeof post.score_delta === 'number'
+        ? post.score_delta
+        : typeof post.scoreDelta === 'number'
+          ? post.scoreDelta
+          : null;
+      const scoreDelta = explicitDelta !== null ? explicitDelta : score - previous;
+      return {
+        ...post,
+        created_utc: typeof post.created_utc === 'number' ? post.created_utc : 0,
+        scoreDelta,
+        keywords: extractInsightKeywords(post.title, post.selftext),
+      };
+    }
+
+    function extractInsightKeywords(title, body) {
+      const source = `${title || ''} ${body || ''}`.toLowerCase();
+      return source
+        .split(/[^a-z0-9']+/)
+        .map(token => token.replace(/^'+|'+$/g, ''))
+        .filter(token => token.length >= 3 && !INSIGHT_STOP_WORDS.has(token));
+    }
+
+    function applyInsightFilters(posts, filters) {
+      const selected = (filters.selectedSubreddits || []).map(name => name.replace(/^r\//i, '').toLowerCase());
+      const keyword = (filters.keywordQuery || '').toLowerCase();
+      const start = filters.timeframe && typeof filters.timeframe.start === 'number' ? filters.timeframe.start : null;
+      const end = filters.timeframe && typeof filters.timeframe.end === 'number' ? filters.timeframe.end : null;
+      return posts.filter(post => {
+        if (selected.length > 0) {
+          const sub = (post.subreddit || '').replace(/^r\//i, '').toLowerCase();
+          if (!selected.includes(sub)) {
+            return false;
+          }
+        }
+        if (start !== null && post.created_utc < start) return false;
+        if (end !== null && post.created_utc > end) return false;
+        if (keyword) {
+          const haystack = `${post.title || ''} ${post.selftext || ''}`.toLowerCase();
+          if (!haystack.includes(keyword)) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    function computeDashboardInsights(posts, filters = {}) {
+      const normalized = posts.map(normalizePostForInsights);
+      const filtered = applyInsightFilters(normalized, filters);
+      return {
+        topScoreDelta: computeTopScoreDelta(filtered),
+        subredditActivity: computeSubredditActivity(filtered),
+        keywordFrequency: computeKeywordFrequency(filtered, filters),
+        totalPosts: normalized.length,
+        filteredPosts: filtered.length,
+      };
+    }
+
+    function computeTopScoreDelta(posts) {
+      return posts
+        .slice()
+        .sort((a, b) => (b.scoreDelta || 0) - (a.scoreDelta || 0))
+        .slice(0, 5);
+    }
+
+    function computeSubredditActivity(posts) {
+      const counts = new Map();
+      for (const post of posts) {
+        const sub = post.subreddit || 'unknown';
+        counts.set(sub, (counts.get(sub) || 0) + 1);
+      }
+      return Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([subreddit, count]) => ({ subreddit, count }));
+    }
+
+    function computeKeywordFrequency(posts, filters) {
+      const counts = new Map();
+      const tracked = (filters && filters.trackedKeywords) ? filters.trackedKeywords.map(keyword => keyword.toLowerCase()) : [];
+      const keywordQuery = filters && filters.keywordQuery ? filters.keywordQuery.toLowerCase() : '';
+      const trackAll = tracked.length === 0 && !keywordQuery;
+      const targetSet = new Set(tracked);
+      if (keywordQuery) {
+        for (const token of keywordQuery.split(/\s+/)) {
+          if (token) targetSet.add(token.toLowerCase());
+        }
+      }
+      for (const post of posts) {
+        const tokens = post.keywords.length > 0 ? post.keywords : extractInsightKeywords(post.title, post.selftext);
+        for (const token of tokens) {
+          if (!trackAll && !targetSet.has(token)) continue;
+          if (INSIGHT_STOP_WORDS.has(token)) continue;
+          counts.set(token, (counts.get(token) || 0) + 1);
+        }
+      }
+      if (!trackAll && counts.size === 0) {
+        for (const token of targetSet) {
+          counts.set(token, 0);
+        }
+      }
+      return Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([keyword, count]) => ({ keyword, count }));
+    }
+
+    function formatScoreDelta(delta) {
+      if (!Number.isFinite(delta)) return '0';
+      if (delta > 0) return `+${delta}`;
+      return String(delta);
+    }
+
+    function InsightsPanel({ insights, enabledInsights, onToggle, timeframeLabel }) {
+      const activeKeys = Object.keys(enabledInsights).filter(key => enabledInsights[key]);
+      return h('section', { className: 'bg-white rounded-2xl shadow p-3 flex flex-col gap-3 max-h-[40vh] overflow-auto' },
+        h('header', { className: 'flex items-center justify-between gap-3' },
+          h('div', null,
+            h('h2', { className: 'font-semibold' }, 'Insights'),
+            h('p', { className: 'text-xs text-zinc-500' }, timeframeLabel)
+          ),
+          h('div', { className: 'flex flex-wrap gap-2 text-xs text-zinc-600' },
+            Object.keys(enabledInsights).map(key => h('label', { key, className: 'flex items-center gap-1 cursor-pointer select-none' },
+              h('input', {
+                type: 'checkbox',
+                checked: enabledInsights[key],
+                onChange: event => onToggle(key, event.target.checked)
+              }),
+              INSIGHT_LABELS[key]
+            ))
+          )
+        ),
+        activeKeys.length === 0 ? h('p', { className: 'text-sm text-zinc-500' }, 'Enable an insight above to populate this panel.') : null,
+        activeKeys.includes('topScoreDelta') && h('article', { className: 'border border-zinc-200 rounded-xl p-3' },
+          h('h3', { className: 'text-sm font-semibold mb-2' }, 'Top risers (score delta)'),
+          insights.topScoreDelta.length === 0
+            ? h('p', { className: 'text-xs text-zinc-500' }, 'No posts match the current filters.')
+            : h('ol', { className: 'space-y-2 text-sm' },
+                insights.topScoreDelta.map(post => h('li', { key: post.id, className: 'flex items-start gap-2' },
+                  h('span', { className: 'px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-xs font-semibold whitespace-nowrap' }, formatScoreDelta(post.scoreDelta)),
+                  h('div', { className: 'flex-1' },
+                    h('div', { className: 'font-semibold leading-snug' }, post.title || ''),
+                    h('div', { className: 'text-[11px] text-zinc-500' }, `r/${post.subreddit}`)
+                  )
+                ))
+              )
+        ),
+        activeKeys.includes('subredditActivity') && h('article', { className: 'border border-zinc-200 rounded-xl p-3' },
+          h('h3', { className: 'text-sm font-semibold mb-2' }, 'Subreddits with most new posts'),
+          insights.subredditActivity.length === 0
+            ? h('p', { className: 'text-xs text-zinc-500' }, 'No posts match the current filters.')
+            : h('ul', { className: 'space-y-2 text-sm' },
+                insights.subredditActivity.map(entry => h('li', { key: entry.subreddit, className: 'flex items-center justify-between' },
+                  h('span', { className: 'font-medium' }, `r/${entry.subreddit}`),
+                  h('span', { className: 'text-xs text-zinc-500' }, `${entry.count} posts`)
+                ))
+              )
+        ),
+        activeKeys.includes('keywordFrequency') && h('article', { className: 'border border-zinc-200 rounded-xl p-3' },
+          h('h3', { className: 'text-sm font-semibold mb-2' }, 'Keyword frequencies'),
+          insights.keywordFrequency.length === 0
+            ? h('p', { className: 'text-xs text-zinc-500' }, 'No keywords found for the current filters.')
+            : h('ul', { className: 'space-y-2 text-sm' },
+                insights.keywordFrequency.map(entry => h('li', { key: entry.keyword, className: 'flex items-center justify-between' },
+                  h('span', { className: 'font-medium' }, entry.keyword),
+                  h('span', { className: 'text-xs text-zinc-500' }, entry.count)
+                ))
+              )
+        ),
+        h('footer', { className: 'border-t border-dashed border-zinc-200 pt-2 mt-auto text-[11px] text-zinc-500' },
+          `Showing ${insights.filteredPosts} of ${insights.totalPosts} posts`
+        )
+      );
     }
 
     function formatDateTime(timestamp) {
