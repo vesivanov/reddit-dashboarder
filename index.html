@@ -12,6 +12,10 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial; }
+    .post-body {
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body class="bg-zinc-50 min-h-screen text-zinc-900">
@@ -652,12 +656,12 @@
       if (post.selftext_html) {
         const decoded = decodeHtml(post.selftext_html);
         return h('div', {
-          className: 'prose prose-zinc max-w-none',
+          className: 'post-body prose prose-zinc max-w-none',
           dangerouslySetInnerHTML: { __html: decoded },
         });
       }
       if (post.selftext) {
-        return h('div', { className: 'whitespace-pre-wrap text-[15px] leading-6 text-zinc-800' }, post.selftext);
+        return h('div', { className: 'post-body whitespace-pre-wrap text-zinc-800' }, post.selftext);
       }
       return h('div', { className: 'text-sm text-zinc-500' }, '(No text body — link post)');
     }
