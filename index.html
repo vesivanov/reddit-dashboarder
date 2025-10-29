@@ -463,38 +463,38 @@
               )
         ),
         h('div', { className: 'grid grid-cols-1 lg:grid-cols-12 gap-4' },
-          h('aside', { className: 'lg:col-span-3 bg-white rounded-2xl shadow p-3' },
-            h('div', { className: 'flex items-center justify-between mb-3' },
-              h('h2', { className: 'font-semibold' }, 'Subreddits'),
+          h('aside', { className: 'lg:col-span-2 bg-white rounded-2xl shadow p-3 lg:p-2 lg:text-sm' },
+            h('div', { className: 'flex items-center justify-between mb-3 lg:mb-2' },
+              h('h2', { className: 'font-semibold text-base lg:text-sm' }, 'Subreddits'),
               h('button', {
                 className: 'text-xs px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200',
                 onClick: () => setSelectedSub('ALL')
               }, 'All')
             ),
             subs.length === 0 
-              ? h('div', { className: 'text-sm text-zinc-500 italic text-center py-8' }, 
+              ? h('div', { className: 'text-sm lg:text-xs text-zinc-500 italic text-center py-8 lg:py-6' },
                   h('div', { className: 'space-y-2' },
                     h('div', null, 'No subreddits added yet'),
                     h('div', { className: 'text-xs' }, 'Click "Subreddits" above to add some')
                   )
                 )
-              : h('div', { className: 'space-y-2 max-h-[70vh] overflow-auto' },
+              : h('div', { className: 'space-y-2 lg:space-y-1.5 max-h-[70vh] overflow-auto' },
                   subs.map(sub => {
                     const meta = subMetaMap.get(sub) || {};
                     const capped = subPartialMap.get(sub);
                     const postCount = allPosts.filter(post => post.subreddit?.toLowerCase() === sub.toLowerCase()).length;
-                    return h('div', { key: sub, className: 'border border-zinc-200 rounded-lg p-3 hover:border-zinc-300 transition-colors' },
+                    return h('div', { key: sub, className: 'border border-zinc-200 rounded-lg p-3 lg:p-2 hover:border-zinc-300 transition-colors' },
                       h('button', {
                         onClick: () => setSelectedSub(sub),
                         className: `w-full text-left ${selectedSub === sub ? 'font-semibold' : ''}`
                       },
-                        h('div', { className: 'flex items-center justify-between mb-2' },
-                          h('span', { className: 'text-sm font-medium' }, `r/${sub}`),
+                        h('div', { className: 'flex items-center justify-between mb-2 lg:mb-1.5' },
+                          h('span', { className: 'text-sm lg:text-xs font-medium' }, `r/${sub}`),
                           h('span', { className: 'text-xs text-zinc-500' }, `${postCount} posts`)
                         ),
-                        h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
-                          h('span', null, `${formatSubs(meta.subscribers)} subscribers`),
-                          meta.active_user_count && h('span', null, `• ${formatSubs(meta.active_user_count)} active`),
+                        h('div', { className: 'flex items-center gap-2 lg:gap-1.5 text-xs text-zinc-500' },
+                          h('span', { className: 'leading-tight' }, `${formatSubs(meta.subscribers)} subscribers`),
+                          meta.active_user_count && h('span', { className: 'leading-tight' }, `• ${formatSubs(meta.active_user_count)} active`),
                           capped && h('span', { className: 'px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200' }, 'capped')
                         )
                       )
@@ -503,7 +503,7 @@
                 ),
             subs.length > 0 && h('p', { className: 'text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-200' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren\'t available via public endpoints.')
           ),
-          h('main', { className: 'lg:col-span-5 bg-white rounded-2xl shadow p-3 max-h-[80vh] overflow-auto' },
+          h('main', { className: 'lg:col-span-6 bg-white rounded-2xl shadow p-3 max-h-[80vh] overflow-auto' },
             h('h2', { className: 'font-semibold mb-3' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
             visiblePosts.length === 0 && h('div', { className: 'text-sm text-zinc-500' }, 
               subs.length === 0 
