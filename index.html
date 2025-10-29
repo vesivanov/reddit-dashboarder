@@ -84,6 +84,15 @@
       const [authChecking, setAuthChecking] = useState(true);
       const [subsExpanded, setSubsExpanded] = useState(false);
       const [keywordExpanded, setKeywordExpanded] = useState(false);
+      const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
+      const [maxUpvoteFilter, setMaxUpvoteFilter] = useState('');
+      const [minCommentFilter, setMinCommentFilter] = useState('');
+      const [maxCommentFilter, setMaxCommentFilter] = useState('');
+      const [sortBy, setSortBy] = useState('date');
+      const [sortOrder, setSortOrder] = useState('desc');
+
+      const filtersActive = [minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter]
+        .some(value => value && value.trim() !== '');
 
       useEffect(() => {
         try {
@@ -157,13 +166,66 @@
 
       const visiblePosts = useMemo(() => {
         const q = keyword.trim().toLowerCase();
-        if (!q) return filteredBySub;
-        return filteredBySub.filter(post => {
-          const title = post.title ? post.title.toLowerCase() : '';
-          const selftext = post.selftext ? post.selftext.toLowerCase() : '';
-          return title.includes(q) || selftext.includes(q);
+        const minScore = parseNumberFilter(minUpvoteFilter);
+        const maxScore = parseNumberFilter(maxUpvoteFilter);
+        const minCommentsValue = parseNumberFilter(minCommentFilter);
+        const maxCommentsValue = parseNumberFilter(maxCommentFilter);
+
+        const filtered = filteredBySub.filter(post => {
+          if (q) {
+            const title = post.title ? post.title.toLowerCase() : '';
+            const selftext = post.selftext ? post.selftext.toLowerCase() : '';
+            if (!title.includes(q) && !selftext.includes(q)) {
+              return false;
+            }
+          }
+
+          const rawScore = Number(post.score);
+          const score = Number.isFinite(rawScore) ? rawScore : 0;
+          if (minScore !== null && score < minScore) return false;
+          if (maxScore !== null && score > maxScore) return false;
+
+          const rawComments = Number(post.num_comments);
+          const comments = Number.isFinite(rawComments) ? rawComments : 0;
+          if (minCommentsValue !== null && comments < minCommentsValue) return false;
+          if (maxCommentsValue !== null && comments > maxCommentsValue) return false;
+
+          return true;
         });
-      }, [filteredBySub, keyword]);
+
+        const multiplier = sortOrder === 'asc' ? 1 : -1;
+
+        return [...filtered].sort((a, b) => {
+          const aDate = Number(a.created_utc) || 0;
+          const bDate = Number(b.created_utc) || 0;
+          const aScore = Number(a.score) || 0;
+          const bScore = Number(b.score) || 0;
+          const aComments = Number(a.num_comments) || 0;
+          const bComments = Number(b.num_comments) || 0;
+
+          let delta = 0;
+          switch (sortBy) {
+            case 'upvotes':
+              delta = aScore - bScore;
+              break;
+            case 'comments':
+              delta = aComments - bComments;
+              break;
+            case 'date':
+            default:
+              delta = aDate - bDate;
+              break;
+          }
+
+          if (delta === 0) {
+            const fallback = aDate - bDate;
+            if (fallback === 0) return 0;
+            return sortOrder === 'asc' ? fallback : -fallback;
+          }
+
+          return delta * multiplier;
+        });
+      }, [filteredBySub, keyword, minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter, sortBy, sortOrder]);
 
       const { maxScore, maxComments } = useMemo(() => {
         let maxScore = 0;
@@ -509,8 +571,87 @@
           ),
           h('main', { className: 'lg:col-span-6 bg-white rounded-2xl shadow p-3 max-h-[80vh] overflow-auto' },
             h('h2', { className: 'font-semibold mb-3' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
-            visiblePosts.length === 0 && h('div', { className: 'text-sm text-zinc-500' }, 
-              subs.length === 0 
+            h('div', { className: 'flex flex-wrap items-center gap-3 mb-3 text-xs text-zinc-600' },
+              h('label', { className: 'flex items-center gap-1' },
+                'Min upvotes',
+                h('input', {
+                  type: 'number',
+                  inputMode: 'numeric',
+                  className: 'w-24 border rounded-lg px-2 py-1 text-xs',
+                  value: minUpvoteFilter,
+                  onChange: event => setMinUpvoteFilter(event.target.value),
+                  placeholder: '0'
+                })
+              ),
+              h('label', { className: 'flex items-center gap-1' },
+                'Max upvotes',
+                h('input', {
+                  type: 'number',
+                  inputMode: 'numeric',
+                  className: 'w-24 border rounded-lg px-2 py-1 text-xs',
+                  value: maxUpvoteFilter,
+                  onChange: event => setMaxUpvoteFilter(event.target.value),
+                  placeholder: '∞'
+                })
+              ),
+              h('label', { className: 'flex items-center gap-1' },
+                'Min comments',
+                h('input', {
+                  type: 'number',
+                  inputMode: 'numeric',
+                  className: 'w-24 border rounded-lg px-2 py-1 text-xs',
+                  value: minCommentFilter,
+                  onChange: event => setMinCommentFilter(event.target.value),
+                  placeholder: '0'
+                })
+              ),
+              h('label', { className: 'flex items-center gap-1' },
+                'Max comments',
+                h('input', {
+                  type: 'number',
+                  inputMode: 'numeric',
+                  className: 'w-24 border rounded-lg px-2 py-1 text-xs',
+                  value: maxCommentFilter,
+                  onChange: event => setMaxCommentFilter(event.target.value),
+                  placeholder: '∞'
+                })
+              ),
+              h('label', { className: 'flex items-center gap-1' },
+                'Sort by',
+                h('select', {
+                  className: 'border rounded-lg px-2 py-1 text-xs',
+                  value: sortBy,
+                  onChange: event => setSortBy(event.target.value)
+                },
+                  h('option', { value: 'date' }, 'Date'),
+                  h('option', { value: 'upvotes' }, 'Upvotes'),
+                  h('option', { value: 'comments' }, 'Comments')
+                )
+              ),
+              h('label', { className: 'flex items-center gap-1' },
+                'Order',
+                h('select', {
+                  className: 'border rounded-lg px-2 py-1 text-xs',
+                  value: sortOrder,
+                  onChange: event => setSortOrder(event.target.value)
+                },
+                  h('option', { value: 'desc' }, sortBy === 'date' ? 'Newest' : 'High → Low'),
+                  h('option', { value: 'asc' }, sortBy === 'date' ? 'Oldest' : 'Low → High')
+                )
+              ),
+              filtersActive && h('button', {
+                type: 'button',
+                className: 'text-[11px] font-semibold text-blue-600 hover:underline',
+                onClick: () => {
+                  setMinUpvoteFilter('');
+                  setMaxUpvoteFilter('');
+                  setMinCommentFilter('');
+                  setMaxCommentFilter('');
+                }
+              }, 'Clear filters')
+            ),
+            visiblePosts.length === 0 && h('div', { className: 'text-sm text-zinc-500' },
+              subs.length === 0
                 ? 'Add some subreddits to get started!'
                 : 'No posts. Try Refresh or adjust filters.'
             ),
@@ -574,7 +715,15 @@
                     h('span', { className: 'tracking-wide uppercase' }, timeAgo(selectedPost.created_utc)),
                     h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${selectedPost.subreddit}`)
                   ),
-                  h('h3', { className: 'text-lg font-bold mt-1 mb-2' }, selectedPost.title || ''),
+                  h('div', { className: 'mt-1 mb-2 flex flex-wrap items-start justify-between gap-3' },
+                    h('h3', { className: 'text-lg font-bold flex-1 min-w-0' }, selectedPost.title || ''),
+                    h('a', {
+                      href: selectedPost.url,
+                      target: '_blank',
+                      rel: 'noreferrer',
+                      className: 'text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline whitespace-nowrap mt-1'
+                    }, 'Open on Reddit')
+                  ),
                   h('div', { className: 'flex flex-wrap items-center gap-2 text-sm mb-3' },
                     h('span', {
                       className: 'px-2 py-0.5 rounded font-semibold',
@@ -592,13 +741,7 @@
                     }, '💬 ' + String(selectedPost.num_comments) + ' comments'),
                     h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
                   ),
-                  renderBody(selectedPost),
-                  h('a', {
-                    href: selectedPost.url,
-                    target: '_blank',
-                    rel: 'noreferrer',
-                    className: 'inline-block mt-4 px-4 py-2 rounded-xl bg-black text-white font-semibold shadow'
-                  }, 'Open on Reddit')
+                  renderBody(selectedPost)
                 )
           )
         )
@@ -650,6 +793,14 @@
         unitIndex += 1;
       }
       return `${val.toFixed(val >= 10 ? 0 : 1)}${units[unitIndex]}`;
+    }
+
+    function parseNumberFilter(value) {
+      if (value === null || value === undefined) return null;
+      const trimmed = String(value).trim();
+      if (trimmed === '') return null;
+      const num = Number(trimmed);
+      return Number.isFinite(num) ? num : null;
     }
 
     function renderBody(post) {
