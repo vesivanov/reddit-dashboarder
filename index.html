@@ -85,11 +85,13 @@
       const [subsExpanded, setSubsExpanded] = useState(false);
       const [keywordExpanded, setKeywordExpanded] = useState(false);
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
+      const [maxUpvoteFilter, setMaxUpvoteFilter] = useState('');
       const [minCommentFilter, setMinCommentFilter] = useState('');
+      const [maxCommentFilter, setMaxCommentFilter] = useState('');
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
 
-      const filtersActive = [minUpvoteFilter, minCommentFilter]
+      const filtersActive = [minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter]
         .some(value => value && value.trim() !== '');
 
       useEffect(() => {
@@ -165,7 +167,9 @@
       const visiblePosts = useMemo(() => {
         const q = keyword.trim().toLowerCase();
         const minScore = parseNumberFilter(minUpvoteFilter);
+        const maxScore = parseNumberFilter(maxUpvoteFilter);
         const minCommentsValue = parseNumberFilter(minCommentFilter);
+        const maxCommentsValue = parseNumberFilter(maxCommentFilter);
 
         const filtered = filteredBySub.filter(post => {
           if (q) {
@@ -179,10 +183,12 @@
           const rawScore = Number(post.score);
           const score = Number.isFinite(rawScore) ? rawScore : 0;
           if (minScore !== null && score < minScore) return false;
+          if (maxScore !== null && score > maxScore) return false;
 
           const rawComments = Number(post.num_comments);
           const comments = Number.isFinite(rawComments) ? rawComments : 0;
           if (minCommentsValue !== null && comments < minCommentsValue) return false;
+          if (maxCommentsValue !== null && comments > maxCommentsValue) return false;
 
           return true;
         });
@@ -219,7 +225,7 @@
 
           return delta * multiplier;
         });
-      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, sortBy, sortOrder]);
+      }, [filteredBySub, keyword, minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter, sortBy, sortOrder]);
 
       const { maxScore, maxComments } = useMemo(() => {
         let maxScore = 0;
@@ -578,6 +584,17 @@
                 })
               ),
               h('label', { className: 'flex items-center gap-1' },
+                'Max upvotes',
+                h('input', {
+                  type: 'number',
+                  inputMode: 'numeric',
+                  className: 'w-24 border rounded-lg px-2 py-1 text-xs',
+                  value: maxUpvoteFilter,
+                  onChange: event => setMaxUpvoteFilter(event.target.value),
+                  placeholder: '∞'
+                })
+              ),
+              h('label', { className: 'flex items-center gap-1' },
                 'Min comments',
                 h('input', {
                   type: 'number',
@@ -586,6 +603,17 @@
                   value: minCommentFilter,
                   onChange: event => setMinCommentFilter(event.target.value),
                   placeholder: '0'
+                })
+              ),
+              h('label', { className: 'flex items-center gap-1' },
+                'Max comments',
+                h('input', {
+                  type: 'number',
+                  inputMode: 'numeric',
+                  className: 'w-24 border rounded-lg px-2 py-1 text-xs',
+                  value: maxCommentFilter,
+                  onChange: event => setMaxCommentFilter(event.target.value),
+                  placeholder: '∞'
                 })
               ),
               h('label', { className: 'flex items-center gap-1' },
@@ -616,7 +644,9 @@
                 className: 'text-[11px] font-semibold text-blue-600 hover:underline',
                 onClick: () => {
                   setMinUpvoteFilter('');
+                  setMaxUpvoteFilter('');
                   setMinCommentFilter('');
+                  setMaxCommentFilter('');
                 }
               }, 'Clear filters')
             ),
