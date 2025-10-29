@@ -285,6 +285,16 @@ function normalize(data) {
   const children = data?.data?.children || [];
   return children.map(child => {
     const post = child.data || {};
+    const parsedScore = Number(post.score);
+    const fallbackScore = Number(post.ups);
+    const safeScore = Number.isFinite(parsedScore)
+      ? parsedScore
+      : (Number.isFinite(fallbackScore) ? fallbackScore : 0);
+    const parsedComments = Number(post.num_comments);
+    const fallbackComments = Number(post.comments);
+    const safeComments = Number.isFinite(parsedComments)
+      ? parsedComments
+      : (Number.isFinite(fallbackComments) ? fallbackComments : 0);
     return {
       id: post.id,
       subreddit: post.subreddit,
@@ -294,8 +304,8 @@ function normalize(data) {
       author: post.author,
       url: `https://www.reddit.com${post.permalink}`,
       domain: post.domain,
-      score: post.score,
-      num_comments: post.num_comments,
+      score: safeScore,
+      num_comments: safeComments,
       created_utc: post.created_utc,
       thumbnail: validThumb(post.thumbnail) ? post.thumbnail : null,
     };
