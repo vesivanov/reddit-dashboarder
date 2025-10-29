@@ -161,6 +161,22 @@
         });
       }, [filteredBySub, keyword]);
 
+      const { maxScore, maxComments } = useMemo(() => {
+        let maxScore = 0;
+        let maxComments = 0;
+        for (const post of allPosts) {
+          const score = Number(post.score);
+          const comments = Number(post.num_comments);
+          if (Number.isFinite(score)) {
+            maxScore = Math.max(maxScore, score);
+          }
+          if (Number.isFinite(comments)) {
+            maxComments = Math.max(maxComments, comments);
+          }
+        }
+        return { maxScore, maxComments };
+      }, [allPosts]);
+
       const subMetaMap = useMemo(() => {
         const map = new Map();
         for (const group of data) {
@@ -495,32 +511,54 @@
                 : 'No posts. Try Refresh or adjust filters.'
             ),
             h('ul', { className: 'divide-y' },
-              visiblePosts.map(post => h('li', { key: post.id },
-                h('button', {
-                  className: 'w-full text-left py-3 hover:bg-zinc-50',
-                  onClick: () => setSelectedPost(post)
-                },
-                  h('div', { className: 'flex gap-3 items-start px-2' },
-                    post.thumbnail && h('img', {
-                      src: post.thumbnail,
-                      alt: '',
-                      className: 'w-14 h-14 object-cover rounded-lg'
-                    }),
-                    h('div', { className: 'flex-1' },
-                      h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
-                        h('span', { className: 'tracking-wide uppercase' }, timeAgo(post.created_utc)),
-                        h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${post.subreddit}`)
-                      ),
-                      h('div', { className: 'font-semibold leading-snug mt-1' }, post.title || ''),
-                      h('div', { className: 'flex flex-wrap items-center gap-2 mt-1 text-sm' },
-                        h('span', { className: 'px-2 py-0.5 rounded bg-green-100 text-green-700 font-semibold' }, `▲ ${post.score} upvotes`),
-                        h('span', { className: 'px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-semibold' }, `💬 ${post.num_comments} comments`),
-                        h('span', { className: 'text-zinc-600' }, `u/${post.author} • ${post.domain}`)
+              visiblePosts.map(post => {
+                const rawScore = Number(post.score);
+                const rawComments = Number(post.num_comments);
+                const scoreValue = Number.isFinite(rawScore) ? Math.max(0, rawScore) : 0;
+                const commentValue = Number.isFinite(rawComments) ? Math.max(0, rawComments) : 0;
+                const scoreIntensity = scaleCountIntensity(scoreValue, maxScore);
+                const commentIntensity = scaleCountIntensity(commentValue, maxComments);
+                const accentIntensity = Math.max(scoreIntensity, commentIntensity);
+                const scoreStyles = {
+                  backgroundColor: tintWithWhite('#22c55e', scoreIntensity, { minMix: 0.15, maxMix: 0.85 }),
+                  color: '#064e3b'
+                };
+                const commentStyles = {
+                  backgroundColor: tintWithWhite('#f59e0b', commentIntensity, { minMix: 0.15, maxMix: 0.85 }),
+                  color: '#713f12'
+                };
+                const cardStyles = {
+                  backgroundColor: tintWithWhite('#e0e7ff', accentIntensity, { minMix: 0.3, maxMix: 0.96 })
+                };
+
+                return h('li', { key: post.id },
+                  h('button', {
+                    className: 'w-full text-left py-3 rounded-xl transition-colors hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-indigo-300',
+                    onClick: () => setSelectedPost(post),
+                    style: cardStyles
+                  },
+                    h('div', { className: 'flex gap-3 items-start px-2' },
+                      post.thumbnail && h('img', {
+                        src: post.thumbnail,
+                        alt: '',
+                        className: 'w-14 h-14 object-cover rounded-lg'
+                      }),
+                      h('div', { className: 'flex-1' },
+                        h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
+                          h('span', { className: 'tracking-wide uppercase' }, timeAgo(post.created_utc)),
+                          h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${post.subreddit}`)
+                        ),
+                        h('div', { className: 'font-semibold leading-snug mt-1' }, post.title || ''),
+                        h('div', { className: 'flex flex-wrap items-center gap-2 mt-1 text-sm' },
+                          h('span', { className: 'px-2 py-0.5 rounded font-semibold', style: scoreStyles }, `▲ ${scoreValue} upvotes`),
+                          h('span', { className: 'px-2 py-0.5 rounded font-semibold', style: commentStyles }, `💬 ${commentValue} comments`),
+                          h('span', { className: 'text-zinc-600' }, `u/${post.author} • ${post.domain}`)
+                        )
                       )
                     )
                   )
-                ))
-              )
+                );
+              })
             )
           ),
           h('section', { className: 'lg:col-span-4 bg-white rounded-2xl shadow p-3 max-h-[80vh] overflow-auto' },
@@ -534,8 +572,20 @@
                   ),
                   h('h3', { className: 'text-lg font-bold mt-1 mb-2' }, selectedPost.title || ''),
                   h('div', { className: 'flex flex-wrap items-center gap-2 text-sm mb-3' },
-                    h('span', { className: 'px-2 py-0.5 rounded bg-green-100 text-green-700 font-semibold' }, `▲ ${selectedPost.score} upvotes`),
-                    h('span', { className: 'px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-semibold' }, '💬 ' + String(selectedPost.num_comments) + ' comments'),
+                    h('span', {
+                      className: 'px-2 py-0.5 rounded font-semibold',
+                      style: {
+                        backgroundColor: tintWithWhite('#22c55e', scaleCountIntensity(Number(selectedPost.score) || 0, maxScore), { minMix: 0.15, maxMix: 0.85 }),
+                        color: '#064e3b'
+                      }
+                    }, `▲ ${selectedPost.score} upvotes`),
+                    h('span', {
+                      className: 'px-2 py-0.5 rounded font-semibold',
+                      style: {
+                        backgroundColor: tintWithWhite('#f59e0b', scaleCountIntensity(Number(selectedPost.num_comments) || 0, maxComments), { minMix: 0.15, maxMix: 0.85 }),
+                        color: '#713f12'
+                      }
+                    }, '💬 ' + String(selectedPost.num_comments) + ' comments'),
                     h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
                   ),
                   renderBody(selectedPost),
@@ -619,6 +669,54 @@
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'");
+    }
+
+    function scaleCountIntensity(value, maxValue) {
+      const rawValue = Number.isFinite(value) ? value : Number(value);
+      const rawMax = Number.isFinite(maxValue) ? maxValue : Number(maxValue);
+      const safeValue = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
+      const safeMax = Number.isFinite(rawMax) ? Math.max(0, rawMax) : 0;
+      if (safeValue <= 0) return 0;
+      if (safeMax <= 0) return 1;
+      const ratio = Math.log1p(safeValue) / Math.log1p(Math.max(1, safeMax));
+      if (!Number.isFinite(ratio) || ratio <= 0) return 0;
+      return Math.min(1, Math.max(0, ratio));
+    }
+
+    function tintWithWhite(hexColor, intensity, { minMix = 0.2, maxMix = 0.85 } = {}) {
+      const { r, g, b } = hexToRgb(hexColor);
+      const clampedIntensity = Math.min(1, Math.max(0, intensity || 0));
+      const clampedMin = Math.min(1, Math.max(0, minMix));
+      const clampedMax = Math.min(1, Math.max(0, maxMix));
+      const mix = clampedMax - clampedIntensity * Math.max(0, clampedMax - clampedMin);
+      const final = {
+        r: Math.round(r + (255 - r) * mix),
+        g: Math.round(g + (255 - g) * mix),
+        b: Math.round(b + (255 - b) * mix),
+      };
+      return `rgb(${final.r}, ${final.g}, ${final.b})`;
+    }
+
+    function hexToRgb(hexColor) {
+      if (typeof hexColor !== 'string') {
+        return { r: 255, g: 255, b: 255 };
+      }
+      let hex = hexColor.replace('#', '').trim();
+      if (hex.length === 3) {
+        hex = hex.split('').map(char => char + char).join('');
+      }
+      if (hex.length !== 6) {
+        return { r: 255, g: 255, b: 255 };
+      }
+      const value = parseInt(hex, 16);
+      if (Number.isNaN(value)) {
+        return { r: 255, g: 255, b: 255 };
+      }
+      return {
+        r: (value >> 16) & 255,
+        g: (value >> 8) & 255,
+        b: value & 255,
+      };
     }
 
     // Client-side Reddit API fetching removed due to CORS issues
