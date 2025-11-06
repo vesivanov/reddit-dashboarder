@@ -21,12 +21,47 @@
 <body class="bg-zinc-50 min-h-screen text-zinc-900">
   <div id="root"></div>
   <script>
-    const { useEffect, useMemo, useState } = React;
+    const { useCallback, useEffect, useMemo, useRef, useState } = React;
     const { createRoot } = ReactDOM;
     const h = React.createElement;
 
     const DEFAULT_API_URL = "/api/reddit";
     const DEFAULT_SUBS = [];
+    const STARTER_PACKS = [
+      {
+        id: 'tech-news',
+        label: 'Tech news',
+        description: 'Keep an eye on what\'s shipping across consumer and enterprise tech.',
+        subs: ['technology', 'gadgets', 'futurology', 'programming'],
+      },
+      {
+        id: 'design-inspo',
+        label: 'Design inspiration',
+        description: 'Daily visuals, UX breakdowns, and palette cleansers.',
+        subs: ['design', 'web_design', 'graphic_design', 'productdesign'],
+      },
+      {
+        id: 'data-ai',
+        label: 'Data & AI',
+        description: 'Track the fast-moving ML landscape for teams and practitioners.',
+        subs: ['machinelearning', 'datascience', 'openai', 'artificial'],
+      },
+    ];
+    const POPULAR_SUBREDDITS = [
+      'askreddit',
+      'worldnews',
+      'news',
+      'technology',
+      'programming',
+      'todayilearned',
+      'design',
+      'dataisbeautiful',
+      'futurology',
+      'productdesign',
+      'webdev',
+    ];
+    const AUTO_REFRESH_OPTIONS = [5, 10, 15, 30, 45, 60];
+    const MIN_AUTO_REFRESH_MINUTES = 5;
 
     function App() {
       const [subs, setSubs] = useState(() => {
@@ -72,6 +107,23 @@
         return 100;
       });
       const [loading, setLoading] = useState(false);
+      const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_auto_refresh_enabled');
+          return saved === '1';
+        } catch (error) {
+          return false;
+        }
+      });
+      const [autoRefreshInterval, setAutoRefreshInterval] = useState(() => {
+        try {
+          const saved = Number(localStorage.getItem('dashboard_auto_refresh_interval'));
+          if (Number.isFinite(saved)) {
+            return Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(saved)));
+          }
+        } catch (error) {}
+        return 10;
+      });
       const [error, setError] = useState('');
       const [needsAuth, setNeedsAuth] = useState(false);
       const [data, setData] = useState([]);
@@ -82,7 +134,16 @@
       const [fetchMethod, setFetchMethod] = useState('server'); // Track which method was used
       const [authenticated, setAuthenticated] = useState(false);
       const [authChecking, setAuthChecking] = useState(true);
-      const [subsExpanded, setSubsExpanded] = useState(false);
+      const [subsExpanded, setSubsExpanded] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_subs');
+          if (!saved) return true;
+          const parsed = JSON.parse(saved);
+          return Array.isArray(parsed) ? parsed.length === 0 : true;
+        } catch (error) {
+          return true;
+        }
+      });
       const [keywordExpanded, setKeywordExpanded] = useState(false);
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
       const [maxUpvoteFilter, setMaxUpvoteFilter] = useState('');
@@ -90,6 +151,57 @@
       const [maxCommentFilter, setMaxCommentFilter] = useState('');
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
+      const [nextRefreshAt, setNextRefreshAt] = useState(null);
+      const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState(null);
+      const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
+        try {
+          return localStorage.getItem('dashboard_onboarding_dismissed') === '1';
+        } catch (error) {
+          return false;
+        }
+      });
+      const subsInputRef = useRef(null);
+      const loadingRef = useRef(false);
+
+      useEffect(() => {
+        loadingRef.current = loading;
+      }, [loading]);
+
+      const ensureSubsInputFocus = useCallback(() => {
+        setTimeout(() => {
+          const node = subsInputRef.current;
+          if (node) {
+            node.focus();
+            node.select();
+          }
+        }, 80);
+      }, []);
+
+      const handleAddSubredditClick = useCallback(() => {
+        setSubsExpanded(true);
+        if (!onboardingDismissed) {
+          setOnboardingDismissed(true);
+        }
+        ensureSubsInputFocus();
+      }, [ensureSubsInputFocus, onboardingDismissed]);
+
+      const handleApplyStarterPack = useCallback((pack) => {
+        if (!pack || !Array.isArray(pack.subs)) return;
+        setSubs(prev => mergeSubredditLists(prev, pack.subs));
+        setSubsExpanded(true);
+        setOnboardingDismissed(true);
+        ensureSubsInputFocus();
+      }, [ensureSubsInputFocus]);
+
+      const handleSuggestedSub = useCallback((name) => {
+        if (!name) return;
+        setSubs(prev => mergeSubredditLists(prev, [name]));
+        setSubsExpanded(true);
+        if (!onboardingDismissed) {
+          setOnboardingDismissed(true);
+        }
+        ensureSubsInputFocus();
+      }, [ensureSubsInputFocus, onboardingDismissed]);
 
       const filtersActive = [minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter]
         .some(value => value && value.trim() !== '');
@@ -100,7 +212,7 @@
           const subsJson = JSON.stringify(subs);
           localStorage.setItem('dashboard_subs', subsJson);
           localStorage.setItem('dashboard_subs_backup', subsJson);
-          
+
           // Also save a timestamp for debugging
           localStorage.setItem('dashboard_subs_last_saved', new Date().toISOString());
         } catch (storageError) {
@@ -116,6 +228,24 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_max_pages', String(maxPages)); } catch {}
       }, [maxPages]);
+
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_auto_refresh_enabled', autoRefreshEnabled ? '1' : '0'); } catch {}
+      }, [autoRefreshEnabled]);
+
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_auto_refresh_interval', String(autoRefreshInterval)); } catch {}
+      }, [autoRefreshInterval]);
+
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_onboarding_dismissed', onboardingDismissed ? '1' : '0'); } catch {}
+      }, [onboardingDismissed]);
+
+      useEffect(() => {
+        if (subs.length > 0 && !onboardingDismissed) {
+          setOnboardingDismissed(true);
+        }
+      }, [subs.length, onboardingDismissed]);
 
       useEffect(() => {
         let cancelled = false;
@@ -243,6 +373,35 @@
         return { maxScore, maxComments };
       }, [allPosts]);
 
+      const statusSummary = useMemo(() => {
+        const pieces = [
+          `Fetched: ${fetchedAt ? formatDateTime(fetchedAt) : '—'}`,
+          `Posts: ${visiblePosts.length}`,
+          `Mode: ${mode}${mode === 'top' ? ` (t=${time})` : ''}`,
+          `Range: ${days} day(s)`,
+          `Method: ${fetchMethod === 'client' ? '🌐 Client-side' : '🖥️ Server'}`,
+        ];
+
+        if (autoRefreshEnabled) {
+          let summary = `Auto-refresh: every ${autoRefreshInterval} min`;
+          if (nextRefreshAt) {
+            summary += ` (next ${formatTimeUntil(nextRefreshAt)})`;
+          } else if (!subs.length) {
+            summary += ' (waiting for subreddits)';
+          } else if (loading) {
+            summary += ' (running…)';
+          }
+          if (lastAutoRefreshAt) {
+            summary += ` • Last ${timeAgo(lastAutoRefreshAt / 1000)}`;
+          }
+          pieces.push(summary);
+        } else {
+          pieces.push('Auto-refresh: off');
+        }
+
+        return pieces.join(' • ');
+      }, [fetchedAt, visiblePosts.length, mode, time, days, fetchMethod, autoRefreshEnabled, autoRefreshInterval, nextRefreshAt, lastAutoRefreshAt, subs.length, loading]);
+
       const subMetaMap = useMemo(() => {
         const map = new Map();
         for (const group of data) {
@@ -258,12 +417,14 @@
         return map;
       }, [data]);
 
-      async function refresh() {
+      const refresh = useCallback(async (options = {}) => {
+        const triggeredByAuto = Boolean(options.triggeredByAuto);
         if (!subs.length) {
           setNeedsAuth(false);
           setError('Please add at least one subreddit.');
           setData([]);
           setFetchedAt(null);
+          setNextRefreshAt(null);
           return;
         }
 
@@ -344,22 +505,55 @@
         } finally {
           clearTimeout(timeoutId);
           setLoading(false);
+          if (autoRefreshEnabled && subs.length) {
+            setNextRefreshAt(Date.now() + autoRefreshInterval * 60 * 1000);
+          } else {
+            setNextRefreshAt(null);
+          }
+          if (triggeredByAuto) {
+            setLastAutoRefreshAt(Date.now());
+          }
         }
-      }
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval]);
 
-      // Auto-refresh disabled by request: no background interval, no initial fetch
-      // useEffect(() => {
-      //   const id = setInterval(() => {
-      //     refresh();
-      //   }, 60 * 60 * 1000);
-      //   return () => clearInterval(id);
-      //   // eslint-disable-next-line react-hooks/exhaustive-deps
-      // }, [subs, mode, time, days, limit, maxPages, workerUrl]);
+      const refreshRef = useRef(refresh);
 
-      // useEffect(() => {
-      //   refresh();
-      //   // eslint-disable-next-line react-hooks/exhaustive-deps
-      // }, []);
+      useEffect(() => {
+        refreshRef.current = refresh;
+      }, [refresh]);
+
+      useEffect(() => {
+        if (!autoRefreshEnabled) {
+          setLastAutoRefreshAt(null);
+        }
+      }, [autoRefreshEnabled]);
+
+      useEffect(() => {
+        if (!autoRefreshEnabled || !subs.length) {
+          setNextRefreshAt(null);
+          return () => {};
+        }
+
+        const intervalMs = Math.max(MIN_AUTO_REFRESH_MINUTES, autoRefreshInterval) * 60 * 1000;
+        setNextRefreshAt(Date.now() + intervalMs);
+        let cancelled = false;
+
+        const triggerRefresh = () => {
+          if (cancelled) return;
+          if (loadingRef.current) return;
+          if (!subs.length) return;
+          refreshRef.current({ triggeredByAuto: true });
+        };
+
+        const kickoff = setTimeout(triggerRefresh, 200);
+        const intervalId = setInterval(triggerRefresh, intervalMs);
+
+        return () => {
+          cancelled = true;
+          clearTimeout(kickoff);
+          clearInterval(intervalId);
+        };
+      }, [autoRefreshEnabled, autoRefreshInterval, subs.length]);
 
       return h('div', { className: 'max-w-7xl mx-auto p-4' },
         h('header', { className: 'flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4' },
@@ -368,6 +562,10 @@
             h('p', { className: 'text-zinc-600 text-sm' }, 'Three-pane • Keyword filter • Day / 3 Days / Week • Full post body + subreddit stats')
           ),
           h('div', { className: 'flex flex-wrap items-center gap-2' },
+            h('button', {
+              onClick: handleAddSubredditClick,
+              className: 'px-4 py-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 text-blue-700 font-semibold shadow-sm hover:bg-blue-100 transition-colors'
+            }, subs.length ? 'Manage subreddits' : 'Add subreddits'),
             h('select', {
               className: 'border rounded-lg px-3 py-2',
               value: mode,
@@ -408,8 +606,37 @@
               h('option', { value: 100 }, 'Max pages: 100'),
               h('option', { value: 200 }, 'Max pages: 200')
             ),
+            h('div', {
+              className: 'flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 bg-white shadow-sm text-xs text-zinc-700'
+            },
+              h('label', { className: 'flex items-center gap-2 font-semibold' },
+                h('input', {
+                  type: 'checkbox',
+                  className: 'w-4 h-4',
+                  checked: autoRefreshEnabled,
+                  onChange: event => setAutoRefreshEnabled(event.target.checked),
+                  title: subs.length ? 'Toggle automatic refresh' : 'Add at least one subreddit to start auto-refreshing'
+                }),
+                'Auto-refresh'
+              ),
+              h('select', {
+                className: 'border rounded-lg px-2 py-1 text-xs',
+                value: autoRefreshInterval,
+                disabled: !autoRefreshEnabled,
+                onChange: event => {
+                  const next = Number(event.target.value);
+                  if (Number.isFinite(next)) {
+                    setAutoRefreshInterval(Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(next))));
+                  }
+                }
+              },
+                AUTO_REFRESH_OPTIONS.map(option =>
+                  h('option', { key: option, value: option }, `${option} min`)
+                )
+              )
+            ),
             h('button', {
-              onClick: refresh,
+              onClick: () => refresh(),
               className: 'px-4 py-2 rounded-xl bg-black text-white font-semibold shadow disabled:opacity-50',
               disabled: loading
             }, loading ? 'Fetching…' : 'Refresh'),
@@ -437,6 +664,46 @@
           h('p', { className: 'font-semibold' }, 'Sign in required'),
           h('p', { className: 'text-sm' }, 'Sign in with Reddit to load personalized data for your dashboard.'),
         ) : null,
+        subs.length === 0 && !onboardingDismissed ? h('section', { className: 'mb-4' },
+          h('div', { className: 'bg-white border border-blue-200 rounded-3xl shadow-sm p-5 space-y-4' },
+            h('div', { className: 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3' },
+              h('div', { className: 'space-y-1' },
+                h('h2', { className: 'text-xl font-bold text-blue-700' }, 'Start with a curated set'),
+                h('p', { className: 'text-sm text-zinc-600 max-w-2xl' }, 'Pick a preset collection or add your own communities. You can always tweak the list later — we\'ll remember it in your browser.')
+              ),
+              h('div', { className: 'flex items-center gap-2 text-sm text-blue-700' },
+                h('button', {
+                  className: 'px-3 py-1.5 rounded-full border border-blue-200 hover:bg-blue-50 transition-colors',
+                  onClick: handleAddSubredditClick
+                }, 'Add manually'),
+                h('button', {
+                  className: 'px-3 py-1.5 rounded-full border border-transparent text-blue-500 hover:text-blue-700',
+                  onClick: () => setOnboardingDismissed(true)
+                }, 'Maybe later')
+              )
+            ),
+            h('div', { className: 'grid gap-3 sm:grid-cols-3' },
+              STARTER_PACKS.map(pack =>
+                h('button', {
+                  key: pack.id,
+                  className: 'text-left p-4 rounded-2xl border border-blue-100 bg-blue-50/60 hover:bg-blue-100 transition-colors shadow-sm',
+                  onClick: () => handleApplyStarterPack(pack)
+                },
+                  h('div', { className: 'text-sm font-semibold text-blue-700' }, pack.label),
+                  h('p', { className: 'text-xs text-blue-700/80 mt-2 leading-relaxed' }, pack.description),
+                  h('p', { className: 'mt-3 text-[11px] uppercase tracking-wide text-blue-500' }, `${pack.subs.length} subreddit${pack.subs.length > 1 ? 's' : ''}`)
+                )
+              )
+            ),
+            h('div', { className: 'text-xs text-zinc-500 flex flex-wrap items-center gap-2' },
+              h('span', null, 'Tip: You can export or import your setup anytime from the Subreddits panel.'),
+              h('button', {
+                className: 'text-blue-600 hover:text-blue-700 font-semibold',
+                onClick: () => handleSuggestedSub('technology')
+              }, 'Try r/technology')
+            )
+          )
+        ) : null,
         h('div', { className: 'mb-3 space-y-2' },
           h('div', { className: 'bg-white rounded-2xl shadow p-3' },
             h('button', {
@@ -457,10 +724,7 @@
                 placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
                 onChange: event => setSubsInput(event.target.value),
                 onBlur: event => {
-                  const list = event.target.value.split(',').map(item => {
-                    const trimmed = item.trim();
-                    return trimmed.startsWith('r/') ? trimmed.substring(2) : trimmed;
-                  }).filter(Boolean);
+                  const list = uniqueNormalizedSubreddits(event.target.value);
                   setSubs(list);
                   try {
                     localStorage.setItem('dashboard_subs', JSON.stringify(list));
@@ -468,8 +732,38 @@
                   } catch (e) {
                     console.warn('Failed to save subreddits:', e);
                   }
-                }
+                },
+                ref: subsInputRef
               }),
+              h('div', { className: 'mt-3 space-y-3 text-xs text-zinc-600' },
+                h('div', null,
+                  h('p', { className: 'font-semibold text-zinc-700 text-sm mb-1' }, 'Starter packs'),
+                  h('div', { className: 'flex flex-wrap gap-2' },
+                    STARTER_PACKS.map(pack =>
+                      h('button', {
+                        key: pack.id,
+                        className: 'text-left px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex-1 min-w-[160px] shadow-sm',
+                        onClick: () => handleApplyStarterPack(pack)
+                      },
+                        h('div', { className: 'font-semibold text-sm' }, pack.label),
+                        h('div', { className: 'text-[11px] text-blue-700/80 mt-1 leading-snug' }, pack.description)
+                      )
+                    )
+                  )
+                ),
+                h('div', null,
+                  h('p', { className: 'font-semibold text-zinc-700 text-sm mb-1' }, 'Quick add'),
+                  h('div', { className: 'flex flex-wrap gap-2' },
+                    POPULAR_SUBREDDITS.map(sub =>
+                      h('button', {
+                        key: sub,
+                        className: 'px-2 py-1 rounded-full bg-zinc-100 hover:bg-zinc-200 text-xs font-medium text-zinc-700 transition-colors',
+                        onClick: () => handleSuggestedSub(sub)
+                      }, `r/${sub}`)
+                    )
+                  )
+                )
+              ),
               h('div', { className: 'flex flex-wrap gap-2 mt-2' },
                 h('button', {
                   className: 'px-2 py-1 text-xs rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200',
@@ -522,10 +816,10 @@
         h('div', { className: 'text-sm text-zinc-600 mb-2' },
           error
             ? h('span', { className: 'text-red-600' }, `Error: ${error}`)
-            : h('span', null, 
-                loading 
+            : h('span', null,
+                loading
                   ? '⏳ Fetching from Reddit (this may take 30-60 seconds due to rate limits)...'
-                  : `Fetched: ${fetchedAt ? formatDateTime(fetchedAt) : '—'} • Posts: ${visiblePosts.length} • Mode: ${mode}${mode === 'top' ? ` (t=${time})` : ''} • Range: ${days} day(s) • Method: ${fetchMethod === 'client' ? '🌐 Client-side' : '🖥️ Server'}`
+                  : statusSummary
               )
         ),
         h('div', { className: 'grid grid-cols-1 lg:grid-cols-12 gap-4' },
@@ -537,11 +831,11 @@
                 onClick: () => setSelectedSub('ALL')
               }, 'All')
             ),
-            subs.length === 0 
+            subs.length === 0
               ? h('div', { className: 'text-sm lg:text-xs text-zinc-500 italic text-center py-8 lg:py-6' },
                   h('div', { className: 'space-y-2' },
                     h('div', null, 'No subreddits added yet'),
-                    h('div', { className: 'text-xs' }, 'Click "Subreddits" above to add some')
+                    h('div', { className: 'text-xs' }, 'Use “Add subreddits” to choose a starter pack or enter your own list')
                   )
                 )
               : h('div', { className: 'space-y-2 lg:space-y-1.5 max-h-[70vh] overflow-auto' },
@@ -747,6 +1041,70 @@
         )
       );
 
+    }
+
+    function formatTimeUntil(timestamp) {
+      if (!timestamp) return '';
+      const now = Date.now();
+      const diff = Math.max(0, Number(timestamp) - now);
+      if (!Number.isFinite(diff) || diff <= 0) return 'in a few seconds';
+      if (diff < 60 * 1000) return 'in under a minute';
+      const minutes = Math.round(diff / 60000);
+      if (minutes < 60) {
+        return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+      }
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      if (hours >= 24) {
+        const days = Math.round(diff / 86400000);
+        return `in ${days} day${days === 1 ? '' : 's'}`;
+      }
+      if (remainingMinutes === 0) {
+        return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+      }
+      return `in ${hours}h ${remainingMinutes}m`;
+    }
+
+    function uniqueNormalizedSubreddits(input) {
+      if (typeof input !== 'string') return [];
+      const segments = input.split(/[\n,]+/);
+      const seen = new Set();
+      const list = [];
+      for (const segment of segments) {
+        const normalized = normalizeSubredditName(segment);
+        if (!normalized) continue;
+        const key = normalized.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        list.push(normalized);
+      }
+      return list;
+    }
+
+    function mergeSubredditLists(existing, additions) {
+      const base = Array.isArray(existing) ? existing : [];
+      const seen = new Set(base.map(item => (typeof item === 'string' ? item.toLowerCase() : '')));
+      const merged = [...base];
+      for (const entry of Array.isArray(additions) ? additions : []) {
+        const normalized = normalizeSubredditName(entry);
+        if (!normalized) continue;
+        const key = normalized.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(normalized);
+      }
+      if (merged.length === base.length) {
+        return Array.isArray(existing) ? existing : base;
+      }
+      return merged;
+    }
+
+    function normalizeSubredditName(value) {
+      if (typeof value !== 'string') return '';
+      const trimmed = value.trim();
+      if (!trimmed) return '';
+      const withoutPrefix = trimmed.replace(/^r\//i, '').trim();
+      return withoutPrefix;
     }
 
     function formatDateTime(timestamp) {
