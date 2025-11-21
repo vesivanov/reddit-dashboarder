@@ -147,6 +147,7 @@
         }
       });
       const [keywordExpanded, setKeywordExpanded] = useState(false);
+      const [filtersExpanded, setFiltersExpanded] = useState(false);
       const [starterPackOpen, setStarterPackOpen] = useState(false);
       const [quickAddValue, setQuickAddValue] = useState('');
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
@@ -639,59 +640,71 @@
                       }, 'Sign in')
               )
             ),
-            h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4' },
-              h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                'Listing mode',
-                h('select', {
-                  className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                  value: mode,
-                  onChange: event => setMode(event.target.value)
-                },
-                  h('option', { value: 'new' }, 'new'),
-                  h('option', { value: 'top' }, 'top')
-                )
+            h('div', { className: 'space-y-3' },
+              h('button', {
+                type: 'button',
+                className: 'inline-flex items-center gap-2 text-sm font-semibold text-zinc-800 px-3 py-2 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors',
+                onClick: () => setFiltersExpanded(open => !open)
+              },
+                h('span', { className: 'inline-block w-2.5 h-2.5 rounded-full border border-zinc-300 bg-white' }),
+                filtersExpanded ? 'Close filters' : 'Open filters'
               ),
-              h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                'Top range',
-                h('select', {
-                  className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800 disabled:text-zinc-400',
-                  value: time,
-                  onChange: event => setTime(event.target.value),
-                  disabled: mode !== 'top'
-                },
-                  h('option', { value: 'hour' }, 'hour'),
-                  h('option', { value: 'day' }, 'day'),
-                  h('option', { value: 'week' }, 'week'),
-                  h('option', { value: 'month' }, 'month')
-                )
-              ),
-              h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                'Lookback window',
-                h('select', {
-                  className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                  value: days,
-                  onChange: event => setDays(Number(event.target.value) || 1)
-                },
-                  h('option', { value: 1 }, 'Day'),
-                  h('option', { value: 3 }, '3 Days'),
-                  h('option', { value: 7 }, 'Week')
-                )
-              ),
-              h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                'Page limit',
-                h('select', {
-                  className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                  value: maxPages,
-                  onChange: event => setMaxPages(Math.max(1, Math.min(500, Number(event.target.value) || 100)))
-                },
-                  h('option', { value: 5 }, 'Max pages: 5'),
-                  h('option', { value: 10 }, 'Max pages: 10'),
-                  h('option', { value: 20 }, 'Max pages: 20'),
-                  h('option', { value: 50 }, 'Max pages: 50'),
-                  h('option', { value: 100 }, 'Max pages: 100'),
-                  h('option', { value: 200 }, 'Max pages: 200')
-                )
-              )
+              filtersExpanded
+                ? h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4' },
+                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                      'Listing mode',
+                      h('select', {
+                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
+                        value: mode,
+                        onChange: event => setMode(event.target.value)
+                      },
+                        h('option', { value: 'new' }, 'new'),
+                        h('option', { value: 'top' }, 'top')
+                      )
+                    ),
+                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                      'Top range',
+                      h('select', {
+                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800 disabled:text-zinc-400',
+                        value: time,
+                        onChange: event => setTime(event.target.value),
+                        disabled: mode !== 'top'
+                      },
+                        h('option', { value: 'hour' }, 'hour'),
+                        h('option', { value: 'day' }, 'day'),
+                        h('option', { value: 'week' }, 'week'),
+                        h('option', { value: 'month' }, 'month')
+                      )
+                    ),
+                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                      'Lookback window',
+                      h('select', {
+                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
+                        value: days,
+                        onChange: event => setDays(Number(event.target.value) || 1)
+                      },
+                        h('option', { value: 1 }, 'Day'),
+                        h('option', { value: 3 }, '3 Days'),
+                        h('option', { value: 7 }, 'Week')
+                      )
+                    ),
+                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                      'Page limit',
+                      h('select', {
+                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
+                        value: maxPages,
+                        onChange: event => setMaxPages(Math.max(1, Math.min(500, Number(event.target.value) || 100)))
+                      },
+                        h('option', { value: 5 }, 'Max pages: 5'),
+                        h('option', { value: 10 }, 'Max pages: 10'),
+                        h('option', { value: 20 }, 'Max pages: 20'),
+                        h('option', { value: 50 }, 'Max pages: 50'),
+                        h('option', { value: 100 }, 'Max pages: 100'),
+                        h('option', { value: 200 }, 'Max pages: 200')
+                      )
+                    )
+                  )
+                : null
             )
           )
         ),
