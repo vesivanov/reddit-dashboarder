@@ -155,7 +155,6 @@
       const [minCommentFilter, setMinCommentFilter] = useState('');
       const [maxCommentFilter, setMaxCommentFilter] = useState('');
       const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-      const [primaryFiltersOpen, setPrimaryFiltersOpen] = useState(false);
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
       const [nextRefreshAt, setNextRefreshAt] = useState(null);
@@ -901,16 +900,9 @@
             subs.length > 0 && h('p', { className: 'text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-200' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren\'t available via public endpoints.')
           ),
           h('main', { className: 'lg:col-span-6 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-4' },
-            h('div', { className: 'flex items-center justify-between gap-3' },
-              h('h2', { className: 'font-semibold' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
-              h('button', {
-                type: 'button',
-                className: 'text-xs font-semibold text-indigo-600 hover:text-indigo-700',
-                onClick: () => setPrimaryFiltersOpen(prev => !prev)
-              }, primaryFiltersOpen ? 'Close filters' : 'Open filters')
-            ),
+            h('h2', { className: 'font-semibold' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
             h('div', { className: 'space-y-3' },
-              primaryFiltersOpen && h('div', { className: 'grid gap-3 md:grid-cols-3' },
+              h('div', { className: 'grid gap-3 md:grid-cols-3' },
                 h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
                   h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Score filters'),
                   h('div', { className: 'flex flex-wrap gap-2' },
