@@ -147,9 +147,8 @@
         }
       });
       const [keywordExpanded, setKeywordExpanded] = useState(false);
-      const [filtersExpanded, setFiltersExpanded] = useState(true);
+      const [filtersExpanded, setFiltersExpanded] = useState(false);
       const [latestExpanded, setLatestExpanded] = useState(false);
-      const [railOpen, setRailOpen] = useState(false);
       const [starterPackOpen, setStarterPackOpen] = useState(false);
       const [quickAddValue, setQuickAddValue] = useState('');
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
@@ -187,7 +186,6 @@
 
       const handleAddSubredditClick = useCallback(() => {
         setSubsExpanded(true);
-        setRailOpen(true);
         if (!onboardingDismissed) {
           setOnboardingDismissed(true);
         }
@@ -571,18 +569,6 @@
         };
       }, [autoRefreshEnabled, autoRefreshInterval, subs.length]);
 
-      const railClasses = [
-        'lg:col-span-1',
-        'fixed', 'inset-y-0', 'left-0', 'z-40',
-        'w-[88vw]', 'max-w-sm',
-        'bg-zinc-50', 'border-r', 'border-zinc-200', 'shadow-xl',
-        'p-4', 'overflow-y-auto',
-        'transform', 'transition-transform', 'duration-300', 'ease-in-out',
-        railOpen ? 'translate-x-0' : '-translate-x-full',
-        'lg:static', 'lg:translate-x-0', 'lg:shadow-none', 'lg:bg-transparent', 'lg:border-none',
-        'lg:w-full'
-      ].join(' ');
-
       return h('div', { className: 'max-w-7xl mx-auto p-4 space-y-6' },
         h('header', { className: 'space-y-4' },
           h('div', { className: 'flex flex-col gap-2 md:flex-row md:items-center md:justify-between' },
@@ -591,14 +577,6 @@
               h('p', { className: 'text-zinc-600 text-sm' }, 'Three-pane • Keyword filter • Day / 3 Days / Week • Full post body + subreddit stats')
             ),
             h('div', { className: 'flex flex-wrap items-center gap-2' },
-              h('button', {
-                type: 'button',
-                className: 'inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 shadow-sm transition-colors hover:bg-zinc-50 md:hidden',
-                onClick: () => setRailOpen(true)
-              },
-                h('span', { className: 'text-lg' }, '☰'),
-                'Filters & subs'
-              ),
               authChecking
                 ? h('div', {
                     className: 'px-3 py-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 text-sm text-zinc-500 flex items-center gap-2'
@@ -620,589 +598,535 @@
             )
           )
         ),
-        needsAuth ? h('div', { className: 'rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 space-y-1' },
+        needsAuth ? h('div', { className: 'mb-3 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 space-y-1' },
           h('p', { className: 'font-semibold' }, 'Sign in required'),
           h('p', { className: 'text-sm' }, 'Sign in with Reddit to load personalized data for your dashboard.'),
         ) : null,
-        railOpen && h('div', {
-          className: 'fixed inset-0 z-30 bg-black/30 backdrop-blur-sm lg:hidden',
-          onClick: () => setRailOpen(false)
-        }),
-        h('div', { className: 'grid gap-4 lg:grid-cols-[360px,1fr] items-start relative' },
-          h('aside', { className: railClasses },
-            h('div', { className: 'space-y-4' },
-              h('div', { className: 'flex items-center justify-between lg:hidden' },
-                h('span', { className: 'text-sm font-semibold text-zinc-800' }, 'Filters & subreddits'),
-                h('button', {
-                  className: 'text-xs font-semibold text-zinc-500 hover:text-zinc-800',
-                  onClick: () => setRailOpen(false)
-                }, 'Close')
+        h('div', { className: 'mb-3 space-y-2' },
+          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
+            h('button', {
+              className: 'w-full flex items-center justify-between text-left',
+              onClick: () => setFiltersExpanded(open => !open)
+            },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'font-medium' }, 'Filters'),
+                filtersActive && h('span', { className: 'px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs' }, 'Active')
               ),
-              h('div', { className: 'md:sticky md:top-4 lg:sticky lg:top-4 space-y-4' },
-                h('div', { className: 'bg-white rounded-2xl shadow p-4 space-y-3' },
-                  h('div', { className: 'flex items-center justify-between gap-2' },
-                    h('div', { className: 'flex items-center gap-2' },
-                      h('span', { className: 'font-semibold' }, 'Filter summary'),
-                      filtersActive && h('span', { className: 'px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs' }, 'Active')
+              h('span', { className: 'text-zinc-400' }, filtersExpanded ? '▼' : '▶')
+            ),
+            filtersExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
+              error
+                ? h('div', { className: 'px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700' }, `Error: ${error}`)
+                : loading
+                  ? h('div', { className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-600' }, 'Fetching latest posts…')
+                  : h('div', { className: 'px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-200' },
+                      h('div', { className: 'text-sm text-zinc-600' }, statusSummary)
                     ),
-                    h('button', {
-                      className: 'md:hidden text-xs font-semibold text-zinc-500 hover:text-zinc-800',
-                      onClick: () => setRailOpen(false)
-                    }, 'Done')
-                  ),
-                  error
-                    ? h('div', { className: 'px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700' }, `Error: ${error}`)
-                    : loading
-                      ? h('div', { className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-600' }, 'Fetching latest posts…')
-                      : h('div', { className: 'px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-200' },
-                          h('div', { className: 'text-sm text-zinc-600' }, statusSummary)
-                        ),
-                  h('div', { className: 'flex flex-wrap items-center gap-3 pt-2 border-t border-zinc-200' },
-                    h('label', { className: 'flex items-center gap-2 text-sm font-semibold text-zinc-700' },
-                      h('input', {
-                        type: 'checkbox',
-                        className: 'w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500',
-                        checked: autoRefreshEnabled,
-                        onChange: event => setAutoRefreshEnabled(event.target.checked),
-                        title: subs.length ? 'Toggle automatic refresh' : 'Add at least one subreddit to start auto-refreshing'
-                      }),
-                      'Auto-refresh'
-                    ),
-                    h('select', {
-                      className: 'border rounded-lg px-2 py-1 text-sm',
-                      value: autoRefreshInterval,
-                      disabled: !autoRefreshEnabled,
-                      onChange: event => {
-                        const next = Number(event.target.value);
-                        if (Number.isFinite(next)) {
-                          setAutoRefreshInterval(Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(next))));
-                        }
-                      }
-                    },
-                      AUTO_REFRESH_OPTIONS.map(option =>
-                        h('option', { key: option, value: option }, `${option} min`)
-                      )
-                    ),
-                    h('button', {
-                      onClick: () => refresh(),
-                      className: 'px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold shadow disabled:opacity-50',
-                      disabled: loading
-                    }, loading ? 'Fetching…' : 'Refresh')
-                  )
-                )
-              ),
-              h('div', { className: 'bg-white rounded-2xl shadow p-4 space-y-4' },
-                h('div', { className: 'flex items-center justify-between' },
-                  h('div', { className: 'flex items-center gap-2' },
-                    h('span', { className: 'font-semibold' }, 'Filters'),
-                    filtersActive && h('span', { className: 'px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs' }, 'Active')
-                  ),
-                  h('button', {
-                    className: 'text-sm font-semibold text-zinc-500 hover:text-zinc-800',
-                    onClick: () => setFiltersExpanded(open => !open)
-                  }, filtersExpanded ? 'Hide' : 'Show')
-                ),
-                filtersExpanded && h('div', { className: 'space-y-4 pt-3 border-t border-zinc-200' },
-                  h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-2' },
-                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                      'Listing mode',
-                      h('select', {
-                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                        value: mode,
-                        onChange: event => setMode(event.target.value)
-                      },
-                        h('option', { value: 'new' }, 'new'),
-                        h('option', { value: 'top' }, 'top')
-                      )
-                    ),
-                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                      'Top range',
-                      h('select', {
-                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800 disabled:text-zinc-400',
-                        value: time,
-                        onChange: event => setTime(event.target.value),
-                        disabled: mode !== 'top'
-                      },
-                        h('option', { value: 'hour' }, 'hour'),
-                        h('option', { value: 'day' }, 'day'),
-                        h('option', { value: 'week' }, 'week'),
-                        h('option', { value: 'month' }, 'month')
-                      )
-                    ),
-                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                      'Lookback window',
-                      h('select', {
-                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                        value: days,
-                        onChange: event => setDays(Number(event.target.value) || 1)
-                      },
-                        h('option', { value: 1 }, 'Day'),
-                        h('option', { value: 3 }, '3 Days'),
-                        h('option', { value: 7 }, 'Week')
-                      )
-                    ),
-                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                      'Page limit',
-                      h('select', {
-                        className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                        value: maxPages,
-                        onChange: event => setMaxPages(Math.max(1, Math.min(500, Number(event.target.value) || 100)))
-                      },
-                        h('option', { value: 5 }, 'Max pages: 5'),
-                        h('option', { value: 10 }, 'Max pages: 10'),
-                        h('option', { value: 20 }, 'Max pages: 20'),
-                        h('option', { value: 50 }, 'Max pages: 50'),
-                        h('option', { value: 100 }, 'Max pages: 100'),
-                        h('option', { value: 200 }, 'Max pages: 200')
-                      )
-                    )
-                  ),
-                  h('div', { className: 'grid gap-3 md:grid-cols-3 pt-2 border-t border-zinc-200' },
-                    h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
-                      h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Score filters'),
-                      h('div', { className: 'flex flex-wrap gap-2' },
-                        UPVOTE_PRESETS.map(value => {
-                          const label = value === 'any' ? 'Any' : `${value}+`;
-                          const isActive = value === 'any' ? minUpvoteFilter === '' : minUpvoteFilter === String(value);
-                          return h('button', {
-                            key: `score-${value}`,
-                            type: 'button',
-                            className: `px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${isActive ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-transparent bg-white text-zinc-600 hover:border-indigo-200'}`,
-                            onClick: () => setMinUpvoteFilter(value === 'any' ? '' : String(value))
-                          }, label);
-                        })
-                      ),
-                      h('div', { className: 'flex items-center gap-2' },
-                        h('span', { className: 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500' }, 'Custom'),
-                        h('input', {
-                          type: 'number',
-                          inputMode: 'numeric',
-                          className: 'flex-1 border rounded-lg px-2 py-1 text-xs',
-                          value: minUpvoteFilter,
-                          onChange: event => setMinUpvoteFilter(event.target.value),
-                          placeholder: 'Any'
-                        })
-                      ),
-                      h('p', { className: 'text-xs text-zinc-500' }, 'Raise the floor to focus on higher-signal posts.')
-                    ),
-                    h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
-                      h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Comment filters'),
-                      h('div', { className: 'flex flex-wrap gap-2' },
-                        COMMENT_PRESETS.map(value => {
-                          const label = value === 'any' ? 'Any' : `${value}+`;
-                          const isActive = value === 'any' ? minCommentFilter === '' : minCommentFilter === String(value);
-                          return h('button', {
-                            key: `comment-${value}`,
-                            type: 'button',
-                            className: `px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${isActive ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-transparent bg-white text-zinc-600 hover:border-indigo-200'}`,
-                            onClick: () => setMinCommentFilter(value === 'any' ? '' : String(value))
-                          }, label);
-                        })
-                      ),
-                      h('div', { className: 'flex items-center gap-2' },
-                        h('span', { className: 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500' }, 'Custom'),
-                        h('input', {
-                          type: 'number',
-                          inputMode: 'numeric',
-                          className: 'flex-1 border rounded-lg px-2 py-1 text-xs',
-                          value: minCommentFilter,
-                          onChange: event => setMinCommentFilter(event.target.value),
-                          placeholder: 'Any'
-                        })
-                      ),
-                      h('p', { className: 'text-xs text-zinc-500' }, 'Find threads with active conversations.')
-                    ),
-                    h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-3' },
-                      h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Sort'),
-                      h('label', { className: 'flex flex-col gap-1 text-xs font-medium text-zinc-600' },
-                        'Order by',
-                        h('select', {
-                          className: 'border rounded-lg px-3 py-2 text-xs',
-                          value: sortBy,
-                          onChange: event => setSortBy(event.target.value)
-                        },
-                          h('option', { value: 'date' }, 'Date'),
-                          h('option', { value: 'upvotes' }, 'Upvotes'),
-                          h('option', { value: 'comments' }, 'Comments')
-                        )
-                      ),
-                      h('label', { className: 'flex flex-col gap-1 text-xs font-medium text-zinc-600' },
-                        'Order',
-                        h('select', {
-                          className: 'border rounded-lg px-3 py-2 text-xs',
-                          value: sortOrder,
-                          onChange: event => setSortOrder(event.target.value)
-                        },
-                          h('option', { value: 'desc' }, sortBy === 'date' ? 'Newest' : 'High → Low'),
-                          h('option', { value: 'asc' }, sortBy === 'date' ? 'Oldest' : 'Low → High')
-                        )
-                      )
-                    )
-                  ),
-                  h('div', { className: 'flex flex-wrap items-center justify-between text-xs text-zinc-600 pt-2 border-t border-zinc-200' },
-                    h('button', {
-                      type: 'button',
-                      className: 'font-semibold text-indigo-600 hover:text-indigo-700',
-                      onClick: () => setShowAdvancedFilters(prev => !prev)
-                    }, showAdvancedFilters ? 'Hide advanced filters' : 'More filters'),
-                    filtersActive && h('button', {
-                      type: 'button',
-                      className: 'font-semibold text-zinc-500 hover:text-zinc-700',
-                      onClick: () => {
-                        setMinUpvoteFilter('');
-                        setMaxUpvoteFilter('');
-                        setMinCommentFilter('');
-                        setMaxCommentFilter('');
-                      }
-                    }, 'Clear filters')
-                  ),
-                  showAdvancedFilters && h('div', { className: 'grid gap-3 sm:grid-cols-2 pt-2' },
-                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                      'Max upvotes',
-                      h('input', {
-                        type: 'number',
-                        inputMode: 'numeric',
-                        className: 'border rounded-lg px-3 py-2 text-sm',
-                        value: maxUpvoteFilter,
-                        onChange: event => setMaxUpvoteFilter(event.target.value),
-                        placeholder: 'No max'
-                      })
-                    ),
-                    h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                      'Max comments',
-                      h('input', {
-                        type: 'number',
-                        inputMode: 'numeric',
-                        className: 'border rounded-lg px-3 py-2 text-sm',
-                        value: maxCommentFilter,
-                        onChange: event => setMaxCommentFilter(event.target.value),
-                        placeholder: 'No max'
-                      })
-                    )
-                  )
-                )
-              ),
-              h('div', { className: 'bg-white rounded-2xl shadow p-3 space-y-3' },
-                h('div', { className: 'flex items-center justify-between' },
-                  h('div', { className: 'flex items-center gap-2' },
-                    h('span', { className: 'font-semibold' }, 'Subreddits'),
-                    subs.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${subs.length} added`)
-                  ),
-                  h('button', {
-                    className: 'text-sm font-semibold text-zinc-500 hover:text-zinc-800',
-                    onClick: () => setSubsExpanded(!subsExpanded)
-                  }, subsExpanded ? 'Hide' : 'Show')
-                ),
-                subsExpanded && h('div', { className: 'space-y-4 pt-2 border-t border-zinc-200' },
-                  h('textarea', {
-                    className: 'w-full border rounded-lg px-3 py-2 text-sm',
-                    rows: 3,
-                    value: subsInput,
-                    placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
-                    onChange: event => setSubsInput(event.target.value),
-                    onBlur: event => {
-                      const list = uniqueNormalizedSubreddits(event.target.value);
-                      setSubs(list);
-                      try {
-                        localStorage.setItem('dashboard_subs', JSON.stringify(list));
-                        localStorage.setItem('dashboard_subs_backup', JSON.stringify(list));
-                      } catch (e) {
-                        console.warn('Failed to save subreddits:', e);
-                      }
-                    },
-                    ref: subsInputRef
+              h('div', { className: 'flex flex-wrap items-center gap-3 pt-2' },
+                h('label', { className: 'flex items-center gap-2 text-sm font-semibold text-zinc-700' },
+                  h('input', {
+                    type: 'checkbox',
+                    className: 'w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500',
+                    checked: autoRefreshEnabled,
+                    onChange: event => setAutoRefreshEnabled(event.target.checked),
+                    title: subs.length ? 'Toggle automatic refresh' : 'Add at least one subreddit to start auto-refreshing'
                   }),
-                  h('p', { className: 'text-xs text-zinc-500' }, 'Separate each community with a comma. Your list stays in this browser so it\'s ready whenever you return.'),
-                  h('div', { className: 'flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between' },
-                    h('button', {
-                      type: 'button',
-                      className: 'inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors',
-                      onClick: () => setStarterPackOpen(true)
-                    }, 'Browse starter packs'),
-                    h('div', { className: 'flex-1 sm:max-w-sm w-full' },
-                      h('label', { className: 'block text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1' }, 'Quick add from popular'),
-                      h('div', { className: 'flex gap-2' },
-                        h('input', {
-                          className: 'flex-1 border rounded-lg px-3 py-2 text-sm',
-                          list: 'popular-subreddits',
-                          placeholder: 'Start typing to search popular subreddits…',
-                          value: quickAddValue,
-                          onChange: event => setQuickAddValue(event.target.value),
-                          onKeyDown: event => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              handleQuickAddSubmit();
-                            }
-                          }
-                        }),
-                        h('datalist', { id: 'popular-subreddits' },
-                          POPULAR_SUBREDDITS.map(sub => h('option', { key: sub, value: sub }))),
-                        h('button', {
-                          type: 'button',
-                          className: 'inline-flex items-center justify-center rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white shadow hover:bg-zinc-900',
-                          onClick: handleQuickAddSubmit
-                        }, 'Add')
-                      )
+                  'Auto-refresh'
+                ),
+                h('select', {
+                  className: 'border rounded-lg px-2 py-1 text-sm',
+                  value: autoRefreshInterval,
+                  disabled: !autoRefreshEnabled,
+                  onChange: event => {
+                    const next = Number(event.target.value);
+                    if (Number.isFinite(next)) {
+                      setAutoRefreshInterval(Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(next))));
+                    }
+                  }
+                },
+                  AUTO_REFRESH_OPTIONS.map(option =>
+                    h('option', { key: option, value: option }, `${option} min`)
+                  )
+                ),
+                h('button', {
+                  onClick: () => refresh(),
+                  className: 'px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold shadow disabled:opacity-50',
+                  disabled: loading
+                }, loading ? 'Fetching…' : 'Refresh')
+              ),
+              h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-2 border-t border-zinc-200' },
+                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                  'Listing mode',
+                  h('select', {
+                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
+                    value: mode,
+                    onChange: event => setMode(event.target.value)
+                  },
+                    h('option', { value: 'new' }, 'new'),
+                    h('option', { value: 'top' }, 'top')
+                  )
+                ),
+                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                  'Top range',
+                  h('select', {
+                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800 disabled:text-zinc-400',
+                    value: time,
+                    onChange: event => setTime(event.target.value),
+                    disabled: mode !== 'top'
+                  },
+                    h('option', { value: 'hour' }, 'hour'),
+                    h('option', { value: 'day' }, 'day'),
+                    h('option', { value: 'week' }, 'week'),
+                    h('option', { value: 'month' }, 'month')
+                  )
+                ),
+                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                  'Lookback window',
+                  h('select', {
+                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
+                    value: days,
+                    onChange: event => setDays(Number(event.target.value) || 1)
+                  },
+                    h('option', { value: 1 }, 'Day'),
+                    h('option', { value: 3 }, '3 Days'),
+                    h('option', { value: 7 }, 'Week')
+                  )
+                ),
+                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                  'Page limit',
+                  h('select', {
+                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
+                    value: maxPages,
+                    onChange: event => setMaxPages(Math.max(1, Math.min(500, Number(event.target.value) || 100)))
+                  },
+                    h('option', { value: 5 }, 'Max pages: 5'),
+                    h('option', { value: 10 }, 'Max pages: 10'),
+                    h('option', { value: 20 }, 'Max pages: 20'),
+                    h('option', { value: 50 }, 'Max pages: 50'),
+                    h('option', { value: 100 }, 'Max pages: 100'),
+                    h('option', { value: 200 }, 'Max pages: 200')
+                  )
+                )
+              ),
+              h('div', { className: 'grid gap-3 md:grid-cols-3 pt-2 border-t border-zinc-200' },
+                h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
+                  h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Score filters'),
+                  h('div', { className: 'flex flex-wrap gap-2' },
+                    UPVOTE_PRESETS.map(value => {
+                      const label = value === 'any' ? 'Any' : `${value}+`;
+                      const isActive = value === 'any' ? minUpvoteFilter === '' : minUpvoteFilter === String(value);
+                      return h('button', {
+                        key: `score-${value}`,
+                        type: 'button',
+                        className: `px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${isActive ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-transparent bg-white text-zinc-600 hover:border-indigo-200'}`,
+                        onClick: () => setMinUpvoteFilter(value === 'any' ? '' : String(value))
+                      }, label);
+                    })
+                  ),
+                  h('div', { className: 'flex items-center gap-2' },
+                    h('span', { className: 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500' }, 'Custom'),
+                    h('input', {
+                      type: 'number',
+                      inputMode: 'numeric',
+                      className: 'flex-1 border rounded-lg px-2 py-1 text-xs',
+                      value: minUpvoteFilter,
+                      onChange: event => setMinUpvoteFilter(event.target.value),
+                      placeholder: 'Any'
+                    })
+                  ),
+                  h('p', { className: 'text-xs text-zinc-500' }, 'Raise the floor to focus on higher-signal posts.')
+                ),
+                h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
+                  h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Comment filters'),
+                  h('div', { className: 'flex flex-wrap gap-2' },
+                    COMMENT_PRESETS.map(value => {
+                      const label = value === 'any' ? 'Any' : `${value}+`;
+                      const isActive = value === 'any' ? minCommentFilter === '' : minCommentFilter === String(value);
+                      return h('button', {
+                        key: `comment-${value}`,
+                        type: 'button',
+                        className: `px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${isActive ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-transparent bg-white text-zinc-600 hover:border-indigo-200'}`,
+                        onClick: () => setMinCommentFilter(value === 'any' ? '' : String(value))
+                      }, label);
+                    })
+                  ),
+                  h('div', { className: 'flex items-center gap-2' },
+                    h('span', { className: 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500' }, 'Custom'),
+                    h('input', {
+                      type: 'number',
+                      inputMode: 'numeric',
+                      className: 'flex-1 border rounded-lg px-2 py-1 text-xs',
+                      value: minCommentFilter,
+                      onChange: event => setMinCommentFilter(event.target.value),
+                      placeholder: 'Any'
+                    })
+                  ),
+                  h('p', { className: 'text-xs text-zinc-500' }, 'Find threads with active conversations.')
+                ),
+                h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-3' },
+                  h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Sort'),
+                  h('label', { className: 'flex flex-col gap-1 text-xs font-medium text-zinc-600' },
+                    'Order by',
+                    h('select', {
+                      className: 'border rounded-lg px-3 py-2 text-xs',
+                      value: sortBy,
+                      onChange: event => setSortBy(event.target.value)
+                    },
+                      h('option', { value: 'date' }, 'Date'),
+                      h('option', { value: 'upvotes' }, 'Upvotes'),
+                      h('option', { value: 'comments' }, 'Comments')
                     )
                   ),
-                  h('div', { className: 'grid gap-3 sm:grid-cols-2' },
-                    h('div', { className: 'space-y-2' },
-                      h('p', { className: 'text-xs font-semibold text-zinc-700 uppercase tracking-wide' }, 'Starter packs'),
-                      h('div', { className: 'grid grid-cols-2 gap-2' },
-                        STARTER_PACKS.map(pack =>
-                          h('button', {
-                            key: pack.id,
-                            className: 'flex flex-col items-start gap-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-left text-xs font-semibold text-zinc-700 hover:border-indigo-200 hover:bg-indigo-50',
-                            onClick: () => handleApplyStarterPack(pack)
-                          },
-                            h('span', { className: 'text-sm font-bold text-zinc-900' }, pack.label),
-                            h('span', { className: 'text-[11px] text-zinc-500 leading-snug' }, pack.description)
-                          )
-                        )
-                      )
-                    ),
-                    h('div', { className: 'space-y-2' },
-                      h('p', { className: 'text-xs font-semibold text-zinc-700 uppercase tracking-wide' }, 'Fast add'),
-                      h('div', { className: 'flex flex-wrap gap-2' },
-                        POPULAR_SUBREDDITS.map(sub =>
-                          h('button', {
-                            key: sub,
-                            className: 'px-3 py-1.5 rounded-full border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:border-indigo-200 hover:bg-indigo-50 transition-colors',
-                            onClick: () => handleSuggestedSub(sub)
-                          }, `r/${sub}`)
-                        )
-                      )
-                    )
-                  ),
-                  h('div', { className: 'flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-200' },
-                    h('p', { className: 'text-xs text-zinc-500' }, 'Export or import your setup to share with teammates.'),
-                    h('div', { className: 'flex gap-2' },
-                      h('button', {
-                        className: 'px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-100',
-                        onClick: () => {
-                          const payload = JSON.stringify({ subs, maxPages }, null, 2);
-                          navigator.clipboard.writeText(payload).then(() => alert('Copied settings to clipboard. Paste somewhere safe!')).catch(() => alert('Copy failed. Settings: ' + payload));
-                        }
-                      }, 'Copy setup'),
-                      h('button', {
-                        className: 'px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-100',
-                        onClick: () => {
-                          const input = prompt('Paste your settings backup:');
-                          if (input) {
-                            try {
-                              const parsed = JSON.parse(input);
-                              if (parsed.subs) setSubs(parsed.subs);
-                              if (parsed.maxPages) setMaxPages(parsed.maxPages);
-                              alert('Settings restored.');
-                            } catch (e) {
-                              alert('Invalid backup format');
-                            }
-                          }
-                        }
-                      }, 'Restore from backup')
+                  h('label', { className: 'flex flex-col gap-1 text-xs font-medium text-zinc-600' },
+                    'Order',
+                    h('select', {
+                      className: 'border rounded-lg px-3 py-2 text-xs',
+                      value: sortOrder,
+                      onChange: event => setSortOrder(event.target.value)
+                    },
+                      h('option', { value: 'desc' }, sortBy === 'date' ? 'Newest' : 'High → Low'),
+                      h('option', { value: 'asc' }, sortBy === 'date' ? 'Oldest' : 'Low → High')
                     )
                   )
+                )
+              ),
+              h('div', { className: 'flex flex-wrap items-center justify-between text-xs text-zinc-600 pt-2 border-t border-zinc-200' },
+                h('button', {
+                  type: 'button',
+                  className: 'font-semibold text-indigo-600 hover:text-indigo-700',
+                  onClick: () => setShowAdvancedFilters(prev => !prev)
+                }, showAdvancedFilters ? 'Hide advanced filters' : 'More filters'),
+                filtersActive && h('button', {
+                  type: 'button',
+                  className: 'font-semibold text-zinc-500 hover:text-zinc-700',
+                  onClick: () => {
+                    setMinUpvoteFilter('');
+                    setMaxUpvoteFilter('');
+                    setMinCommentFilter('');
+                    setMaxCommentFilter('');
+                  }
+                }, 'Clear filters')
+              ),
+              showAdvancedFilters && h('div', { className: 'grid gap-3 sm:grid-cols-2 pt-2' },
+                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                  'Max upvotes',
+                  h('input', {
+                    type: 'number',
+                    inputMode: 'numeric',
+                    className: 'border rounded-lg px-3 py-2 text-sm',
+                    value: maxUpvoteFilter,
+                    onChange: event => setMaxUpvoteFilter(event.target.value),
+                    placeholder: 'No max'
+                  })
+                ),
+                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
+                  'Max comments',
+                  h('input', {
+                    type: 'number',
+                    inputMode: 'numeric',
+                    className: 'border rounded-lg px-3 py-2 text-sm',
+                    value: maxCommentFilter,
+                    onChange: event => setMaxCommentFilter(event.target.value),
+                    placeholder: 'No max'
+                  })
+                )
+              )
+            )
+          )
+        ),
+        subs.length === 0 && !onboardingDismissed ? h('section', { className: 'mb-4' },
+          h('div', { className: 'bg-white border border-blue-200 rounded-3xl shadow-sm p-5 space-y-4' },
+            h('div', { className: 'space-y-2' },
+              h('h2', { className: 'text-xl font-bold text-blue-700' }, 'Start your dashboard in minutes'),
+              h('p', { className: 'text-sm text-zinc-600 max-w-2xl' }, 'Add the communities you care about. Browse curated bundles or paste your own list — everything is saved locally for next time.')
+            ),
+            h('div', { className: 'flex flex-wrap gap-2' },
+              h('button', {
+                className: 'inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-blue-700',
+                onClick: () => {
+                  setStarterPackOpen(true);
+                  setOnboardingDismissed(true);
+                }
+              }, 'Browse starter packs'),
+              h('button', {
+                className: 'inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition-colors',
+                onClick: handleAddSubredditClick
+              }, 'Add manually'),
+              h('button', {
+                className: 'inline-flex items-center justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-semibold text-blue-500 hover:text-blue-700',
+                onClick: () => setOnboardingDismissed(true)
+              }, 'Maybe later')
+            ),
+            h('p', { className: 'text-xs text-zinc-500' }, 'Tip: You can export or import your setup anytime from the Subreddits panel.')
+          )
+        ) : null,
+        h('div', { className: 'mb-3 space-y-2' },
+          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
+            h('button', {
+              className: 'w-full flex items-center justify-between text-left',
+              onClick: () => setSubsExpanded(!subsExpanded)
+            },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'font-medium' }, 'Subreddits'),
+                subs.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${subs.length} added`)
+              ),
+              h('span', { className: 'text-zinc-400' }, subsExpanded ? '▼' : '▶')
+            ),
+            subsExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
+              h('textarea', {
+                className: 'w-full border rounded-lg px-3 py-2 text-sm',
+                rows: 3,
+                value: subsInput,
+                placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
+                onChange: event => setSubsInput(event.target.value),
+                onBlur: event => {
+                  const list = uniqueNormalizedSubreddits(event.target.value);
+                  setSubs(list);
+                  try {
+                    localStorage.setItem('dashboard_subs', JSON.stringify(list));
+                    localStorage.setItem('dashboard_subs_backup', JSON.stringify(list));
+                  } catch (e) {
+                    console.warn('Failed to save subreddits:', e);
+                  }
+                },
+                ref: subsInputRef
+              }),
+              h('p', { className: 'text-xs text-zinc-500' }, 'Separate each community with a comma. Your list stays in this browser so it\'s ready whenever you return.'),
+              h('div', { className: 'flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between' },
+                h('button', {
+                  type: 'button',
+                  className: 'inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors',
+                  onClick: () => setStarterPackOpen(true)
+                }, 'Browse starter packs'),
+                h('div', { className: 'flex-1 sm:max-w-sm w-full' },
+                  h('label', { className: 'block text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1' }, 'Quick add from popular'),
+                  h('div', { className: 'flex gap-2' },
+                    h('input', {
+                      className: 'flex-1 border rounded-lg px-3 py-2 text-sm',
+                      list: 'popular-subreddits',
+                      placeholder: 'Start typing to search popular subreddits…',
+                      value: quickAddValue,
+                      onChange: event => setQuickAddValue(event.target.value),
+                      onKeyDown: event => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          handleQuickAddSubmit();
+                        }
+                      }
+                    }),
+                    h('button', {
+                      type: 'button',
+                      className: 'px-3 py-2 rounded-lg bg-black text-white text-sm font-semibold shadow disabled:opacity-40',
+                      onClick: handleQuickAddSubmit,
+                      disabled: !quickAddValue.trim()
+                    }, 'Add')
+                  ),
+                  h('datalist', { id: 'popular-subreddits' },
+                    POPULAR_SUBREDDITS.map(sub =>
+                      h('option', { key: sub, value: `r/${sub}` })
+                    )
+                  )
+                )
+              ),
+              h('details', { className: 'rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600' },
+                h('summary', { className: 'font-semibold cursor-pointer select-none' }, 'More actions'),
+                h('div', { className: 'mt-2 flex flex-wrap gap-2' },
+                  h('button', {
+                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-100',
+                    onClick: () => {
+                      const backup = JSON.stringify({ subs, maxPages });
+                      navigator.clipboard.writeText(backup);
+                      alert('Settings copied to clipboard.');
+                    }
+                  }, 'Copy setup'),
+                  h('button', {
+                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-100',
+                    onClick: () => {
+                      const input = prompt('Paste your settings backup:');
+                      if (input) {
+                        try {
+                          const parsed = JSON.parse(input);
+                          if (parsed.subs) setSubs(parsed.subs);
+                          if (parsed.maxPages) setMaxPages(parsed.maxPages);
+                          alert('Settings restored.');
+                        } catch (e) {
+                          alert('Invalid backup format');
+                        }
+                      }
+                    }
+                  }, 'Restore from backup')
                 )
               )
             )
           ),
-          h('div', { className: 'space-y-4' },
-            subs.length === 0 && !onboardingDismissed ? h('section', null,
-              h('div', { className: 'bg-white border border-blue-200 rounded-3xl shadow-sm p-5 space-y-4' },
-                h('div', { className: 'space-y-2' },
-                  h('h2', { className: 'text-xl font-bold text-blue-700' }, 'Start your dashboard in minutes'),
-                  h('p', { className: 'text-sm text-zinc-600 max-w-2xl' }, 'Add the communities you care about. Browse curated bundles or paste your own list — everything is saved locally for next time.')
+          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
+            h('button', {
+              className: 'w-full flex items-center justify-between text-left',
+              onClick: () => setKeywordExpanded(!keywordExpanded)
+            },
+              h('div', { className: 'flex items-center gap-2' },
+                h('span', { className: 'font-medium' }, 'Search'),
+                keyword && h('span', { className: 'px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs' }, `"${keyword}"`)
+              ),
+              h('span', { className: 'text-zinc-400' }, keywordExpanded ? '▼' : '▶')
+            ),
+            keywordExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200' },
+              h('input', {
+                className: 'w-full border rounded-lg px-3 py-2 text-sm',
+                value: keyword,
+                onChange: event => setKeyword(event.target.value),
+                placeholder: 'Type a keyword or phrase to search posts...'
+              })
+            )
+          )
+        ),
+        h('div', { className: 'grid grid-cols-1 lg:grid-cols-12 gap-4' },
+          h('aside', { className: 'lg:col-span-2 bg-white rounded-2xl shadow p-3 lg:p-2 lg:text-sm' },
+            h('div', { className: 'flex items-center justify-between mb-3 lg:mb-2' },
+              h('h2', { className: 'font-semibold text-base lg:text-sm' }, 'Subreddits'),
+              h('button', {
+                className: 'text-xs px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200',
+                onClick: () => setSelectedSub('ALL')
+              }, 'All')
+            ),
+            subs.length === 0
+              ? h('div', { className: 'text-sm lg:text-xs text-zinc-500 italic text-center py-8 lg:py-6' },
+                  h('div', { className: 'space-y-2' },
+                    h('div', null, 'No subreddits added yet'),
+                    h('div', { className: 'text-xs' }, 'Use “Add subreddits” to choose a starter pack or enter your own list')
+                  )
+                )
+              : h('div', { className: 'space-y-2 lg:space-y-1.5 max-h-[70vh] overflow-auto' },
+                  subs.map(sub => {
+                    const meta = subMetaMap.get(sub) || {};
+                    const capped = subPartialMap.get(sub);
+                    const postCount = allPosts.filter(post => post.subreddit?.toLowerCase() === sub.toLowerCase()).length;
+                    return h('div', { key: sub, className: 'border border-zinc-200 rounded-lg p-3 lg:p-2 hover:border-zinc-300 transition-colors' },
+                      h('button', {
+                        onClick: () => setSelectedSub(sub),
+                        className: `w-full text-left ${selectedSub === sub ? 'font-semibold' : ''}`
+                      },
+                        h('div', { className: 'flex items-center justify-between mb-2 lg:mb-1.5' },
+                          h('span', { className: 'text-sm lg:text-xs font-medium' }, `r/${sub}`),
+                          h('span', { className: 'text-xs text-zinc-500' }, `${postCount} posts`)
+                        ),
+                        h('div', { className: 'flex items-center gap-2 lg:gap-1.5 text-xs text-zinc-500' },
+                          h('span', { className: 'leading-tight' }, `${formatSubs(meta.subscribers)} subscribers`),
+                          meta.active_user_count && h('span', { className: 'leading-tight' }, `• ${formatSubs(meta.active_user_count)} active`),
+                          capped && h('span', { className: 'px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200' }, 'capped')
+                        )
+                      )
+                    );
+                  })
                 ),
-                h('div', { className: 'flex flex-wrap gap-2' },
-                  h('button', {
-                    className: 'inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-blue-700',
-                    onClick: () => {
-                      setStarterPackOpen(true);
-                      setOnboardingDismissed(true);
-                      setRailOpen(true);
-                    }
-                  }, 'Browse starter packs'),
-                  h('button', {
-                    className: 'inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition-colors',
-                    onClick: handleAddSubredditClick
-                  }, 'Add manually'),
-                  h('button', {
-                    className: 'inline-flex items-center justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-semibold text-blue-500 hover:text-blue-700',
-                    onClick: () => setOnboardingDismissed(true)
-                  }, 'Maybe later')
-                ),
-                h('p', { className: 'text-xs text-zinc-500' }, 'Tip: You can export or import your setup anytime from the Subreddits panel.')
-              )
-            ) : null,
+            subs.length > 0 && h('p', { className: 'text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-200' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren\'t available via public endpoints.')
+          ),
+          h('main', { className: 'lg:col-span-6 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-4' },
             h('div', { className: 'bg-white rounded-2xl shadow p-3' },
               h('button', {
                 className: 'w-full flex items-center justify-between text-left',
-                onClick: () => setKeywordExpanded(!keywordExpanded)
+                onClick: () => setLatestExpanded(!latestExpanded)
               },
                 h('div', { className: 'flex items-center gap-2' },
-                  h('span', { className: 'font-medium' }, 'Search'),
-                  keyword && h('span', { className: 'px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs' }, `"${keyword}"`)
+                  h('span', { className: 'font-medium' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
+                  visiblePosts.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${visiblePosts.length} posts`)
                 ),
-                h('span', { className: 'text-zinc-400' }, keywordExpanded ? '▼' : '▶')
+                h('span', { className: 'text-zinc-400' }, latestExpanded ? '▼' : '▶')
               ),
-              keywordExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200' },
-                h('input', {
-                  className: 'w-full border rounded-lg px-3 py-2 text-sm',
-                  value: keyword,
-                  onChange: event => setKeyword(event.target.value),
-                  placeholder: 'Type a keyword or phrase to search posts...'
-                })
-              )
-            ),
-            h('div', { className: 'grid grid-cols-1 xl:grid-cols-12 gap-4' },
-              h('aside', { className: 'xl:col-span-3 bg-white rounded-2xl shadow p-3 xl:p-2 xl:text-sm' },
-                h('div', { className: 'flex items-center justify-between mb-3 xl:mb-2' },
-                  h('h2', { className: 'font-semibold text-base xl:text-sm' }, 'Subreddits'),
-                  h('button', {
-                    className: 'text-xs px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200',
-                    onClick: () => setSelectedSub('ALL')
-                  }, 'All')
-                ),
-                subs.length === 0
-                  ? h('div', { className: 'text-sm xl:text-xs text-zinc-500 italic text-center py-8 xl:py-6' },
-                      h('div', { className: 'space-y-2' },
-                        h('div', null, 'No subreddits added yet'),
-                        h('div', { className: 'text-xs' }, 'Use the left rail to choose a starter pack or enter your own list')
-                      )
-                    )
-                  : h('div', { className: 'space-y-2 xl:space-y-1.5 max-h-[70vh] overflow-auto' },
-                      subs.map(sub => {
-                        const meta = subMetaMap.get(sub) || {};
-                        const capped = subPartialMap.get(sub);
-                        const postCount = allPosts.filter(post => post.subreddit?.toLowerCase() === sub.toLowerCase()).length;
-                        return h('div', { key: sub, className: 'border border-zinc-200 rounded-lg p-3 xl:p-2 hover:border-zinc-300 transition-colors' },
-                          h('button', {
-                            onClick: () => setSelectedSub(sub),
-                            className: `w-full text-left ${selectedSub === sub ? 'font-semibold' : ''}`
-                          },
-                            h('div', { className: 'flex items-center justify-between mb-2 xl:mb-1.5' },
-                              h('span', { className: 'text-sm xl:text-xs font-medium' }, `r/${sub}`),
-                              h('span', { className: 'text-xs text-zinc-500' }, `${postCount} posts`)
-                            ),
-                            h('div', { className: 'flex items-center gap-2 xl:gap-1.5 text-xs text-zinc-500' },
-                              h('span', { className: 'leading-tight' }, `${formatSubs(meta.subscribers)} subscribers`),
-                              meta.active_user_count && h('span', { className: 'leading-tight' }, `• ${formatSubs(meta.active_user_count)} active`),
-                              capped && h('span', { className: 'px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200' }, 'capped')
-                            )
-                          )
-                        );
-                      })
-                    ),
-                subs.length > 0 && h('p', { className: 'text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-200' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren\'t available via public endpoints.')
-              ),
-              h('main', { className: 'xl:col-span-5 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-4' },
-                h('div', { className: 'bg-white rounded-2xl shadow p-3' },
-                  h('button', {
-                    className: 'w-full flex items-center justify-between text-left',
-                    onClick: () => setLatestExpanded(!latestExpanded)
-                  },
-                    h('div', { className: 'flex items-center gap-2' },
-                      h('span', { className: 'font-medium' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
-                      visiblePosts.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${visiblePosts.length} posts`)
-                    ),
-                    h('span', { className: 'text-zinc-400' }, latestExpanded ? '▼' : '▶')
-                  ),
-                  latestExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
-                    visiblePosts.length === 0 ? h('div', { className: 'text-sm text-zinc-500' },
-                      subs.length === 0
-                        ? 'Add some subreddits to get started!'
-                        : 'No posts. Try Refresh or adjust filters.'
-                    ) : h('ul', { className: 'space-y-2' },
-                      visiblePosts.map(post => {
-                        const rawScore = Number(post.score);
-                        const rawComments = Number(post.num_comments);
-                        const scoreValue = Number.isFinite(rawScore) ? Math.max(0, rawScore) : 0;
-                        const commentValue = Number.isFinite(rawComments) ? Math.max(0, rawComments) : 0;
-                        const scoreIntensity = scaleCountIntensity(scoreValue, maxScore);
-                        const commentIntensity = scaleCountIntensity(commentValue, maxComments);
-                        const scoreStyles = {
-                          backgroundColor: tintWithWhite('#22c55e', Math.max(0.25, scoreIntensity * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                          color: '#047857'
-                        };
-                        const commentStyles = {
-                          backgroundColor: tintWithWhite('#f59e0b', Math.max(0.25, commentIntensity * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                          color: '#92400e'
-                        };
-                        const isSelected = selectedPost && selectedPost.id === post.id;
+              latestExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
+                visiblePosts.length === 0 ? h('div', { className: 'text-sm text-zinc-500' },
+                  subs.length === 0
+                    ? 'Add some subreddits to get started!'
+                    : 'No posts. Try Refresh or adjust filters.'
+                ) : h('ul', { className: 'space-y-2' },
+                  visiblePosts.map(post => {
+                    const rawScore = Number(post.score);
+                    const rawComments = Number(post.num_comments);
+                    const scoreValue = Number.isFinite(rawScore) ? Math.max(0, rawScore) : 0;
+                    const commentValue = Number.isFinite(rawComments) ? Math.max(0, rawComments) : 0;
+                    const scoreIntensity = scaleCountIntensity(scoreValue, maxScore);
+                    const commentIntensity = scaleCountIntensity(commentValue, maxComments);
+                    const scoreStyles = {
+                      backgroundColor: tintWithWhite('#22c55e', Math.max(0.25, scoreIntensity * 0.8), { minMix: 0.2, maxMix: 0.8 }),
+                      color: '#047857'
+                    };
+                    const commentStyles = {
+                      backgroundColor: tintWithWhite('#f59e0b', Math.max(0.25, commentIntensity * 0.8), { minMix: 0.2, maxMix: 0.8 }),
+                      color: '#92400e'
+                    };
+                    const isSelected = selectedPost && selectedPost.id === post.id;
 
-                        return h('li', { key: post.id },
-                          h('button', {
-                            className: `group w-full text-left rounded-xl border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 ${isSelected ? 'border-indigo-400 bg-indigo-50/60 shadow-sm' : 'border-zinc-200 bg-white hover:border-indigo-200'}`,
-                            onClick: () => setSelectedPost(post)
-                          },
-                            h('div', { className: 'flex gap-3 items-start p-3' },
-                              h('div', {
-                                className: `w-1 rounded-full self-stretch transition-colors ${isSelected ? 'bg-indigo-500' : 'bg-transparent group-hover:bg-indigo-200'}`
-                              }),
-                              post.thumbnail && h('img', {
-                                src: post.thumbnail,
-                                alt: '',
-                                className: 'w-14 h-14 object-cover rounded-lg'
-                              }),
-                              h('div', { className: 'flex-1 space-y-2' },
-                                h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' },
-                                  h('span', { className: 'tracking-wide uppercase' }, timeAgo(post.created_utc)),
-                                  h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${post.subreddit}`)
-                                ),
-                                h('div', { className: 'font-semibold leading-snug text-sm text-zinc-900' }, post.title || ''),
-                                h('div', { className: 'flex flex-wrap items-center gap-2 text-sm' },
-                                  h('span', { className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold', style: scoreStyles }, `▲ ${scoreValue} upvotes`),
-                                  h('span', { className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold', style: commentStyles }, `💬 ${commentValue} comments`),
-                                  h('span', { className: 'text-zinc-600' }, `u/${post.author} • ${post.domain}`)
-                                )
-                              )
+                    return h('li', { key: post.id },
+                      h('button', {
+                        className: `group w-full text-left rounded-xl border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 ${isSelected ? 'border-indigo-400 bg-indigo-50/60 shadow-sm' : 'border-zinc-200 bg-white hover:border-indigo-200'}`,
+                        onClick: () => setSelectedPost(post)
+                      },
+                        h('div', { className: 'flex gap-3 items-start p-3' },
+                          h('div', {
+                            className: `w-1 rounded-full self-stretch transition-colors ${isSelected ? 'bg-indigo-500' : 'bg-transparent group-hover:bg-indigo-200'}`
+                          }),
+                          post.thumbnail && h('img', {
+                            src: post.thumbnail,
+                            alt: '',
+                            className: 'w-14 h-14 object-cover rounded-lg'
+                          }),
+                          h('div', { className: 'flex-1 space-y-2' },
+                            h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' },
+                              h('span', { className: 'tracking-wide uppercase' }, timeAgo(post.created_utc)),
+                              h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${post.subreddit}`)
+                            ),
+                            h('div', { className: 'font-semibold leading-snug text-sm text-zinc-900' }, post.title || ''),
+                            h('div', { className: 'flex flex-wrap items-center gap-2 text-sm' },
+                              h('span', { className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold', style: scoreStyles }, `▲ ${scoreValue} upvotes`),
+                              h('span', { className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold', style: commentStyles }, `💬 ${commentValue} comments`),
+                              h('span', { className: 'text-zinc-600' }, `u/${post.author} • ${post.domain}`)
                             )
                           )
-                        );
-                      })
-                    )
-                  )
+                        )
+                      )
+                    );
+                  })
                 )
-              ),
-              h('section', { className: 'xl:col-span-4 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-3' },
-                h('h2', { className: 'font-semibold' }, 'Post'),
-                !selectedPost
-                  ? h('div', { className: 'text-sm text-zinc-500 border border-dashed border-zinc-200 rounded-xl p-4' }, 'Select a post to preview.')
-                  : h('article', { className: 'space-y-3' },
-                      h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' },
-                        h('span', { className: 'tracking-wide uppercase' }, timeAgo(selectedPost.created_utc)),
-                        h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${selectedPost.subreddit}`)
-                      ),
-                      h('h3', { className: 'text-lg font-bold leading-snug text-zinc-900' }, selectedPost.title || ''),
-                      h('div', { className: 'flex flex-wrap gap-2' },
-                        h('a', {
-                          href: selectedPost.url,
-                          target: '_blank',
-                          rel: 'noreferrer',
-                          className: 'inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-zinc-900'
-                        }, 'Open on Reddit')
-                      ),
-                      h('div', { className: 'flex flex-wrap items-center gap-2 text-sm' },
-                        h('span', {
-                          className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold',
-                          style: {
-                            backgroundColor: tintWithWhite('#22c55e', Math.max(0.25, scaleCountIntensity(Number(selectedPost.score) || 0, maxScore) * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                            color: '#047857'
-                          }
-                        }, `▲ ${selectedPost.score} upvotes`),
-                        h('span', {
-                          className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold',
-                          style: {
-                            backgroundColor: tintWithWhite('#f59e0b', Math.max(0.25, scaleCountIntensity(Number(selectedPost.num_comments) || 0, maxComments) * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                            color: '#92400e'
-                          }
-                        }, `💬 ${selectedPost.num_comments} comments`),
-                        h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
-                      ),
-                      renderBody(selectedPost)
-                    )
               )
             )
+          ),
+          h('section', { className: 'lg:col-span-4 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-3' },
+            h('h2', { className: 'font-semibold' }, 'Post'),
+            !selectedPost
+              ? h('div', { className: 'text-sm text-zinc-500 border border-dashed border-zinc-200 rounded-xl p-4' }, 'Select a post to preview.')
+              : h('article', { className: 'space-y-3' },
+                  h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' },
+                    h('span', { className: 'tracking-wide uppercase' }, timeAgo(selectedPost.created_utc)),
+                    h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${selectedPost.subreddit}`)
+                  ),
+                  h('h3', { className: 'text-lg font-bold leading-snug text-zinc-900' }, selectedPost.title || ''),
+                  h('div', { className: 'flex flex-wrap gap-2' },
+                    h('a', {
+                      href: selectedPost.url,
+                      target: '_blank',
+                      rel: 'noreferrer',
+                      className: 'inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-zinc-900'
+                    }, 'Open on Reddit')
+                  ),
+                  h('div', { className: 'flex flex-wrap items-center gap-2 text-sm' },
+                    h('span', {
+                      className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold',
+                      style: {
+                        backgroundColor: tintWithWhite('#22c55e', Math.max(0.25, scaleCountIntensity(Number(selectedPost.score) || 0, maxScore) * 0.8), { minMix: 0.2, maxMix: 0.8 }),
+                        color: '#047857'
+                      }
+                    }, `▲ ${selectedPost.score} upvotes`),
+                    h('span', {
+                      className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold',
+                      style: {
+                        backgroundColor: tintWithWhite('#f59e0b', Math.max(0.25, scaleCountIntensity(Number(selectedPost.num_comments) || 0, maxComments) * 0.8), { minMix: 0.2, maxMix: 0.8 }),
+                        color: '#92400e'
+                      }
+                    }, `💬 ${selectedPost.num_comments} comments`),
+                    h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
+                  ),
+                  renderBody(selectedPost)
+                )
           )
         ),
         starterPackOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4' },
@@ -1243,6 +1167,7 @@
         )
       );
 
+    }
 
     function formatTimeUntil(timestamp) {
       if (!timestamp) return '';
