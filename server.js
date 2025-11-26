@@ -4,6 +4,7 @@ require('dotenv').config({ path: '.env.local' });
 const express = require('express');
 const path = require('path');
 const redditHandler = require('./api/reddit.js');
+const redditTestHandler = require('./api/reddit-test.js');
 const authStartHandler = require('./api/auth/start.js');
 const authCallbackHandler = require('./api/auth/callback.js');
 const authLogoutHandler = require('./api/auth/logout.js');
@@ -17,6 +18,7 @@ app.use(express.static(__dirname));
 
 // API routes
 app.get('/api/reddit', redditHandler);
+app.get('/api/reddit-test', redditTestHandler);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

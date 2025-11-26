@@ -8,6 +8,9 @@
     },
     "api/test.js": {
       "maxDuration": 15
+    },
+    "api/reddit-test.js": {
+      "maxDuration": 15
     }
   },
   "headers": [
