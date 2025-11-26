@@ -8,12 +8,18 @@ module.exports = async function handler(req, res) {
   }
 
   const clientId = process.env.REDDIT_CLIENT_ID;
-  const redirectUri = process.env.REDDIT_REDIRECT_URI;
+  let redirectUri = process.env.REDDIT_REDIRECT_URI;
 
   if (!clientId || !redirectUri) {
     res.status(500).send('Missing Reddit OAuth configuration');
     return;
   }
+
+  // Normalize redirect URI - remove trailing slashes and ensure proper format
+  redirectUri = redirectUri.trim().replace(/\/+$/, '');
+  
+  // Log the redirect URI being used (for debugging)
+  console.log('OAuth redirect URI:', redirectUri);
 
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
