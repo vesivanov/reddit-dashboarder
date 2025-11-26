@@ -6,19 +6,20 @@
   <title>Reddit Three-Pane Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial; }
-    .post-body {
-      font-size: 0.875rem;
-      line-height: 1.6;
-    }
+    .post-body { font-size: 0.875rem; line-height: 1.6; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
   </style>
 </head>
-<body class="bg-zinc-50 min-h-screen text-zinc-900">
+<body class="bg-zinc-100 min-h-screen text-zinc-900">
   <div id="root"></div>
   <script>
     const { useCallback, useEffect, useMemo, useRef, useState } = React;
@@ -30,53 +31,52 @@
     const STARTER_PACKS = [
       {
         id: 'tech-news',
-        label: 'Tech news',
-        description: 'Keep an eye on what\'s shipping across consumer and enterprise tech.',
+        label: 'Tech News',
+        emoji: '💻',
         subs: ['technology', 'gadgets', 'futurology', 'programming'],
       },
       {
         id: 'design-inspo',
-        label: 'Design inspiration',
-        description: 'Daily visuals, UX breakdowns, and palette cleansers.',
+        label: 'Design',
+        emoji: '🎨',
         subs: ['design', 'web_design', 'graphic_design', 'productdesign'],
       },
       {
         id: 'data-ai',
-        label: 'Data & AI',
-        description: 'Track the fast-moving ML landscape for teams and practitioners.',
+        label: 'AI & Data',
+        emoji: '🤖',
         subs: ['machinelearning', 'datascience', 'openai', 'artificial'],
       },
     ];
     const POPULAR_SUBREDDITS = [
-      'askreddit',
-      'worldnews',
-      'news',
-      'technology',
-      'programming',
-      'todayilearned',
-      'design',
-      'dataisbeautiful',
-      'futurology',
-      'productdesign',
-      'webdev',
+      'askreddit', 'worldnews', 'news', 'technology', 'programming',
+      'todayilearned', 'design', 'dataisbeautiful', 'futurology',
+      'productdesign', 'webdev', 'javascript', 'python', 'rust',
     ];
-    const UPVOTE_PRESETS = ['any', 10, 50, 100, 500];
-    const COMMENT_PRESETS = ['any', 5, 20, 50, 100];
+    const UPVOTE_PRESETS = [
+      { value: '', label: 'Any' },
+      { value: '10', label: '10+' },
+      { value: '50', label: '50+' },
+      { value: '100', label: '100+' },
+      { value: '500', label: '500+' },
+    ];
+    const COMMENT_PRESETS = [
+      { value: '', label: 'Any' },
+      { value: '5', label: '5+' },
+      { value: '20', label: '20+' },
+      { value: '50', label: '50+' },
+    ];
     const AUTO_REFRESH_OPTIONS = [5, 10, 15, 30, 45, 60];
     const MIN_AUTO_REFRESH_MINUTES = 5;
 
     function App() {
       const [subs, setSubs] = useState(() => {
         try {
-          // Try primary storage first
           let saved = localStorage.getItem('dashboard_subs');
           if (saved) return JSON.parse(saved);
-          
-          // Fallback to backup storage
           saved = localStorage.getItem('dashboard_subs_backup');
           if (saved) {
             const parsed = JSON.parse(saved);
-            // Restore to primary storage
             localStorage.setItem('dashboard_subs', saved);
             return parsed;
           }
@@ -84,18 +84,6 @@
           console.warn('Unable to parse saved subs', error);
         }
         return DEFAULT_SUBS;
-      });
-      const [subsInput, setSubsInput] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_subs');
-          if (saved) {
-            const subs = JSON.parse(saved);
-            return subs.join(', ');
-          }
-        } catch (error) {
-          console.warn('Unable to parse saved subs', error);
-        }
-        return '';
       });
       const [mode, setMode] = useState('new');
       const [time, setTime] = useState('day');
@@ -111,11 +99,8 @@
       const [loading, setLoading] = useState(false);
       const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
         try {
-          const saved = localStorage.getItem('dashboard_auto_refresh_enabled');
-          return saved === '1';
-        } catch (error) {
-          return false;
-        }
+          return localStorage.getItem('dashboard_auto_refresh_enabled') === '1';
+        } catch (error) { return false; }
       });
       const [autoRefreshInterval, setAutoRefreshInterval] = useState(() => {
         try {
@@ -133,110 +118,31 @@
       const [selectedPost, setSelectedPost] = useState(null);
       const [fetchedAt, setFetchedAt] = useState(null);
       const [keyword, setKeyword] = useState('');
-      const [fetchMethod, setFetchMethod] = useState('server'); // Track which method was used
+      const [fetchMethod, setFetchMethod] = useState('server');
       const [authenticated, setAuthenticated] = useState(false);
       const [authChecking, setAuthChecking] = useState(true);
-      const [subsExpanded, setSubsExpanded] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_subs');
-          if (!saved) return true;
-          const parsed = JSON.parse(saved);
-          return Array.isArray(parsed) ? parsed.length === 0 : true;
-        } catch (error) {
-          return true;
-        }
-      });
-      const [keywordExpanded, setKeywordExpanded] = useState(false);
-      const [filtersExpanded, setFiltersExpanded] = useState(false);
-      const [latestExpanded, setLatestExpanded] = useState(false);
-      const [starterPackOpen, setStarterPackOpen] = useState(false);
-      const [quickAddValue, setQuickAddValue] = useState('');
+      const [settingsOpen, setSettingsOpen] = useState(false);
+      const [addSubOpen, setAddSubOpen] = useState(false);
+      const [addSubInput, setAddSubInput] = useState('');
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
-      const [maxUpvoteFilter, setMaxUpvoteFilter] = useState('');
       const [minCommentFilter, setMinCommentFilter] = useState('');
-      const [maxCommentFilter, setMaxCommentFilter] = useState('');
-      const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
       const [nextRefreshAt, setNextRefreshAt] = useState(null);
       const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState(null);
-      const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
-        try {
-          return localStorage.getItem('dashboard_onboarding_dismissed') === '1';
-        } catch (error) {
-          return false;
-        }
-      });
-      const subsInputRef = useRef(null);
+      const [detailCollapsed, setDetailCollapsed] = useState(false);
       const loadingRef = useRef(false);
+      const addSubInputRef = useRef(null);
 
-      useEffect(() => {
-        loadingRef.current = loading;
-      }, [loading]);
+      useEffect(() => { loadingRef.current = loading; }, [loading]);
 
-      const ensureSubsInputFocus = useCallback(() => {
-        setTimeout(() => {
-          const node = subsInputRef.current;
-          if (node) {
-            node.focus();
-            node.select();
-          }
-        }, 80);
-      }, []);
-
-      const handleAddSubredditClick = useCallback(() => {
-        setSubsExpanded(true);
-        if (!onboardingDismissed) {
-          setOnboardingDismissed(true);
-        }
-        ensureSubsInputFocus();
-      }, [ensureSubsInputFocus, onboardingDismissed]);
-
-      const handleApplyStarterPack = useCallback((pack) => {
-        if (!pack || !Array.isArray(pack.subs)) return;
-        setSubs(prev => mergeSubredditLists(prev, pack.subs));
-        setSubsExpanded(true);
-        setOnboardingDismissed(true);
-        ensureSubsInputFocus();
-      }, [ensureSubsInputFocus]);
-
-      const handleSuggestedSub = useCallback((name) => {
-        if (!name) return;
-        setSubs(prev => mergeSubredditLists(prev, [name]));
-        setSubsExpanded(true);
-        if (!onboardingDismissed) {
-          setOnboardingDismissed(true);
-        }
-        ensureSubsInputFocus();
-      }, [ensureSubsInputFocus, onboardingDismissed]);
-
-      const handleQuickAddSubmit = useCallback(() => {
-        const value = quickAddValue.trim();
-        if (!value) return;
-        handleSuggestedSub(value);
-        setQuickAddValue('');
-      }, [handleSuggestedSub, quickAddValue]);
-
-      const filtersActive = [minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter]
-        .some(value => value && value.trim() !== '');
-
+      // Persist subs
       useEffect(() => {
         try {
-          // Save to both primary and backup storage
           const subsJson = JSON.stringify(subs);
           localStorage.setItem('dashboard_subs', subsJson);
           localStorage.setItem('dashboard_subs_backup', subsJson);
-
-          // Also save a timestamp for debugging
-          localStorage.setItem('dashboard_subs_last_saved', new Date().toISOString());
-        } catch (storageError) {
-          console.warn('Unable to persist subs', storageError);
-        }
-      }, [subs]);
-
-      useEffect(() => {
-        // Sync subsInput when subs changes (e.g., from localStorage)
-        setSubsInput(subs.join(', '));
+        } catch (e) { console.warn('Unable to persist subs', e); }
       }, [subs]);
 
       useEffect(() => {
@@ -251,52 +157,30 @@
         try { localStorage.setItem('dashboard_auto_refresh_interval', String(autoRefreshInterval)); } catch {}
       }, [autoRefreshInterval]);
 
-      useEffect(() => {
-        try { localStorage.setItem('dashboard_onboarding_dismissed', onboardingDismissed ? '1' : '0'); } catch {}
-      }, [onboardingDismissed]);
-
-      useEffect(() => {
-        if (subs.length > 0 && !onboardingDismissed) {
-          setOnboardingDismissed(true);
-        }
-      }, [subs.length, onboardingDismissed]);
-
+      // Check auth on mount
       useEffect(() => {
         let cancelled = false;
-
         async function checkAuth() {
           setAuthChecking(true);
           try {
             const response = await fetch('/api/auth/status', { cache: 'no-store' });
             if (!response.ok) throw new Error('Failed to check auth status');
             const payload = await response.json();
-            if (!cancelled) {
-              setAuthenticated(Boolean(payload.authenticated));
-            }
-          } catch (statusError) {
-            if (!cancelled) {
-              setAuthenticated(false);
-            }
+            if (!cancelled) setAuthenticated(Boolean(payload.authenticated));
+          } catch (e) {
+            if (!cancelled) setAuthenticated(false);
           } finally {
-            if (!cancelled) {
-              setAuthChecking(false);
-            }
+            if (!cancelled) setAuthChecking(false);
           }
         }
-
         checkAuth();
-
-        return () => {
-          cancelled = true;
-        };
+        return () => { cancelled = true; };
       }, []);
 
       const allPosts = useMemo(() => {
         const rows = [];
         for (const group of data) {
-          for (const post of group.posts || []) {
-            rows.push(post);
-          }
+          for (const post of group.posts || []) rows.push(post);
         }
         rows.sort((a, b) => (b.created_utc || 0) - (a.created_utc || 0));
         return rows;
@@ -311,123 +195,53 @@
       const visiblePosts = useMemo(() => {
         const q = keyword.trim().toLowerCase();
         const minScore = parseNumberFilter(minUpvoteFilter);
-        const maxScore = parseNumberFilter(maxUpvoteFilter);
         const minCommentsValue = parseNumberFilter(minCommentFilter);
-        const maxCommentsValue = parseNumberFilter(maxCommentFilter);
 
         const filtered = filteredBySub.filter(post => {
           if (q) {
             const title = post.title ? post.title.toLowerCase() : '';
             const selftext = post.selftext ? post.selftext.toLowerCase() : '';
-            if (!title.includes(q) && !selftext.includes(q)) {
-              return false;
-            }
+            if (!title.includes(q) && !selftext.includes(q)) return false;
           }
-
-          const rawScore = Number(post.score);
-          const score = Number.isFinite(rawScore) ? rawScore : 0;
+          const score = Number(post.score) || 0;
           if (minScore !== null && score < minScore) return false;
-          if (maxScore !== null && score > maxScore) return false;
-
-          const rawComments = Number(post.num_comments);
-          const comments = Number.isFinite(rawComments) ? rawComments : 0;
+          const comments = Number(post.num_comments) || 0;
           if (minCommentsValue !== null && comments < minCommentsValue) return false;
-          if (maxCommentsValue !== null && comments > maxCommentsValue) return false;
-
           return true;
         });
 
         const multiplier = sortOrder === 'asc' ? 1 : -1;
-
         return [...filtered].sort((a, b) => {
-          const aDate = Number(a.created_utc) || 0;
-          const bDate = Number(b.created_utc) || 0;
-          const aScore = Number(a.score) || 0;
-          const bScore = Number(b.score) || 0;
-          const aComments = Number(a.num_comments) || 0;
-          const bComments = Number(b.num_comments) || 0;
-
           let delta = 0;
           switch (sortBy) {
-            case 'upvotes':
-              delta = aScore - bScore;
-              break;
-            case 'comments':
-              delta = aComments - bComments;
-              break;
-            case 'date':
-            default:
-              delta = aDate - bDate;
-              break;
+            case 'upvotes': delta = (Number(a.score) || 0) - (Number(b.score) || 0); break;
+            case 'comments': delta = (Number(a.num_comments) || 0) - (Number(b.num_comments) || 0); break;
+            default: delta = (Number(a.created_utc) || 0) - (Number(b.created_utc) || 0); break;
           }
-
-          if (delta === 0) {
-            const fallback = aDate - bDate;
-            if (fallback === 0) return 0;
-            return sortOrder === 'asc' ? fallback : -fallback;
-          }
-
-          return delta * multiplier;
+          return delta === 0 ? 0 : delta * multiplier;
         });
-      }, [filteredBySub, keyword, minUpvoteFilter, maxUpvoteFilter, minCommentFilter, maxCommentFilter, sortBy, sortOrder]);
+      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, sortBy, sortOrder]);
 
       const { maxScore, maxComments } = useMemo(() => {
-        let maxScore = 0;
-        let maxComments = 0;
+        let maxScore = 0, maxComments = 0;
         for (const post of allPosts) {
           const score = Number(post.score);
           const comments = Number(post.num_comments);
-          if (Number.isFinite(score)) {
-            maxScore = Math.max(maxScore, score);
-          }
-          if (Number.isFinite(comments)) {
-            maxComments = Math.max(maxComments, comments);
-          }
+          if (Number.isFinite(score)) maxScore = Math.max(maxScore, score);
+          if (Number.isFinite(comments)) maxComments = Math.max(maxComments, comments);
         }
         return { maxScore, maxComments };
       }, [allPosts]);
 
-      const statusSummary = useMemo(() => {
-        const pieces = [
-          `Fetched: ${fetchedAt ? formatDateTime(fetchedAt) : '—'}`,
-          `Posts: ${visiblePosts.length}`,
-          `Mode: ${mode}${mode === 'top' ? ` (t=${time})` : ''}`,
-          `Range: ${days} day(s)`,
-          `Method: ${fetchMethod === 'client' ? 'Client-side' : 'Server'}`,
-        ];
-
-        if (autoRefreshEnabled) {
-          let summary = `Auto-refresh: every ${autoRefreshInterval} min`;
-          if (nextRefreshAt) {
-            summary += ` (next ${formatTimeUntil(nextRefreshAt)})`;
-          } else if (!subs.length) {
-            summary += ' (waiting for subreddits)';
-          } else if (loading) {
-            summary += ' (running…)';
-          }
-          if (lastAutoRefreshAt) {
-            summary += ` • Last ${timeAgo(lastAutoRefreshAt / 1000)}`;
-          }
-          pieces.push(summary);
-        } else {
-          pieces.push('Auto-refresh: off');
-        }
-
-        return pieces.join(' • ');
-      }, [fetchedAt, visiblePosts.length, mode, time, days, fetchMethod, autoRefreshEnabled, autoRefreshInterval, nextRefreshAt, lastAutoRefreshAt, subs.length, loading]);
-
       const subMetaMap = useMemo(() => {
         const map = new Map();
-        for (const group of data) {
-          map.set(group.subreddit, group.meta || null);
-        }
+        for (const group of data) map.set(group.subreddit, group.meta || null);
         return map;
       }, [data]);
+
       const subPartialMap = useMemo(() => {
         const map = new Map();
-        for (const group of data) {
-          map.set(group.subreddit, Boolean(group.partial));
-        }
+        for (const group of data) map.set(group.subreddit, Boolean(group.partial));
         return map;
       }, [data]);
 
@@ -435,7 +249,7 @@
         const triggeredByAuto = Boolean(options.triggeredByAuto);
         if (!subs.length) {
           setNeedsAuth(false);
-          setError('Please add at least one subreddit.');
+          setError('Add at least one subreddit to get started.');
           setData([]);
           setFetchedAt(null);
           setNextRefreshAt(null);
@@ -445,7 +259,6 @@
         setLoading(true);
         setError('');
         setNeedsAuth(false);
-        setSelectedPost(null);
         const controller = new AbortController();
         const timeoutMs = Math.min(45000, 5000 + subs.length * 3000);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -456,19 +269,15 @@
             mode,
             time,
             days: String(days),
-            // If many subreddits are requested, cap per-page limit to reduce load
             limit: String(subs.length > 6 ? Math.min(50, limit) : limit)
           });
           if (mode === 'new') {
-            // Lower max pages by default for many subs to avoid timeouts
             const effMaxPages = subs.length > 6 ? Math.min(10, maxPages) : maxPages;
             params.set('max_pages', String(effMaxPages));
           }
 
-          // Use server API directly (client-side has CORS issues)
           setFetchMethod('server');
-          const qs = new URLSearchParams(params);
-          const response = await fetch(`${DEFAULT_API_URL}?${qs.toString()}`, { cache: 'no-store', signal: controller.signal });
+          const response = await fetch(`${DEFAULT_API_URL}?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
 
           if (response.status === 401) {
             setNeedsAuth(true);
@@ -485,7 +294,7 @@
           const rateLimitedHeader = response.headers.get('X-Rate-Limited') === '1';
           const payload = await response.json();
           if (rateLimitedHeader || payload.rate_limited) {
-            setError('Reddit is rate limiting right now. Some subreddits returned no data. Try fewer subreddits, lower max pages, or wait a minute.');
+            setError('Reddit is rate limiting. Try fewer subreddits or wait a minute.');
           }
           const results = Array.isArray(payload.results) ? payload.results : [];
           const perSub = subs.map(sub => {
@@ -506,11 +315,8 @@
           setFetchedAt(Date.now());
         } catch (fetchError) {
           setNeedsAuth(false);
-          if (fetchError && fetchError.name === 'AbortError') {
-            const seconds = Math.round(timeoutMs / 1000);
-            setError(`Request timed out (${seconds}s). Reddit may be rate limiting. Try fewer subreddits or try again.`);
-          } else if (fetchError && typeof fetchError.message === 'string' && fetchError.message.toLowerCase().includes('rate')) {
-            setError('Reddit is rate limiting right now. Please wait a minute and try again.');
+          if (fetchError?.name === 'AbortError') {
+            setError(`Request timed out. Reddit may be slow. Try again.`);
           } else {
             setError(fetchError.message || 'Failed to fetch');
           }
@@ -524,22 +330,15 @@
           } else {
             setNextRefreshAt(null);
           }
-          if (triggeredByAuto) {
-            setLastAutoRefreshAt(Date.now());
-          }
+          if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
       }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval]);
 
       const refreshRef = useRef(refresh);
+      useEffect(() => { refreshRef.current = refresh; }, [refresh]);
 
       useEffect(() => {
-        refreshRef.current = refresh;
-      }, [refresh]);
-
-      useEffect(() => {
-        if (!autoRefreshEnabled) {
-          setLastAutoRefreshAt(null);
-        }
+        if (!autoRefreshEnabled) setLastAutoRefreshAt(null);
       }, [autoRefreshEnabled]);
 
       useEffect(() => {
@@ -547,400 +346,517 @@
           setNextRefreshAt(null);
           return () => {};
         }
-
         const intervalMs = Math.max(MIN_AUTO_REFRESH_MINUTES, autoRefreshInterval) * 60 * 1000;
         setNextRefreshAt(Date.now() + intervalMs);
         let cancelled = false;
-
         const triggerRefresh = () => {
-          if (cancelled) return;
-          if (loadingRef.current) return;
-          if (!subs.length) return;
+          if (cancelled || loadingRef.current || !subs.length) return;
           refreshRef.current({ triggeredByAuto: true });
         };
-
         const kickoff = setTimeout(triggerRefresh, 200);
         const intervalId = setInterval(triggerRefresh, intervalMs);
-
-        return () => {
-          cancelled = true;
-          clearTimeout(kickoff);
-          clearInterval(intervalId);
-        };
+        return () => { cancelled = true; clearTimeout(kickoff); clearInterval(intervalId); };
       }, [autoRefreshEnabled, autoRefreshInterval, subs.length]);
 
-      return h('div', { className: 'max-w-7xl mx-auto p-4 space-y-6' },
-        h('header', { className: 'space-y-4' },
-          h('div', { className: 'flex flex-col gap-2 md:flex-row md:items-center md:justify-between' },
-            h('div', { className: 'space-y-1' },
-              h('h1', { className: 'text-2xl font-extrabold' }, 'Reddit Dashboarder'),
-              h('p', { className: 'text-zinc-600 text-sm' }, 'Three-pane • Keyword filter • Day / 3 Days / Week • Full post body + subreddit stats')
+      const handleAddSub = useCallback((name) => {
+        const normalized = normalizeSubredditName(name);
+        if (!normalized) return;
+        setSubs(prev => {
+          if (prev.some(s => s.toLowerCase() === normalized.toLowerCase())) return prev;
+          return [...prev, normalized];
+        });
+      }, []);
+
+      const handleRemoveSub = useCallback((name) => {
+        setSubs(prev => prev.filter(s => s.toLowerCase() !== name.toLowerCase()));
+        if (selectedSub.toLowerCase() === name.toLowerCase()) setSelectedSub('ALL');
+      }, [selectedSub]);
+
+      const handleAddSubSubmit = useCallback(() => {
+        const names = addSubInput.split(/[,\n]+/).map(s => normalizeSubredditName(s)).filter(Boolean);
+        if (names.length === 0) return;
+        setSubs(prev => {
+          const existing = new Set(prev.map(s => s.toLowerCase()));
+          const newOnes = names.filter(n => !existing.has(n.toLowerCase()));
+          return [...prev, ...newOnes];
+        });
+        setAddSubInput('');
+        setAddSubOpen(false);
+      }, [addSubInput]);
+
+      const handleApplyStarterPack = useCallback((pack) => {
+        if (!pack?.subs) return;
+        setSubs(prev => {
+          const existing = new Set(prev.map(s => s.toLowerCase()));
+          const newOnes = pack.subs.filter(s => !existing.has(s.toLowerCase()));
+          return [...prev, ...newOnes];
+        });
+      }, []);
+
+      // Keyboard shortcut for search
+      useEffect(() => {
+        const handler = (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            document.getElementById('search-input')?.focus();
+          }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+      }, []);
+
+      const filtersActive = minUpvoteFilter || minCommentFilter;
+
+      return h('div', { className: 'h-screen flex flex-col' },
+        // Header
+        h('header', { className: 'bg-white border-b border-zinc-200 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
+            h('div', { className: 'flex items-center gap-3' },
+            h('h1', { className: 'text-lg font-bold text-zinc-900' }, 'Reddit Dashboarder'),
             ),
-            h('div', { className: 'flex flex-wrap items-center gap-2' },
+            h('div', { className: 'flex items-center gap-2' },
+              h('button', {
+                onClick: () => setSettingsOpen(true),
+              className: 'p-2 rounded-lg hover:bg-zinc-100 text-zinc-600 transition-colors',
+              title: 'Settings'
+            }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }),
+                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })
+            )),
               authChecking
-                ? h('div', {
-                    className: 'px-3 py-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 text-sm text-zinc-500 flex items-center gap-2'
-                  },
-                    h('div', { className: 'w-3 h-3 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin' }),
-                    'Checking auth…'
-                  )
+              ? h('div', { className: 'px-3 py-1.5 text-sm text-zinc-500' }, 'Checking…')
                 : authenticated
                   ? h('button', {
-                      type: 'button',
-                      className: 'px-3 py-2 rounded-lg border border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 transition-colors text-sm font-semibold shadow-sm',
-                      onClick: () => { window.location.href = '/api/auth/logout'; }
+                      onClick: () => { window.location.href = '/api/auth/logout'; },
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors'
                     }, 'Sign out')
                   : h('button', {
-                      type: 'button',
-                      className: 'px-3 py-2 rounded-lg border border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 transition-colors text-sm font-semibold shadow-sm',
-                      onClick: () => { window.location.href = '/api/auth/start'; }
+                      onClick: () => { window.location.href = '/api/auth/start'; },
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition-colors'
                     }, 'Sign in')
-            )
           )
         ),
-        needsAuth ? h('div', { className: 'mb-3 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 space-y-1' },
-          h('p', { className: 'font-semibold' }, 'Sign in required'),
-          h('p', { className: 'text-sm' }, 'Sign in with Reddit to load personalized data for your dashboard.'),
-        ) : null,
-        h('div', { className: 'mb-3 space-y-2' },
-          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
-            h('button', {
-              className: 'w-full flex items-center justify-between text-left',
-              onClick: () => setFiltersExpanded(open => !open)
-            },
-              h('div', { className: 'flex items-center gap-2' },
-                h('span', { className: 'font-medium' }, 'Filters'),
-                filtersActive && h('span', { className: 'px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs' }, 'Active')
-              ),
-              h('span', { className: 'text-zinc-400' }, filtersExpanded ? '▼' : '▶')
-            ),
-            filtersExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
-              error
-                ? h('div', { className: 'px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-700' }, `Error: ${error}`)
-                : loading
-                  ? h('div', { className: 'px-3 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-600' }, 'Fetching latest posts…')
-                  : h('div', { className: 'px-3 py-2 rounded-lg bg-zinc-50 border border-zinc-200' },
-                      h('div', { className: 'text-sm text-zinc-600' }, statusSummary)
+
+        // Status bar
+        h('div', { className: 'bg-zinc-50 border-b border-zinc-200 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+          h('div', { className: 'flex items-center gap-4' },
+            loading
+              ? h('span', { className: 'flex items-center gap-2 text-zinc-600' },
+                  h('div', { className: 'w-3 h-3 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin' }),
+                  'Fetching…'
+                )
+              : error
+                ? h('span', { className: 'text-rose-600 font-medium' }, error)
+                : needsAuth
+                  ? h('span', { className: 'text-amber-600 font-medium' }, 'Sign in required')
+                  : h('span', { className: 'text-zinc-600' },
+                      visiblePosts.length > 0
+                        ? `${visiblePosts.length} posts`
+                        : subs.length > 0 ? 'No posts found' : 'Add subreddits to start'
                     ),
-              h('div', { className: 'flex flex-wrap items-center gap-3 pt-2' },
-                h('label', { className: 'flex items-center gap-2 text-sm font-semibold text-zinc-700' },
-                  h('input', {
-                    type: 'checkbox',
-                    className: 'w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500',
-                    checked: autoRefreshEnabled,
-                    onChange: event => setAutoRefreshEnabled(event.target.checked),
-                    title: subs.length ? 'Toggle automatic refresh' : 'Add at least one subreddit to start auto-refreshing'
-                  }),
-                  'Auto-refresh'
+            fetchedAt && !loading && h('span', { className: 'text-zinc-400' }, `Updated ${timeAgo(fetchedAt / 1000)}`),
+            autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400' }, `• Next ${formatTimeUntil(nextRefreshAt)}`)
+          ),
+          h('button', {
+            onClick: () => refresh(),
+            disabled: loading,
+            className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 transition-colors'
+          },
+            h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+            ),
+            'Refresh'
+          )
+        ),
+
+        // Main content area
+        h('div', { className: 'flex-1 flex overflow-hidden' },
+          // Left sidebar - Subreddits
+          h('aside', { className: 'w-52 bg-white border-r border-zinc-200 flex flex-col shrink-0' },
+            h('div', { className: 'p-3 border-b border-zinc-200 flex items-center justify-between' },
+              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Subreddits'),
+                h('button', {
+                onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
+                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 transition-colors',
+                title: 'Add subreddit'
+              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+              ))
+            ),
+            h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-2 space-y-1' },
+              subs.length === 0
+                ? h('div', { className: 'p-4 text-center' },
+                    h('p', { className: 'text-sm text-zinc-500 mb-3' }, 'No subreddits yet'),
+                    h('div', { className: 'space-y-2' },
+                      STARTER_PACKS.map(pack =>
+                        h('button', {
+                          key: pack.id,
+                          onClick: () => handleApplyStarterPack(pack),
+                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-left text-sm transition-colors'
+                        },
+                          h('span', { className: 'mr-1.5' }, pack.emoji),
+                          pack.label
+                        )
+                      )
+                    ),
+                    h('button', {
+                      onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
+                      className: 'mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-medium'
+                    }, '+ Add custom')
+                  )
+                : [
+                    h('button', {
+                      key: 'all',
+                      onClick: () => setSelectedSub('ALL'),
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors ${selectedSub === 'ALL' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-zinc-50 text-zinc-700'}`
+                    },
+                      h('div', { className: 'flex items-center justify-between' },
+                        h('span', null, 'All'),
+                        h('span', { className: 'text-xs text-zinc-400' }, allPosts.length)
+                      )
+                    ),
+                    ...subs.map(sub => {
+                      const postCount = allPosts.filter(p => p.subreddit?.toLowerCase() === sub.toLowerCase()).length;
+                      const isSelected = selectedSub.toLowerCase() === sub.toLowerCase();
+                    const meta = subMetaMap.get(sub) || {};
+                      return h('div', {
+                      key: sub,
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-zinc-50'}`
+                      },
+                        h('button', {
+                      onClick: () => setSelectedSub(sub),
+                          className: `w-full px-3 py-2 text-left`
+                    },
+                      h('div', { className: 'flex items-center justify-between' },
+                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-indigo-700' : 'text-zinc-700'}` }, `r/${sub}`),
+                        h('div', { className: 'flex items-center gap-2' },
+                              h('span', { className: 'text-xs text-zinc-400' }, postCount),
+                          h('button', {
+                                onClick: (e) => { e.stopPropagation(); handleRemoveSub(sub); },
+                                className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600 transition-all',
+                            title: 'Remove'
+                              }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+                              ))
+                            )
+                          ),
+                          meta.subscribers && h('div', { className: 'text-[11px] text-zinc-400 mt-0.5' }, `${formatSubs(meta.subscribers)} members`)
+                        )
+                      );
+                    })
+                  ]
+            )
+          ),
+
+          // Center - Post list
+          h('main', { className: `flex-1 flex flex-col bg-zinc-50 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200'}` },
+            // Filter toolbar
+            h('div', { className: 'bg-white border-b border-zinc-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap' },
+              h('div', { className: 'relative flex-1 min-w-[200px] max-w-md' },
+                h('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
                 ),
-                h('select', {
-                  className: 'border rounded-lg px-2 py-1 text-sm',
-                  value: autoRefreshInterval,
-                  disabled: !autoRefreshEnabled,
-                  onChange: event => {
-                    const next = Number(event.target.value);
-                    if (Number.isFinite(next)) {
-                      setAutoRefreshInterval(Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(next))));
-                    }
-                  }
+                h('input', {
+                  id: 'search-input',
+                  type: 'text',
+                  value: keyword,
+                  onChange: (e) => setKeyword(e.target.value),
+                  placeholder: 'Search posts… (⌘K)',
+                  className: 'w-full pl-9 pr-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
+                })
+              ),
+              h('div', { className: 'flex items-center gap-1.5' },
+                h('span', { className: 'text-xs text-zinc-500 mr-1' }, '▲'),
+                UPVOTE_PRESETS.map(preset =>
+                  h('button', {
+                    key: `upvote-${preset.value}`,
+                    onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
+                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minUpvoteFilter === preset.value ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`
+                  }, preset.label)
+                )
+              ),
+              h('div', { className: 'flex items-center gap-1.5' },
+                h('span', { className: 'text-xs text-zinc-500 mr-1' }, '💬'),
+                COMMENT_PRESETS.map(preset =>
+                  h('button', {
+                    key: `comment-${preset.value}`,
+                    onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
+                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minCommentFilter === preset.value ? 'bg-amber-100 text-amber-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`
+                  }, preset.label)
+                )
+              ),
+              h('select', {
+                value: `${sortBy}-${sortOrder}`,
+                onChange: (e) => {
+                  const [by, order] = e.target.value.split('-');
+                  setSortBy(by);
+                  setSortOrder(order);
                 },
-                  AUTO_REFRESH_OPTIONS.map(option =>
-                    h('option', { key: option, value: option }, `${option} min`)
-                  )
-                ),
-                h('button', {
-                  onClick: () => refresh(),
-                  className: 'px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold shadow disabled:opacity-50',
-                  disabled: loading
-                }, loading ? 'Fetching…' : 'Refresh')
+                className: 'px-2 py-1 rounded-lg border border-zinc-200 text-xs bg-white'
+              },
+                h('option', { value: 'date-desc' }, 'Newest'),
+                h('option', { value: 'date-asc' }, 'Oldest'),
+                h('option', { value: 'upvotes-desc' }, 'Most upvotes'),
+                h('option', { value: 'upvotes-asc' }, 'Least upvotes'),
+                h('option', { value: 'comments-desc' }, 'Most comments'),
+                h('option', { value: 'comments-asc' }, 'Least comments')
               ),
-              h('div', { className: 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-2 border-t border-zinc-200' },
-                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                  'Listing mode',
-                  h('select', {
-                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                    value: mode,
-                    onChange: event => setMode(event.target.value)
-                  },
-                    h('option', { value: 'new' }, 'new'),
-                    h('option', { value: 'top' }, 'top')
-                  )
-                ),
-                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                  'Top range',
-                  h('select', {
-                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800 disabled:text-zinc-400',
-                    value: time,
-                    onChange: event => setTime(event.target.value),
-                    disabled: mode !== 'top'
-                  },
-                    h('option', { value: 'hour' }, 'hour'),
-                    h('option', { value: 'day' }, 'day'),
-                    h('option', { value: 'week' }, 'week'),
-                    h('option', { value: 'month' }, 'month')
-                  )
-                ),
-                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                  'Lookback window',
-                  h('select', {
-                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                    value: days,
-                    onChange: event => setDays(Number(event.target.value) || 1)
-                  },
-                    h('option', { value: 1 }, 'Day'),
-                    h('option', { value: 3 }, '3 Days'),
-                    h('option', { value: 7 }, 'Week')
-                  )
-                ),
-                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                  'Page limit',
-                  h('select', {
-                    className: 'border rounded-lg px-3 py-2 text-sm font-normal text-zinc-800',
-                    value: maxPages,
-                    onChange: event => setMaxPages(Math.max(1, Math.min(500, Number(event.target.value) || 100)))
-                  },
-                    h('option', { value: 5 }, 'Max pages: 5'),
-                    h('option', { value: 10 }, 'Max pages: 10'),
-                    h('option', { value: 20 }, 'Max pages: 20'),
-                    h('option', { value: 50 }, 'Max pages: 50'),
-                    h('option', { value: 100 }, 'Max pages: 100'),
-                    h('option', { value: 200 }, 'Max pages: 200')
-                  )
-                )
-              ),
-              h('div', { className: 'grid gap-3 md:grid-cols-3 pt-2 border-t border-zinc-200' },
-                h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
-                  h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Score filters'),
-                  h('div', { className: 'flex flex-wrap gap-2' },
-                    UPVOTE_PRESETS.map(value => {
-                      const label = value === 'any' ? 'Any' : `${value}+`;
-                      const isActive = value === 'any' ? minUpvoteFilter === '' : minUpvoteFilter === String(value);
-                      return h('button', {
-                        key: `score-${value}`,
-                        type: 'button',
-                        className: `px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${isActive ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-transparent bg-white text-zinc-600 hover:border-indigo-200'}`,
-                        onClick: () => setMinUpvoteFilter(value === 'any' ? '' : String(value))
-                      }, label);
-                    })
-                  ),
-                  h('div', { className: 'flex items-center gap-2' },
-                    h('span', { className: 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500' }, 'Custom'),
-                    h('input', {
-                      type: 'number',
-                      inputMode: 'numeric',
-                      className: 'flex-1 border rounded-lg px-2 py-1 text-xs',
-                      value: minUpvoteFilter,
-                      onChange: event => setMinUpvoteFilter(event.target.value),
-                      placeholder: 'Any'
-                    })
-                  ),
-                  h('p', { className: 'text-xs text-zinc-500' }, 'Raise the floor to focus on higher-signal posts.')
-                ),
-                h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-2' },
-                  h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Comment filters'),
-                  h('div', { className: 'flex flex-wrap gap-2' },
-                    COMMENT_PRESETS.map(value => {
-                      const label = value === 'any' ? 'Any' : `${value}+`;
-                      const isActive = value === 'any' ? minCommentFilter === '' : minCommentFilter === String(value);
-                      return h('button', {
-                        key: `comment-${value}`,
-                        type: 'button',
-                        className: `px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors ${isActive ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-transparent bg-white text-zinc-600 hover:border-indigo-200'}`,
-                        onClick: () => setMinCommentFilter(value === 'any' ? '' : String(value))
-                      }, label);
-                    })
-                  ),
-                  h('div', { className: 'flex items-center gap-2' },
-                    h('span', { className: 'text-[11px] font-semibold uppercase tracking-wide text-zinc-500' }, 'Custom'),
-                    h('input', {
-                      type: 'number',
-                      inputMode: 'numeric',
-                      className: 'flex-1 border rounded-lg px-2 py-1 text-xs',
-                      value: minCommentFilter,
-                      onChange: event => setMinCommentFilter(event.target.value),
-                      placeholder: 'Any'
-                    })
-                  ),
-                  h('p', { className: 'text-xs text-zinc-500' }, 'Find threads with active conversations.')
-                ),
-                h('div', { className: 'rounded-2xl border border-zinc-200 bg-zinc-50 p-3 space-y-3' },
-                  h('p', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Sort'),
-                  h('label', { className: 'flex flex-col gap-1 text-xs font-medium text-zinc-600' },
-                    'Order by',
-                    h('select', {
-                      className: 'border rounded-lg px-3 py-2 text-xs',
-                      value: sortBy,
-                      onChange: event => setSortBy(event.target.value)
-                    },
-                      h('option', { value: 'date' }, 'Date'),
-                      h('option', { value: 'upvotes' }, 'Upvotes'),
-                      h('option', { value: 'comments' }, 'Comments')
-                    )
-                  ),
-                  h('label', { className: 'flex flex-col gap-1 text-xs font-medium text-zinc-600' },
-                    'Order',
-                    h('select', {
-                      className: 'border rounded-lg px-3 py-2 text-xs',
-                      value: sortOrder,
-                      onChange: event => setSortOrder(event.target.value)
-                    },
-                      h('option', { value: 'desc' }, sortBy === 'date' ? 'Newest' : 'High → Low'),
-                      h('option', { value: 'asc' }, sortBy === 'date' ? 'Oldest' : 'Low → High')
-                    )
-                  )
-                )
-              ),
-              h('div', { className: 'flex flex-wrap items-center justify-between text-xs text-zinc-600 pt-2 border-t border-zinc-200' },
-                h('button', {
-                  type: 'button',
-                  className: 'font-semibold text-indigo-600 hover:text-indigo-700',
-                  onClick: () => setShowAdvancedFilters(prev => !prev)
-                }, showAdvancedFilters ? 'Hide advanced filters' : 'More filters'),
                 filtersActive && h('button', {
-                  type: 'button',
-                  className: 'font-semibold text-zinc-500 hover:text-zinc-700',
-                  onClick: () => {
-                    setMinUpvoteFilter('');
-                    setMaxUpvoteFilter('');
-                    setMinCommentFilter('');
-                    setMaxCommentFilter('');
-                  }
-                }, 'Clear filters')
+                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); },
+                className: 'text-xs text-zinc-500 hover:text-zinc-700'
+              }, 'Clear')
+            ),
+
+            // Post list
+            h('div', { className: 'flex-1 overflow-auto scrollbar-thin' },
+              visiblePosts.length === 0
+                ? h('div', { className: 'flex items-center justify-center h-full text-zinc-500 text-sm' },
+                    subs.length === 0 ? 'Add subreddits to get started' : loading ? 'Loading…' : 'No posts match your filters'
+                  )
+                : h('div', { className: 'divide-y divide-zinc-200' },
+                    visiblePosts.map(post => {
+                        const isSelected = selectedPost?.id === post.id;
+                        const score = Number(post.score) || 0;
+                        const comments = Number(post.num_comments) || 0;
+                        return h('button', {
+                          key: post.id,
+                        onClick: () => { setSelectedPost(post); setDetailCollapsed(false); },
+                        className: `w-full text-left px-4 py-3 hover:bg-white transition-colors ${isSelected ? 'bg-white border-l-2 border-indigo-500' : 'bg-zinc-50'}`
+                        },
+                          h('div', { className: 'flex gap-3' },
+                          post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' && h('img', {
+                              src: post.thumbnail,
+                              alt: '',
+                            className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200'
+                            }),
+                            h('div', { className: 'flex-1 min-w-0' },
+                            h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 mb-1' },
+                              h('span', null, `r/${post.subreddit}`),
+                              h('span', null, '•'),
+                              h('span', null, timeAgo(post.created_utc))
+                            ),
+                            h('h3', { className: 'text-sm font-medium text-zinc-900 leading-snug line-clamp-2' }, post.title),
+                            h('div', { className: 'flex items-center gap-3 mt-1.5 text-xs' },
+                              h('span', { className: 'text-emerald-600 font-medium' }, `▲ ${score}`),
+                              h('span', { className: 'text-amber-600 font-medium' }, `💬 ${comments}`),
+                              h('span', { className: 'text-zinc-400' }, `u/${post.author}`)
+                              )
+                            )
+                          )
+                        );
+                      })
+                    )
+            )
+          ),
+
+          // Right - Post detail
+          !detailCollapsed && h('aside', { className: 'hidden lg:flex w-96 bg-white flex-col shrink-0' },
+            h('div', { className: 'p-3 border-b border-zinc-200 flex items-center justify-between' },
+              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Post Detail'),
+              h('button', {
+                onClick: () => setDetailCollapsed(true),
+                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600',
+                title: 'Collapse'
+              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 5l7 7-7 7M5 5l7 7-7 7' })
+              ))
+            ),
+            h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-4' },
+            !selectedPost
+                ? h('div', { className: 'flex items-center justify-center h-full text-zinc-400 text-sm' }, 'Select a post to view')
+                : h('article', { className: 'space-y-4' },
+                    h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
+                      h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700 font-medium' }, `r/${selectedPost.subreddit}`),
+                      h('span', null, timeAgo(selectedPost.created_utc))
+                    ),
+                    h('h2', { className: 'text-lg font-bold text-zinc-900 leading-snug' }, selectedPost.title),
+                    h('div', { className: 'flex items-center gap-3 text-sm' },
+                      h('span', { className: 'text-emerald-600 font-medium' }, `▲ ${selectedPost.score}`),
+                      h('span', { className: 'text-amber-600 font-medium' }, `💬 ${selectedPost.num_comments}`),
+                      h('span', { className: 'text-zinc-500' }, `u/${selectedPost.author}`)
+                    ),
+                    h('a', {
+                      href: selectedPost.url,
+                      target: '_blank',
+                      rel: 'noreferrer',
+                      className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors'
+                    },
+                      'Open on Reddit',
+                      h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
+                      )
+                    ),
+                    h('div', { className: 'border-t border-zinc-200 pt-4' },
+                      renderBody(selectedPost)
+                  )
+                )
+          )
+        ),
+
+          // Collapsed detail toggle
+          detailCollapsed && h('button', {
+            onClick: () => setDetailCollapsed(false),
+            className: 'hidden lg:flex items-center justify-center w-8 bg-white border-l border-zinc-200 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 transition-colors',
+            title: 'Expand detail panel'
+          }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M11 19l-7-7 7-7m8 14l-7-7 7-7' })
+          ))
+        ),
+
+        // Add subreddit modal
+        addSubOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4' },
+          h('div', {
+            className: 'w-full max-w-md bg-white rounded-xl shadow-xl',
+            onClick: (e) => e.stopPropagation()
+          },
+            h('div', { className: 'p-4 border-b border-zinc-200 flex items-center justify-between' },
+              h('h3', { className: 'font-semibold text-zinc-900' }, 'Add Subreddits'),
+              h('button', {
+                onClick: () => setAddSubOpen(false),
+                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+              }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+              ))
+            ),
+            h('div', { className: 'p-4 space-y-4' },
+              h('div', null,
+                h('label', { className: 'block text-sm font-medium text-zinc-700 mb-1.5' }, 'Subreddit names'),
+                h('textarea', {
+                  ref: addSubInputRef,
+                  value: addSubInput,
+                  onChange: (e) => setAddSubInput(e.target.value),
+                  placeholder: 'programming, webdev, javascript...',
+                  className: 'w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                  rows: 3
+                }),
+                h('p', { className: 'mt-1 text-xs text-zinc-500' }, 'Separate with commas or new lines')
               ),
-              showAdvancedFilters && h('div', { className: 'grid gap-3 sm:grid-cols-2 pt-2' },
-                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                  'Max upvotes',
-                  h('input', {
-                    type: 'number',
-                    inputMode: 'numeric',
-                    className: 'border rounded-lg px-3 py-2 text-sm',
-                    value: maxUpvoteFilter,
-                    onChange: event => setMaxUpvoteFilter(event.target.value),
-                    placeholder: 'No max'
-                  })
-                ),
-                h('label', { className: 'flex flex-col gap-1 text-sm font-medium text-zinc-700' },
-                  'Max comments',
-                  h('input', {
-                    type: 'number',
-                    inputMode: 'numeric',
-                    className: 'border rounded-lg px-3 py-2 text-sm',
-                    value: maxCommentFilter,
-                    onChange: event => setMaxCommentFilter(event.target.value),
-                    placeholder: 'No max'
-                  })
+              h('div', null,
+                h('p', { className: 'text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2' }, 'Popular'),
+                h('div', { className: 'flex flex-wrap gap-1.5' },
+                  POPULAR_SUBREDDITS.slice(0, 10).map(sub =>
+                    h('button', {
+                      key: sub,
+                      onClick: () => { handleAddSub(sub); setAddSubOpen(false); },
+                      disabled: subs.some(s => s.toLowerCase() === sub.toLowerCase()),
+                      className: 'px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+                    }, sub)
+                  )
                 )
               )
+            ),
+            h('div', { className: 'p-4 border-t border-zinc-200 flex justify-end gap-2' },
+              h('button', {
+                onClick: () => setAddSubOpen(false),
+                className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors'
+              }, 'Cancel'),
+              h('button', {
+                onClick: handleAddSubSubmit,
+                disabled: !addSubInput.trim(),
+                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors'
+              }, 'Add')
             )
           )
         ),
-        subs.length === 0 && !onboardingDismissed ? h('section', { className: 'mb-4' },
-          h('div', { className: 'bg-white border border-blue-200 rounded-3xl shadow-sm p-5 space-y-4' },
-            h('div', { className: 'space-y-2' },
-              h('h2', { className: 'text-xl font-bold text-blue-700' }, 'Start your dashboard in minutes'),
-              h('p', { className: 'text-sm text-zinc-600 max-w-2xl' }, 'Add the communities you care about. Browse curated bundles or paste your own list — everything is saved locally for next time.')
-            ),
-            h('div', { className: 'flex flex-wrap gap-2' },
-              h('button', {
-                className: 'inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-blue-700',
-                onClick: () => {
-                  setStarterPackOpen(true);
-                  setOnboardingDismissed(true);
-                }
-              }, 'Browse starter packs'),
-              h('button', {
-                className: 'inline-flex items-center justify-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition-colors',
-                onClick: handleAddSubredditClick
-              }, 'Add manually'),
-              h('button', {
-                className: 'inline-flex items-center justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-semibold text-blue-500 hover:text-blue-700',
-                onClick: () => setOnboardingDismissed(true)
-              }, 'Maybe later')
-            ),
-            h('p', { className: 'text-xs text-zinc-500' }, 'Tip: You can export or import your setup anytime from the Subreddits panel.')
-          )
-        ) : null,
-        h('div', { className: 'mb-3 space-y-2' },
-          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
-            h('button', {
-              className: 'w-full flex items-center justify-between text-left',
-              onClick: () => setSubsExpanded(!subsExpanded)
-            },
-              h('div', { className: 'flex items-center gap-2' },
-                h('span', { className: 'font-medium' }, 'Subreddits'),
-                subs.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${subs.length} added`)
-              ),
-              h('span', { className: 'text-zinc-400' }, subsExpanded ? '▼' : '▶')
-            ),
-            subsExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
-              h('textarea', {
-                className: 'w-full border rounded-lg px-3 py-2 text-sm',
-                rows: 3,
-                value: subsInput,
-                placeholder: 'Enter subreddit names separated by commas (e.g., programming, r/technology, webdev)',
-                onChange: event => setSubsInput(event.target.value),
-                onBlur: event => {
-                  const list = uniqueNormalizedSubreddits(event.target.value);
-                  setSubs(list);
-                  try {
-                    localStorage.setItem('dashboard_subs', JSON.stringify(list));
-                    localStorage.setItem('dashboard_subs_backup', JSON.stringify(list));
-                  } catch (e) {
-                    console.warn('Failed to save subreddits:', e);
-                  }
-                },
-                ref: subsInputRef
-              }),
-              h('p', { className: 'text-xs text-zinc-500' }, 'Separate each community with a comma. Your list stays in this browser so it\'s ready whenever you return.'),
-              h('div', { className: 'flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between' },
+
+        // Settings modal
+        settingsOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4' },
+          h('div', {
+            className: 'w-full max-w-lg bg-white rounded-xl shadow-xl',
+            onClick: (e) => e.stopPropagation()
+          },
+            h('div', { className: 'p-4 border-b border-zinc-200 flex items-center justify-between' },
+              h('h3', { className: 'font-semibold text-zinc-900' }, 'Settings'),
                 h('button', {
-                  type: 'button',
-                  className: 'inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors',
-                  onClick: () => setStarterPackOpen(true)
-                }, 'Browse starter packs'),
-                h('div', { className: 'flex-1 sm:max-w-sm w-full' },
-                  h('label', { className: 'block text-xs font-semibold text-zinc-600 uppercase tracking-wide mb-1' }, 'Quick add from popular'),
-                  h('div', { className: 'flex gap-2' },
-                    h('input', {
-                      className: 'flex-1 border rounded-lg px-3 py-2 text-sm',
-                      list: 'popular-subreddits',
-                      placeholder: 'Start typing to search popular subreddits…',
-                      value: quickAddValue,
-                      onChange: event => setQuickAddValue(event.target.value),
-                      onKeyDown: event => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          handleQuickAddSubmit();
-                        }
-                      }
-                    }),
-                    h('button', {
-                      type: 'button',
-                      className: 'px-3 py-2 rounded-lg bg-black text-white text-sm font-semibold shadow disabled:opacity-40',
-                      onClick: handleQuickAddSubmit,
-                      disabled: !quickAddValue.trim()
-                    }, 'Add')
+                onClick: () => setSettingsOpen(false),
+                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+              }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+              ))
+            ),
+            h('div', { className: 'p-4 space-y-5' },
+              h('div', { className: 'flex items-center justify-between' },
+                h('div', null,
+                  h('p', { className: 'font-medium text-zinc-900' }, 'Auto-refresh'),
+                  h('p', { className: 'text-sm text-zinc-500' }, 'Automatically fetch new posts')
+                ),
+                h('div', { className: 'flex items-center gap-3' },
+                  h('select', {
+                    value: autoRefreshInterval,
+                    onChange: (e) => setAutoRefreshInterval(Number(e.target.value)),
+                    disabled: !autoRefreshEnabled,
+                    className: 'px-2 py-1.5 rounded-lg border border-zinc-200 text-sm disabled:opacity-50'
+                  },
+                    AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `${opt} min`))
                   ),
-                  h('datalist', { id: 'popular-subreddits' },
-                    POPULAR_SUBREDDITS.map(sub =>
-                      h('option', { key: sub, value: `r/${sub}` })
-                    )
+                  h('button', {
+                    onClick: () => setAutoRefreshEnabled(!autoRefreshEnabled),
+                    className: `relative w-11 h-6 rounded-full transition-colors ${autoRefreshEnabled ? 'bg-indigo-600' : 'bg-zinc-300'}`
+                  },
+                    h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${autoRefreshEnabled ? 'translate-x-5' : ''}` })
                   )
                 )
               ),
-              h('details', { className: 'rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600' },
-                h('summary', { className: 'font-semibold cursor-pointer select-none' }, 'More actions'),
-                h('div', { className: 'mt-2 flex flex-wrap gap-2' },
+              h('div', { className: 'grid grid-cols-2 gap-4' },
+                h('label', { className: 'block' },
+                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Listing mode'),
+                    h('select', {
+                      value: mode,
+                    onChange: (e) => setMode(e.target.value),
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm'
+                    },
+                      h('option', { value: 'new' }, 'New'),
+                      h('option', { value: 'top' }, 'Top')
+                    )
+                  ),
+                h('label', { className: 'block' },
+                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Top range'),
+                    h('select', {
+                      value: time,
+                    onChange: (e) => setTime(e.target.value),
+                      disabled: mode !== 'top',
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm disabled:opacity-50'
+                    },
+                      h('option', { value: 'hour' }, 'Hour'),
+                      h('option', { value: 'day' }, 'Day'),
+                      h('option', { value: 'week' }, 'Week'),
+                      h('option', { value: 'month' }, 'Month')
+                    )
+                  ),
+                h('label', { className: 'block' },
+                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Lookback window'),
+                    h('select', {
+                      value: days,
+                    onChange: (e) => setDays(Number(e.target.value)),
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm'
+                    },
+                    h('option', { value: 1 }, 'Day'),
+                      h('option', { value: 3 }, '3 Days'),
+                    h('option', { value: 7 }, 'Week')
+                    )
+                  ),
+                h('label', { className: 'block' },
+                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Max pages'),
+                    h('select', {
+                      value: maxPages,
+                    onChange: (e) => setMaxPages(Number(e.target.value)),
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm'
+                    },
+                      [5, 10, 20, 50, 100, 200].map(n => h('option', { key: n, value: n }, n))
+                  )
+                )
+              ),
+              h('div', { className: 'pt-4 border-t border-zinc-200' },
+                h('p', { className: 'text-xs font-medium text-zinc-500 uppercase tracking-wide mb-3' }, 'Data Management'),
+                h('div', { className: 'flex gap-2' },
                   h('button', {
-                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-100',
                     onClick: () => {
-                      const backup = JSON.stringify({ subs, maxPages });
+                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval });
                       navigator.clipboard.writeText(backup);
-                      alert('Settings copied to clipboard.');
-                    }
-                  }, 'Copy setup'),
+                      alert('Settings copied to clipboard');
+                    },
+                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors'
+                  }, 'Export settings'),
                   h('button', {
-                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-100',
                     onClick: () => {
                       const input = prompt('Paste your settings backup:');
                       if (input) {
@@ -948,322 +864,57 @@
                           const parsed = JSON.parse(input);
                           if (parsed.subs) setSubs(parsed.subs);
                           if (parsed.maxPages) setMaxPages(parsed.maxPages);
-                          alert('Settings restored.');
+                          if (typeof parsed.autoRefreshEnabled === 'boolean') setAutoRefreshEnabled(parsed.autoRefreshEnabled);
+                          if (parsed.autoRefreshInterval) setAutoRefreshInterval(parsed.autoRefreshInterval);
+                          alert('Settings restored');
                         } catch (e) {
                           alert('Invalid backup format');
                         }
                       }
-                    }
-                  }, 'Restore from backup')
+                    },
+                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors'
+                  }, 'Import settings')
                 )
               )
-            )
-          ),
-          h('div', { className: 'bg-white rounded-2xl shadow p-3' },
-            h('button', {
-              className: 'w-full flex items-center justify-between text-left',
-              onClick: () => setKeywordExpanded(!keywordExpanded)
-            },
-              h('div', { className: 'flex items-center gap-2' },
-                h('span', { className: 'font-medium' }, 'Search'),
-                keyword && h('span', { className: 'px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs' }, `"${keyword}"`)
-              ),
-              h('span', { className: 'text-zinc-400' }, keywordExpanded ? '▼' : '▶')
             ),
-            keywordExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200' },
-              h('input', {
-                className: 'w-full border rounded-lg px-3 py-2 text-sm',
-                value: keyword,
-                onChange: event => setKeyword(event.target.value),
-                placeholder: 'Type a keyword or phrase to search posts...'
-              })
-            )
-          )
-        ),
-        h('div', { className: 'grid grid-cols-1 lg:grid-cols-12 gap-4' },
-          h('aside', { className: 'lg:col-span-2 bg-white rounded-2xl shadow p-3 lg:p-2 lg:text-sm' },
-            h('div', { className: 'flex items-center justify-between mb-3 lg:mb-2' },
-              h('h2', { className: 'font-semibold text-base lg:text-sm' }, 'Subreddits'),
-              h('button', {
-                className: 'text-xs px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200',
-                onClick: () => setSelectedSub('ALL')
-              }, 'All')
-            ),
-            subs.length === 0
-              ? h('div', { className: 'text-sm lg:text-xs text-zinc-500 italic text-center py-8 lg:py-6' },
-                  h('div', { className: 'space-y-2' },
-                    h('div', null, 'No subreddits added yet'),
-                    h('div', { className: 'text-xs' }, 'Use “Add subreddits” to choose a starter pack or enter your own list')
-                  )
-                )
-              : h('div', { className: 'space-y-2 lg:space-y-1.5 max-h-[70vh] overflow-auto' },
-                  subs.map(sub => {
-                    const meta = subMetaMap.get(sub) || {};
-                    const capped = subPartialMap.get(sub);
-                    const postCount = allPosts.filter(post => post.subreddit?.toLowerCase() === sub.toLowerCase()).length;
-                    return h('div', { key: sub, className: 'border border-zinc-200 rounded-lg p-3 lg:p-2 hover:border-zinc-300 transition-colors' },
-                      h('button', {
-                        onClick: () => setSelectedSub(sub),
-                        className: `w-full text-left ${selectedSub === sub ? 'font-semibold' : ''}`
-                      },
-                        h('div', { className: 'flex items-center justify-between mb-2 lg:mb-1.5' },
-                          h('span', { className: 'text-sm lg:text-xs font-medium' }, `r/${sub}`),
-                          h('span', { className: 'text-xs text-zinc-500' }, `${postCount} posts`)
-                        ),
-                        h('div', { className: 'flex items-center gap-2 lg:gap-1.5 text-xs text-zinc-500' },
-                          h('span', { className: 'leading-tight' }, `${formatSubs(meta.subscribers)} subscribers`),
-                          meta.active_user_count && h('span', { className: 'leading-tight' }, `• ${formatSubs(meta.active_user_count)} active`),
-                          capped && h('span', { className: 'px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200' }, 'capped')
-                        )
-                      )
-                    );
-                  })
-                ),
-            subs.length > 0 && h('p', { className: 'text-[11px] text-zinc-500 mt-3 pt-3 border-t border-zinc-200' }, 'Active ≈ users online/active (15m window if provided by Reddit). Weekly contributors aren\'t available via public endpoints.')
-          ),
-          h('main', { className: 'lg:col-span-6 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-4' },
-            h('div', { className: 'bg-white rounded-2xl shadow p-3' },
-              h('button', {
-                className: 'w-full flex items-center justify-between text-left',
-                onClick: () => setLatestExpanded(!latestExpanded)
-              },
-                h('div', { className: 'flex items-center gap-2' },
-                  h('span', { className: 'font-medium' }, selectedSub === 'ALL' ? 'Latest from all' : `Latest in r/${selectedSub}`),
-                  visiblePosts.length > 0 && h('span', { className: 'px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs' }, `${visiblePosts.length} posts`)
-                ),
-                h('span', { className: 'text-zinc-400' }, latestExpanded ? '▼' : '▶')
-              ),
-              latestExpanded && h('div', { className: 'mt-3 pt-3 border-t border-zinc-200 space-y-4' },
-                visiblePosts.length === 0 ? h('div', { className: 'text-sm text-zinc-500' },
-                  subs.length === 0
-                    ? 'Add some subreddits to get started!'
-                    : 'No posts. Try Refresh or adjust filters.'
-                ) : h('ul', { className: 'space-y-2' },
-                  visiblePosts.map(post => {
-                    const rawScore = Number(post.score);
-                    const rawComments = Number(post.num_comments);
-                    const scoreValue = Number.isFinite(rawScore) ? Math.max(0, rawScore) : 0;
-                    const commentValue = Number.isFinite(rawComments) ? Math.max(0, rawComments) : 0;
-                    const scoreIntensity = scaleCountIntensity(scoreValue, maxScore);
-                    const commentIntensity = scaleCountIntensity(commentValue, maxComments);
-                    const scoreStyles = {
-                      backgroundColor: tintWithWhite('#22c55e', Math.max(0.25, scoreIntensity * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                      color: '#047857'
-                    };
-                    const commentStyles = {
-                      backgroundColor: tintWithWhite('#f59e0b', Math.max(0.25, commentIntensity * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                      color: '#92400e'
-                    };
-                    const isSelected = selectedPost && selectedPost.id === post.id;
-
-                    return h('li', { key: post.id },
-                      h('button', {
-                        className: `group w-full text-left rounded-xl border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 ${isSelected ? 'border-indigo-400 bg-indigo-50/60 shadow-sm' : 'border-zinc-200 bg-white hover:border-indigo-200'}`,
-                        onClick: () => setSelectedPost(post)
-                      },
-                        h('div', { className: 'flex gap-3 items-start p-3' },
-                          h('div', {
-                            className: `w-1 rounded-full self-stretch transition-colors ${isSelected ? 'bg-indigo-500' : 'bg-transparent group-hover:bg-indigo-200'}`
-                          }),
-                          post.thumbnail && h('img', {
-                            src: post.thumbnail,
-                            alt: '',
-                            className: 'w-14 h-14 object-cover rounded-lg'
-                          }),
-                          h('div', { className: 'flex-1 space-y-2' },
-                            h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' },
-                              h('span', { className: 'tracking-wide uppercase' }, timeAgo(post.created_utc)),
-                              h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${post.subreddit}`)
-                            ),
-                            h('div', { className: 'font-semibold leading-snug text-sm text-zinc-900' }, post.title || ''),
-                            h('div', { className: 'flex flex-wrap items-center gap-2 text-sm' },
-                              h('span', { className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold', style: scoreStyles }, `▲ ${scoreValue} upvotes`),
-                              h('span', { className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold', style: commentStyles }, `💬 ${commentValue} comments`),
-                              h('span', { className: 'text-zinc-600' }, `u/${post.author} • ${post.domain}`)
-                            )
-                          )
-                        )
-                      )
-                    );
-                  })
-                )
-              )
-            )
-          ),
-          h('section', { className: 'lg:col-span-4 bg-white rounded-2xl shadow p-4 max-h-[80vh] overflow-auto space-y-3' },
-            h('h2', { className: 'font-semibold' }, 'Post'),
-            !selectedPost
-              ? h('div', { className: 'text-sm text-zinc-500 border border-dashed border-zinc-200 rounded-xl p-4' }, 'Select a post to preview.')
-              : h('article', { className: 'space-y-3' },
-                  h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500' },
-                    h('span', { className: 'tracking-wide uppercase' }, timeAgo(selectedPost.created_utc)),
-                    h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700' }, `r/${selectedPost.subreddit}`)
-                  ),
-                  h('h3', { className: 'text-lg font-bold leading-snug text-zinc-900' }, selectedPost.title || ''),
-                  h('div', { className: 'flex flex-wrap gap-2' },
-                    h('a', {
-                      href: selectedPost.url,
-                      target: '_blank',
-                      rel: 'noreferrer',
-                      className: 'inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white shadow transition-colors hover:bg-zinc-900'
-                    }, 'Open on Reddit')
-                  ),
-                  h('div', { className: 'flex flex-wrap items-center gap-2 text-sm' },
-                    h('span', {
-                      className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold',
-                      style: {
-                        backgroundColor: tintWithWhite('#22c55e', Math.max(0.25, scaleCountIntensity(Number(selectedPost.score) || 0, maxScore) * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                        color: '#047857'
-                      }
-                    }, `▲ ${selectedPost.score} upvotes`),
-                    h('span', {
-                      className: 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold',
-                      style: {
-                        backgroundColor: tintWithWhite('#f59e0b', Math.max(0.25, scaleCountIntensity(Number(selectedPost.num_comments) || 0, maxComments) * 0.8), { minMix: 0.2, maxMix: 0.8 }),
-                        color: '#92400e'
-                      }
-                    }, `💬 ${selectedPost.num_comments} comments`),
-                    h('span', { className: 'text-zinc-600' }, `u/${selectedPost.author} • ${selectedPost.domain}`)
-                  ),
-                  renderBody(selectedPost)
-                )
-          )
-        ),
-        starterPackOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4' },
-          h('div', { className: 'relative w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl space-y-5' },
-            h('button', {
-              type: 'button',
-              className: 'absolute right-4 top-4 text-sm font-semibold text-zinc-400 hover:text-zinc-600',
-              onClick: () => setStarterPackOpen(false)
-            }, 'Close'),
-            h('div', { className: 'space-y-2' },
-              h('h3', { className: 'text-xl font-semibold text-zinc-900' }, 'Starter packs'),
-              h('p', { className: 'text-sm text-zinc-600' }, 'Choose a preset to merge into your list. We\'ll keep any communities you\'ve already added.')
-            ),
-            h('div', { className: 'grid gap-3 sm:grid-cols-2' },
-              STARTER_PACKS.map(pack =>
+            h('div', { className: 'p-4 border-t border-zinc-200 flex justify-end' },
                 h('button', {
-                  key: pack.id,
-                  className: 'text-left rounded-2xl border border-zinc-200 bg-zinc-50 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50',
-                  onClick: () => {
-                    handleApplyStarterPack(pack);
-                    setStarterPackOpen(false);
-                  }
-                },
-                  h('div', { className: 'text-sm font-semibold text-zinc-900' }, pack.label),
-                  h('p', { className: 'text-xs text-zinc-600 mt-2 leading-relaxed' }, pack.description),
-                  h('p', { className: 'mt-3 text-[11px] uppercase tracking-wide text-zinc-400' }, `${pack.subs.length} subreddit${pack.subs.length > 1 ? 's' : ''}`)
-                )
-              )
-            ),
-            h('div', { className: 'flex justify-end' },
-              h('button', {
-                type: 'button',
-                className: 'inline-flex items-center justify-center rounded-lg border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50',
-                onClick: () => setStarterPackOpen(false)
+                onClick: () => setSettingsOpen(false),
+                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition-colors'
               }, 'Done')
             )
           )
         )
       );
-
     }
 
+    // Utility functions
     function formatTimeUntil(timestamp) {
       if (!timestamp) return '';
-      const now = Date.now();
-      const diff = Math.max(0, Number(timestamp) - now);
-      if (!Number.isFinite(diff) || diff <= 0) return 'in a few seconds';
-      if (diff < 60 * 1000) return 'in under a minute';
+      const diff = Math.max(0, Number(timestamp) - Date.now());
+      if (diff < 60 * 1000) return 'in <1 min';
       const minutes = Math.round(diff / 60000);
-      if (minutes < 60) {
-        return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
-      }
+      if (minutes < 60) return `in ${minutes}m`;
       const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      if (hours >= 24) {
-        const days = Math.round(diff / 86400000);
-        return `in ${days} day${days === 1 ? '' : 's'}`;
-      }
-      if (remainingMinutes === 0) {
-        return `in ${hours} hour${hours === 1 ? '' : 's'}`;
-      }
-      return `in ${hours}h ${remainingMinutes}m`;
-    }
-
-    function uniqueNormalizedSubreddits(input) {
-      if (typeof input !== 'string') return [];
-      const segments = input.split(/[\n,]+/);
-      const seen = new Set();
-      const list = [];
-      for (const segment of segments) {
-        const normalized = normalizeSubredditName(segment);
-        if (!normalized) continue;
-        const key = normalized.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        list.push(normalized);
-      }
-      return list;
-    }
-
-    function mergeSubredditLists(existing, additions) {
-      const base = Array.isArray(existing) ? existing : [];
-      const seen = new Set(base.map(item => (typeof item === 'string' ? item.toLowerCase() : '')));
-      const merged = [...base];
-      for (const entry of Array.isArray(additions) ? additions : []) {
-        const normalized = normalizeSubredditName(entry);
-        if (!normalized) continue;
-        const key = normalized.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push(normalized);
-      }
-      if (merged.length === base.length) {
-        return Array.isArray(existing) ? existing : base;
-      }
-      return merged;
+      return `in ${hours}h ${minutes % 60}m`;
     }
 
     function normalizeSubredditName(value) {
       if (typeof value !== 'string') return '';
-      const trimmed = value.trim();
-      if (!trimmed) return '';
-      const withoutPrefix = trimmed.replace(/^r\//i, '').trim();
-      return withoutPrefix;
-    }
-
-    function formatDateTime(timestamp) {
-      const date = new Date(timestamp);
-      if (Number.isNaN(date.getTime())) return '';
-      return date.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      return value.trim().replace(/^r\//i, '').trim();
     }
 
     function timeAgo(utcSeconds) {
       const now = Date.now() / 1000;
       const diff = Math.max(1, Math.floor(now - (utcSeconds || 0)));
       const units = [
-        [31536000, 'year'],
-        [2592000, 'month'],
-        [604800, 'week'],
-        [86400, 'day'],
-        [3600, 'hour'],
-        [60, 'minute'],
-        [1, 'second'],
+        [31536000, 'y'], [2592000, 'mo'], [604800, 'w'],
+        [86400, 'd'], [3600, 'h'], [60, 'm'], [1, 's'],
       ];
       for (const [seconds, name] of units) {
-        if (diff >= seconds) {
-          const count = Math.floor(diff / seconds);
-          return `${count} ${name}${count > 1 ? 's' : ''} ago`;
-        }
+        if (diff >= seconds) return `${Math.floor(diff / seconds)}${name}`;
       }
-      return 'just now';
+      return 'now';
     }
 
     function formatSubs(value) {
@@ -1280,87 +931,26 @@
     }
 
     function parseNumberFilter(value) {
-      if (value === null || value === undefined) return null;
-      const trimmed = String(value).trim();
-      if (trimmed === '') return null;
-      const num = Number(trimmed);
+      if (value === null || value === undefined || value === '') return null;
+      const num = Number(value);
       return Number.isFinite(num) ? num : null;
     }
 
     function renderBody(post) {
       if (post.selftext_html) {
-        const decoded = decodeHtml(post.selftext_html);
+        const decoded = post.selftext_html
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
         return h('div', {
-          className: 'post-body prose prose-zinc max-w-none',
+          className: 'post-body prose prose-sm prose-zinc max-w-none',
           dangerouslySetInnerHTML: { __html: decoded },
         });
       }
       if (post.selftext) {
-        return h('div', { className: 'post-body whitespace-pre-wrap text-zinc-800' }, post.selftext);
+        return h('div', { className: 'post-body whitespace-pre-wrap text-zinc-700 text-sm' }, post.selftext);
       }
-      return h('div', { className: 'text-sm text-zinc-500' }, '(No text body — link post)');
+      return h('div', { className: 'text-sm text-zinc-400 italic' }, 'Link post — no text content');
     }
-
-    function decodeHtml(str) {
-      return str
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-    }
-
-    function scaleCountIntensity(value, maxValue) {
-      const rawValue = Number.isFinite(value) ? value : Number(value);
-      const rawMax = Number.isFinite(maxValue) ? maxValue : Number(maxValue);
-      const safeValue = Number.isFinite(rawValue) ? Math.max(0, rawValue) : 0;
-      const safeMax = Number.isFinite(rawMax) ? Math.max(0, rawMax) : 0;
-      if (safeValue <= 0) return 0;
-      if (safeMax <= 0) return 1;
-      const ratio = Math.log1p(safeValue) / Math.log1p(Math.max(1, safeMax));
-      if (!Number.isFinite(ratio) || ratio <= 0) return 0;
-      return Math.min(1, Math.max(0, ratio));
-    }
-
-    function tintWithWhite(hexColor, intensity, { minMix = 0.2, maxMix = 0.85 } = {}) {
-      const { r, g, b } = hexToRgb(hexColor);
-      const clampedIntensity = Math.min(1, Math.max(0, intensity || 0));
-      const clampedMin = Math.min(1, Math.max(0, minMix));
-      const clampedMax = Math.min(1, Math.max(0, maxMix));
-      const mix = clampedMax - clampedIntensity * Math.max(0, clampedMax - clampedMin);
-      const final = {
-        r: Math.round(r + (255 - r) * mix),
-        g: Math.round(g + (255 - g) * mix),
-        b: Math.round(b + (255 - b) * mix),
-      };
-      return `rgb(${final.r}, ${final.g}, ${final.b})`;
-    }
-
-    function hexToRgb(hexColor) {
-      if (typeof hexColor !== 'string') {
-        return { r: 255, g: 255, b: 255 };
-      }
-      let hex = hexColor.replace('#', '').trim();
-      if (hex.length === 3) {
-        hex = hex.split('').map(char => char + char).join('');
-      }
-      if (hex.length !== 6) {
-        return { r: 255, g: 255, b: 255 };
-      }
-      const value = parseInt(hex, 16);
-      if (Number.isNaN(value)) {
-        return { r: 255, g: 255, b: 255 };
-      }
-      return {
-        r: (value >> 16) & 255,
-        g: (value >> 8) & 255,
-        b: value & 255,
-      };
-    }
-
-    // Client-side Reddit API fetching removed due to CORS issues
-
-    // Removed unused client-side functions
 
     const root = createRoot(document.getElementById('root'));
     root.render(h(App));
