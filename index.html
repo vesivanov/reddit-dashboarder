@@ -8,6 +8,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
@@ -17,9 +22,13 @@
     .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
     .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+    .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #52525b; }
+    .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #71717a; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fadeIn { animation: fadeIn 0.15s ease-out; }
   </style>
 </head>
-<body class="bg-zinc-100 min-h-screen text-zinc-900">
+<body class="bg-zinc-100 dark:bg-zinc-900 min-h-screen text-zinc-900 dark:text-zinc-100 transition-colors">
   <div id="root"></div>
   <script>
     const { useCallback, useEffect, useMemo, useRef, useState } = React;
@@ -131,6 +140,29 @@
       const [nextRefreshAt, setNextRefreshAt] = useState(null);
       const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState(null);
       const [detailCollapsed, setDetailCollapsed] = useState(false);
+      const [darkMode, setDarkMode] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_dark_mode');
+          if (saved !== null) return saved === '1';
+          return window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch { return false; }
+      });
+      const [hiddenPosts, setHiddenPosts] = useState(new Set());
+      const [activePostMenu, setActivePostMenu] = useState(null);
+      const [hoverPost, setHoverPost] = useState(null);
+      const [hoverTimeout, setHoverTimeout] = useState(null);
+      const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
+        try { return localStorage.getItem('dashboard_notifications') === '1'; } catch { return false; }
+      });
+      const [upvoteThreshold, setUpvoteThreshold] = useState(() => {
+        try { return Number(localStorage.getItem('dashboard_upvote_threshold')) || 100; } catch { return 100; }
+      });
+      const [alertKeywords, setAlertKeywords] = useState(() => {
+        try { return localStorage.getItem('dashboard_alert_keywords') || ''; } catch { return ''; }
+      });
+      const [previousPostScores, setPreviousPostScores] = useState(new Map());
+      const [mobileView, setMobileView] = useState('posts');
+      const [touchStart, setTouchStart] = useState(null);
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
 
@@ -156,6 +188,68 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_auto_refresh_interval', String(autoRefreshInterval)); } catch {}
       }, [autoRefreshInterval]);
+
+      // Dark mode persistence and class toggle
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_dark_mode', darkMode ? '1' : '0'); } catch {}
+        if (darkMode) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }, [darkMode]);
+
+      // Notification settings persistence
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_notifications', notificationsEnabled ? '1' : '0'); } catch {}
+      }, [notificationsEnabled]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_upvote_threshold', String(upvoteThreshold)); } catch {}
+      }, [upvoteThreshold]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_alert_keywords', alertKeywords); } catch {}
+      }, [alertKeywords]);
+
+      // Touch/swipe gesture handlers
+      const handleTouchStart = useCallback((e) => {
+        setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      }, []);
+      const handleTouchEnd = useCallback((e) => {
+        if (!touchStart) return;
+        const deltaX = e.changedTouches[0].clientX - touchStart.x;
+        const deltaY = e.changedTouches[0].clientY - touchStart.y;
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+          if (deltaX < 0) {
+            // Swipe left
+            if (mobileView === 'subs') setMobileView('posts');
+            else if (mobileView === 'posts') setMobileView('detail');
+          } else {
+            // Swipe right
+            if (mobileView === 'detail') setMobileView('posts');
+            else if (mobileView === 'posts') setMobileView('subs');
+          }
+        }
+        setTouchStart(null);
+      }, [touchStart, mobileView]);
+
+      // Request notification permission
+      const requestNotificationPermission = useCallback(async () => {
+        if (!('Notification' in window)) {
+          alert('This browser does not support notifications');
+          return;
+        }
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          setNotificationsEnabled(true);
+        }
+      }, []);
+
+      // Send notification
+      const sendNotification = useCallback((title, body) => {
+        if (notificationsEnabled && Notification.permission === 'granted') {
+          new Notification(title, { body, icon: '/favicon.ico' });
+        }
+      }, [notificationsEnabled]);
 
       // Check auth on mount
       useEffect(() => {
@@ -198,6 +292,7 @@
         const minCommentsValue = parseNumberFilter(minCommentFilter);
 
         const filtered = filteredBySub.filter(post => {
+          if (hiddenPosts.has(post.id)) return false;
           if (q) {
             const title = post.title ? post.title.toLowerCase() : '';
             const selftext = post.selftext ? post.selftext.toLowerCase() : '';
@@ -220,7 +315,7 @@
           }
           return delta === 0 ? 0 : delta * multiplier;
         });
-      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, sortBy, sortOrder]);
+      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, sortBy, sortOrder, hiddenPosts]);
 
       const { maxScore, maxComments } = useMemo(() => {
         let maxScore = 0, maxComments = 0;
@@ -313,6 +408,37 @@
           setAuthChecking(false);
           setData(perSub);
           setFetchedAt(Date.now());
+
+          // Check for notifications on auto-refresh
+          if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted') {
+            const allNewPosts = perSub.flatMap(g => g.posts || []);
+            // Check for upvote threshold crossing
+            allNewPosts.forEach(post => {
+              const prevScore = previousPostScores.get(post.id);
+              const currentScore = Number(post.score) || 0;
+              if (prevScore !== undefined && prevScore < upvoteThreshold && currentScore >= upvoteThreshold) {
+                new Notification('Post crossed threshold!', { body: `"${post.title}" now has ${currentScore} upvotes`, icon: '/favicon.ico' });
+              }
+            });
+            // Check for keyword matches in new posts
+            if (alertKeywords.trim()) {
+              const keywords = alertKeywords.toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
+              allNewPosts.forEach(post => {
+                if (!previousPostScores.has(post.id)) {
+                  const title = (post.title || '').toLowerCase();
+                  const selftext = (post.selftext || '').toLowerCase();
+                  const matchedKeyword = keywords.find(kw => title.includes(kw) || selftext.includes(kw));
+                  if (matchedKeyword) {
+                    new Notification(`Keyword "${matchedKeyword}" found!`, { body: post.title, icon: '/favicon.ico' });
+                  }
+                }
+              });
+            }
+            // Update previous scores
+            const newScores = new Map();
+            allNewPosts.forEach(post => newScores.set(post.id, Number(post.score) || 0));
+            setPreviousPostScores(newScores);
+          }
         } catch (fetchError) {
           setNeedsAuth(false);
           if (fetchError?.name === 'AbortError') {
@@ -332,7 +458,7 @@
           }
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -400,23 +526,77 @@
             e.preventDefault();
             document.getElementById('search-input')?.focus();
           }
+          if (e.key === 'Escape') {
+            setActivePostMenu(null);
+            setHoverPost(null);
+          }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
       }, []);
 
-      const filtersActive = minUpvoteFilter || minCommentFilter;
+      // Close menu when clicking outside
+      useEffect(() => {
+        const handler = () => setActivePostMenu(null);
+        if (activePostMenu) {
+          document.addEventListener('click', handler);
+          return () => document.removeEventListener('click', handler);
+        }
+      }, [activePostMenu]);
 
-      return h('div', { className: 'h-screen flex flex-col' },
+      // Quick action handlers
+      const handleCopyLink = useCallback((post) => {
+        const url = `https://reddit.com${post.permalink}`;
+        navigator.clipboard.writeText(url);
+        setActivePostMenu(null);
+      }, []);
+
+      const handleHidePost = useCallback((postId) => {
+        setHiddenPosts(prev => new Set([...prev, postId]));
+        setActivePostMenu(null);
+        if (selectedPost?.id === postId) setSelectedPost(null);
+      }, [selectedPost]);
+
+      const handlePostHoverStart = useCallback((post) => {
+        const timeout = setTimeout(() => setHoverPost(post), 500);
+        setHoverTimeout(timeout);
+      }, []);
+
+      const handlePostHoverEnd = useCallback(() => {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        setHoverTimeout(null);
+        setHoverPost(null);
+      }, [hoverTimeout]);
+
+      const filtersActive = minUpvoteFilter || minCommentFilter || keyword;
+
+      return h('div', { 
+        className: 'h-screen flex flex-col',
+        onTouchStart: handleTouchStart,
+        onTouchEnd: handleTouchEnd
+      },
         // Header
-        h('header', { className: 'bg-white border-b border-zinc-200 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
+        h('header', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
             h('div', { className: 'flex items-center gap-3' },
-            h('h1', { className: 'text-lg font-bold text-zinc-900' }, 'Reddit Dashboarder'),
+            h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder'),
             ),
             h('div', { className: 'flex items-center gap-2' },
+              // Dark mode toggle
+              h('button', {
+                onClick: () => setDarkMode(!darkMode),
+                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
+                title: darkMode ? 'Light mode' : 'Dark mode'
+              }, darkMode 
+                ? h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' })
+                  )
+                : h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' })
+                  )
+              ),
               h('button', {
                 onClick: () => setSettingsOpen(true),
-              className: 'p-2 rounded-lg hover:bg-zinc-100 text-zinc-600 transition-colors',
+              className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
               title: 'Settings'
             }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }),
@@ -427,39 +607,39 @@
                 : authenticated
                   ? h('button', {
                       onClick: () => { window.location.href = '/api/auth/logout'; },
-                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors'
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors'
                     }, 'Sign out')
                   : h('button', {
                       onClick: () => { window.location.href = '/api/auth/start'; },
-                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition-colors'
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-indigo-600 text-white hover:bg-zinc-800 dark:hover:bg-indigo-700 transition-colors'
                     }, 'Sign in')
           )
         ),
 
         // Status bar
-        h('div', { className: 'bg-zinc-50 border-b border-zinc-200 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+        h('div', { className: 'bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex items-center gap-4' },
             loading
-              ? h('span', { className: 'flex items-center gap-2 text-zinc-600' },
-                  h('div', { className: 'w-3 h-3 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin' }),
+              ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
+                  h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' }),
                   'Fetching…'
                 )
               : error
-                ? h('span', { className: 'text-rose-600 font-medium' }, error)
+                ? h('span', { className: 'text-rose-600 dark:text-rose-400 font-medium' }, error)
                 : needsAuth
-                  ? h('span', { className: 'text-amber-600 font-medium' }, 'Sign in required')
-                  : h('span', { className: 'text-zinc-600' },
+                  ? h('span', { className: 'text-amber-600 dark:text-amber-400 font-medium' }, 'Sign in required')
+                  : h('span', { className: 'text-zinc-600 dark:text-zinc-400' },
                       visiblePosts.length > 0
                         ? `${visiblePosts.length} posts`
                         : subs.length > 0 ? 'No posts found' : 'Add subreddits to start'
                     ),
-            fetchedAt && !loading && h('span', { className: 'text-zinc-400' }, `Updated ${timeAgo(fetchedAt / 1000)}`),
-            autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400' }, `• Next ${formatTimeUntil(nextRefreshAt)}`)
+            fetchedAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `Updated ${timeAgo(fetchedAt / 1000)}`),
+            autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `• Next ${formatTimeUntil(nextRefreshAt)}`)
           ),
           h('button', {
             onClick: () => refresh(),
             disabled: loading,
-            className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 transition-colors'
+            className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-indigo-600 text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-indigo-700 disabled:opacity-50 transition-colors'
           },
             h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
@@ -471,12 +651,12 @@
         // Main content area
         h('div', { className: 'flex-1 flex overflow-hidden' },
           // Left sidebar - Subreddits
-          h('aside', { className: 'w-52 bg-white border-r border-zinc-200 flex flex-col shrink-0' },
-            h('div', { className: 'p-3 border-b border-zinc-200 flex items-center justify-between' },
-              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Subreddits'),
+          h('aside', { className: `w-52 bg-white dark:bg-zinc-800 border-r border-zinc-200 dark:border-zinc-700 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
+            h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
+              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700 transition-colors',
+                className: 'p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors',
                 title: 'Add subreddit'
               }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
@@ -485,33 +665,40 @@
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-2 space-y-1' },
               subs.length === 0
                 ? h('div', { className: 'p-4 text-center' },
-                    h('p', { className: 'text-sm text-zinc-500 mb-3' }, 'No subreddits yet'),
+                    // Better empty state with icon
+                    h('div', { className: 'w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center' },
+                      h('svg', { className: 'w-6 h-6 text-indigo-600 dark:text-indigo-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' })
+                      )
+                    ),
+                    h('h3', { className: 'font-medium text-zinc-900 dark:text-white mb-1' }, 'Welcome!'),
+                    h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400 mb-4' }, 'Get started with a starter pack'),
                     h('div', { className: 'space-y-2' },
                       STARTER_PACKS.map(pack =>
                         h('button', {
                           key: pack.id,
                           onClick: () => handleApplyStarterPack(pack),
-                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-left text-sm transition-colors'
+                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-left text-sm transition-colors'
                         },
                           h('span', { className: 'mr-1.5' }, pack.emoji),
-                          pack.label
+                          h('span', { className: 'text-zinc-700 dark:text-zinc-300' }, pack.label)
                         )
                       )
                     ),
                     h('button', {
                       onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                      className: 'mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-medium'
+                      className: 'mt-3 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium'
                     }, '+ Add custom')
                   )
                 : [
                     h('button', {
                       key: 'all',
                       onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors ${selectedSub === 'ALL' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-zinc-50 text-zinc-700'}`
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors ${selectedSub === 'ALL' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'}`
                     },
                       h('div', { className: 'flex items-center justify-between' },
                         h('span', null, 'All'),
-                        h('span', { className: 'text-xs text-zinc-400' }, allPosts.length)
+                        h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, allPosts.length)
                       )
                     ),
                     ...subs.map(sub => {
@@ -520,26 +707,26 @@
                     const meta = subMetaMap.get(sub) || {};
                       return h('div', {
                       key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-zinc-50'}`
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
                       },
                         h('button', {
                       onClick: () => setSelectedSub(sub),
                           className: `w-full px-3 py-2 text-left`
                     },
                       h('div', { className: 'flex items-center justify-between' },
-                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-indigo-700' : 'text-zinc-700'}` }, `r/${sub}`),
+                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-indigo-700 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
                         h('div', { className: 'flex items-center gap-2' },
-                              h('span', { className: 'text-xs text-zinc-400' }, postCount),
+                              h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, postCount),
                           h('button', {
                                 onClick: (e) => { e.stopPropagation(); handleRemoveSub(sub); },
-                                className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 text-zinc-400 hover:text-zinc-600 transition-all',
+                                className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all',
                             title: 'Remove'
                               }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
                               ))
                             )
                           ),
-                          meta.subscribers && h('div', { className: 'text-[11px] text-zinc-400 mt-0.5' }, `${formatSubs(meta.subscribers)} members`)
+                          meta.subscribers && h('div', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5' }, `${formatSubs(meta.subscribers)} members`)
                         )
                       );
                     })
@@ -548,9 +735,9 @@
           ),
 
           // Center - Post list
-          h('main', { className: `flex-1 flex flex-col bg-zinc-50 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200'}` },
+          h('main', { className: `flex-1 flex-col bg-zinc-50 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
             // Filter toolbar
-            h('div', { className: 'bg-white border-b border-zinc-200 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap' },
+            h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap' },
               h('div', { className: 'relative flex-1 min-w-[200px] max-w-md' },
                 h('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
@@ -560,27 +747,27 @@
                   type: 'text',
                   value: keyword,
                   onChange: (e) => setKeyword(e.target.value),
-                  placeholder: 'Search posts… (⌘K)',
-                  className: 'w-full pl-9 pr-3 py-1.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
+                  placeholder: 'Search keywords… (⌘K)',
+                  className: 'w-full pl-9 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
                 })
               ),
-              h('div', { className: 'flex items-center gap-1.5' },
-                h('span', { className: 'text-xs text-zinc-500 mr-1' }, '▲'),
+              h('div', { className: 'hidden sm:flex items-center gap-1.5' },
+                h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mr-1' }, '▲'),
                 UPVOTE_PRESETS.map(preset =>
                   h('button', {
                     key: `upvote-${preset.value}`,
                     onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
-                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minUpvoteFilter === preset.value ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`
+                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minUpvoteFilter === preset.value ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
-              h('div', { className: 'flex items-center gap-1.5' },
-                h('span', { className: 'text-xs text-zinc-500 mr-1' }, '💬'),
+              h('div', { className: 'hidden sm:flex items-center gap-1.5' },
+                h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mr-1' }, '💬'),
                 COMMENT_PRESETS.map(preset =>
                   h('button', {
                     key: `comment-${preset.value}`,
                     onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
-                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minCommentFilter === preset.value ? 'bg-amber-100 text-amber-700' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`
+                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minCommentFilter === preset.value ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
@@ -591,7 +778,7 @@
                   setSortBy(by);
                   setSortOrder(order);
                 },
-                className: 'px-2 py-1 rounded-lg border border-zinc-200 text-xs bg-white'
+                className: 'px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white'
               },
                 h('option', { value: 'date-desc' }, 'Newest'),
                 h('option', { value: 'date-asc' }, 'Oldest'),
@@ -601,60 +788,163 @@
                 h('option', { value: 'comments-asc' }, 'Least comments')
               ),
                 filtersActive && h('button', {
-                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); },
-                className: 'text-xs text-zinc-500 hover:text-zinc-700'
+                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setKeyword(''); },
+                className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }, 'Clear')
             ),
 
             // Post list
-            h('div', { className: 'flex-1 overflow-auto scrollbar-thin' },
+            h('div', { className: 'flex-1 overflow-auto scrollbar-thin relative' },
               visiblePosts.length === 0
-                ? h('div', { className: 'flex items-center justify-center h-full text-zinc-500 text-sm' },
-                    subs.length === 0 ? 'Add subreddits to get started' : loading ? 'Loading…' : 'No posts match your filters'
+                ? h('div', { className: 'flex flex-col items-center justify-center h-full p-8' },
+                    subs.length === 0 
+                      ? [
+                          h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
+                            h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
+                            )
+                          ),
+                          h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No subreddits yet'),
+                          h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs' }, 'Add your favorite subreddits from the sidebar or try one of our starter packs')
+                        ]
+                      : loading 
+                        ? h('span', { className: 'text-zinc-500 dark:text-zinc-400 text-sm' }, 'Loading…')
+                        : [
+                            h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
+                              h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
+                              )
+                            ),
+                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No posts match'),
+                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, 'Try adjusting your filters or search for different keywords'),
+                            h('button', { 
+                              key: 'clear',
+                              onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setKeyword(''); },
+                              className: 'px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors'
+                            }, 'Clear all filters')
+                          ]
                   )
-                : h('div', { className: 'divide-y divide-zinc-200' },
+                : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700' },
                     visiblePosts.map(post => {
                         const isSelected = selectedPost?.id === post.id;
                         const score = Number(post.score) || 0;
                         const comments = Number(post.num_comments) || 0;
-                        return h('button', {
+                        const flair = post.link_flair_text;
+                        const flairBg = post.link_flair_background_color || '#e4e4e7';
+                        const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
+                        return h('div', {
                           key: post.id,
-                        onClick: () => { setSelectedPost(post); setDetailCollapsed(false); },
-                        className: `w-full text-left px-4 py-3 hover:bg-white transition-colors ${isSelected ? 'bg-white border-l-2 border-indigo-500' : 'bg-zinc-50'}`
+                          className: `group relative w-full text-left px-4 py-3 hover:bg-white dark:hover:bg-zinc-800 transition-colors ${isSelected ? 'bg-white dark:bg-zinc-800 border-l-2 border-indigo-500' : 'bg-zinc-50 dark:bg-zinc-900'}`,
+                          onMouseEnter: () => handlePostHoverStart(post),
+                          onMouseLeave: handlePostHoverEnd
                         },
-                          h('div', { className: 'flex gap-3' },
-                          post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' && h('img', {
-                              src: post.thumbnail,
-                              alt: '',
-                            className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200'
-                            }),
-                            h('div', { className: 'flex-1 min-w-0' },
-                            h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 mb-1' },
-                              h('span', null, `r/${post.subreddit}`),
-                              h('span', null, '•'),
-                              h('span', null, timeAgo(post.created_utc))
-                            ),
-                            h('h3', { className: 'text-sm font-medium text-zinc-900 leading-snug line-clamp-2' }, post.title),
-                            h('div', { className: 'flex items-center gap-3 mt-1.5 text-xs' },
-                              h('span', { className: 'text-emerald-600 font-medium' }, `▲ ${score}`),
-                              h('span', { className: 'text-amber-600 font-medium' }, `💬 ${comments}`),
-                              h('span', { className: 'text-zinc-400' }, `u/${post.author}`)
+                          h('button', {
+                            onClick: () => { setSelectedPost(post); setDetailCollapsed(false); setMobileView('detail'); },
+                            className: 'w-full text-left'
+                          },
+                            h('div', { className: 'flex gap-3' },
+                              post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' && h('img', {
+                                src: post.thumbnail,
+                                alt: '',
+                                className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200 dark:bg-zinc-700'
+                              }),
+                              h('div', { className: 'flex-1 min-w-0' },
+                                h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1 flex-wrap' },
+                                  h('span', null, `r/${post.subreddit}`),
+                                  flair && h('span', { 
+                                    className: 'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                    style: { backgroundColor: flairBg, color: flairTextColor }
+                                  }, flair),
+                                  h('span', null, '•'),
+                                  h('span', null, timeAgo(post.created_utc))
+                                ),
+                                h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
+                                h('div', { className: 'flex items-center gap-3 mt-1.5 text-xs' },
+                                  h('span', { className: 'text-emerald-600 dark:text-emerald-400 font-medium' }, `▲ ${score}`),
+                                  h('span', { className: 'text-amber-600 dark:text-amber-400 font-medium' }, `💬 ${comments}`),
+                                  h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
+                                )
+                              )
+                            )
+                          ),
+                          // Quick actions menu button
+                          h('div', { className: 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity' },
+                            h('button', {
+                              onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
+                              className: 'p-1.5 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                            }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z' })
+                            )),
+                            // Dropdown menu
+                            activePostMenu === post.id && h('div', { 
+                              className: 'absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 py-1 z-20 animate-fadeIn',
+                              onClick: (e) => e.stopPropagation()
+                            },
+                              h('button', {
+                                onClick: () => { window.open(`https://reddit.com${post.permalink}`, '_blank'); setActivePostMenu(null); },
+                                className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
+                              }, 
+                                h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
+                                ),
+                                'Open in Reddit'
+                              ),
+                              h('button', {
+                                onClick: () => handleCopyLink(post),
+                                className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
+                              },
+                                h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3' })
+                                ),
+                                'Copy link'
+                              ),
+                              h('button', {
+                                onClick: () => handleHidePost(post.id),
+                                className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
+                              },
+                                h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21' })
+                                ),
+                                'Hide post'
                               )
                             )
                           )
                         );
                       })
-                    )
+                    ),
+              // Hover preview tooltip
+              hoverPost && h('div', { 
+                className: 'fixed z-50 max-w-sm bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-4 pointer-events-none animate-fadeIn',
+                style: { top: '50%', right: '420px', transform: 'translateY(-50%)' }
+              },
+                hoverPost.preview?.images?.[0]?.source?.url && h('img', {
+                  src: hoverPost.preview.images[0].source.url.replace(/&amp;/g, '&'),
+                  alt: '',
+                  className: 'w-full h-40 object-cover rounded-lg mb-3 bg-zinc-200 dark:bg-zinc-700'
+                }),
+                h('p', { className: 'text-sm text-zinc-700 dark:text-zinc-300 line-clamp-4' }, 
+                  hoverPost.selftext ? hoverPost.selftext.substring(0, 200) + (hoverPost.selftext.length > 200 ? '...' : '') : 'Link post — no preview available'
+                )
+              )
             )
           ),
 
           // Right - Post detail
-          !detailCollapsed && h('aside', { className: 'hidden lg:flex w-96 bg-white flex-col shrink-0' },
-            h('div', { className: 'p-3 border-b border-zinc-200 flex items-center justify-between' },
-              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500' }, 'Post Detail'),
+          !detailCollapsed && h('aside', { className: `w-96 bg-white dark:bg-zinc-800 flex-col shrink-0 ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}` },
+            h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
+              h('div', { className: 'flex items-center gap-2' },
+                h('button', {
+                  onClick: () => setMobileView('posts'),
+                  className: 'lg:hidden p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300',
+                  title: 'Back to posts'
+                }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
+                )),
+                h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Post Detail')
+              ),
               h('button', {
                 onClick: () => setDetailCollapsed(true),
-                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600',
+                className: 'hidden lg:block p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300',
                 title: 'Collapse'
               }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 5l7 7-7 7M5 5l7 7-7 7' })
@@ -662,30 +952,42 @@
             ),
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-4' },
             !selectedPost
-                ? h('div', { className: 'flex items-center justify-center h-full text-zinc-400 text-sm' }, 'Select a post to view')
+                ? h('div', { className: 'flex flex-col items-center justify-center h-full' },
+                    h('div', { className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center' },
+                      h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' }),
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' })
+                      )
+                    ),
+                    h('p', { className: 'text-zinc-400 dark:text-zinc-500 text-sm' }, 'Select a post to view')
+                  )
                 : h('article', { className: 'space-y-4' },
-                    h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500' },
-                      h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 text-zinc-700 font-medium' }, `r/${selectedPost.subreddit}`),
+                    h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 flex-wrap' },
+                      h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium' }, `r/${selectedPost.subreddit}`),
+                      selectedPost.link_flair_text && h('span', { 
+                        className: 'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                        style: { backgroundColor: selectedPost.link_flair_background_color || '#e4e4e7', color: selectedPost.link_flair_text_color === 'light' ? '#fff' : '#18181b' }
+                      }, selectedPost.link_flair_text),
                       h('span', null, timeAgo(selectedPost.created_utc))
                     ),
-                    h('h2', { className: 'text-lg font-bold text-zinc-900 leading-snug' }, selectedPost.title),
+                    h('h2', { className: 'text-lg font-bold text-zinc-900 dark:text-white leading-snug' }, selectedPost.title),
                     h('div', { className: 'flex items-center gap-3 text-sm' },
-                      h('span', { className: 'text-emerald-600 font-medium' }, `▲ ${selectedPost.score}`),
-                      h('span', { className: 'text-amber-600 font-medium' }, `💬 ${selectedPost.num_comments}`),
-                      h('span', { className: 'text-zinc-500' }, `u/${selectedPost.author}`)
+                      h('span', { className: 'text-emerald-600 dark:text-emerald-400 font-medium' }, `▲ ${selectedPost.score}`),
+                      h('span', { className: 'text-amber-600 dark:text-amber-400 font-medium' }, `💬 ${selectedPost.num_comments}`),
+                      h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `u/${selectedPost.author}`)
                     ),
                     h('a', {
-                      href: selectedPost.url,
+                      href: `https://reddit.com${selectedPost.permalink}`,
                       target: '_blank',
                       rel: 'noreferrer',
-                      className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors'
+                      className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-indigo-600 text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-indigo-700 transition-colors'
                     },
                       'Open on Reddit',
                       h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
                       )
                     ),
-                    h('div', { className: 'border-t border-zinc-200 pt-4' },
+                    h('div', { className: 'border-t border-zinc-200 dark:border-zinc-700 pt-4' },
                       renderBody(selectedPost)
                   )
                 )
@@ -695,80 +997,111 @@
           // Collapsed detail toggle
           detailCollapsed && h('button', {
             onClick: () => setDetailCollapsed(false),
-            className: 'hidden lg:flex items-center justify-center w-8 bg-white border-l border-zinc-200 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50 transition-colors',
+            className: 'hidden lg:flex items-center justify-center w-8 bg-white dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors',
             title: 'Expand detail panel'
           }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
             h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M11 19l-7-7 7-7m8 14l-7-7 7-7' })
           ))
         ),
 
+        // Mobile bottom navigation
+        h('nav', { className: 'lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-800 border-t border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-around z-40' },
+          h('button', {
+            onClick: () => setMobileView('subs'),
+            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors ${mobileView === 'subs' ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'}`
+          },
+            h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
+            ),
+            h('span', { className: 'text-xs font-medium' }, 'Subs')
+          ),
+          h('button', {
+            onClick: () => setMobileView('posts'),
+            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors ${mobileView === 'posts' ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'}`
+          },
+            h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 6h16M4 10h16M4 14h16M4 18h16' })
+            ),
+            h('span', { className: 'text-xs font-medium' }, 'Posts')
+          ),
+          h('button', {
+            onClick: () => setMobileView('detail'),
+            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors ${mobileView === 'detail' ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'}`
+          },
+            h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
+            ),
+            h('span', { className: 'text-xs font-medium' }, 'Detail')
+          )
+        ),
+
         // Add subreddit modal
-        addSubOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4' },
+        addSubOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4', onClick: () => setAddSubOpen(false) },
           h('div', {
-            className: 'w-full max-w-md bg-white rounded-xl shadow-xl',
+            className: 'w-full max-w-md bg-white dark:bg-zinc-800 rounded-xl shadow-xl',
             onClick: (e) => e.stopPropagation()
           },
-            h('div', { className: 'p-4 border-b border-zinc-200 flex items-center justify-between' },
-              h('h3', { className: 'font-semibold text-zinc-900' }, 'Add Subreddits'),
+            h('div', { className: 'p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
+              h('h3', { className: 'font-semibold text-zinc-900 dark:text-white' }, 'Add Subreddits'),
               h('button', {
                 onClick: () => setAddSubOpen(false),
-                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+                className: 'p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
               }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
               ))
             ),
             h('div', { className: 'p-4 space-y-4' },
               h('div', null,
-                h('label', { className: 'block text-sm font-medium text-zinc-700 mb-1.5' }, 'Subreddit names'),
+                h('label', { className: 'block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5' }, 'Subreddit names'),
                 h('textarea', {
                   ref: addSubInputRef,
                   value: addSubInput,
                   onChange: (e) => setAddSubInput(e.target.value),
                   placeholder: 'programming, webdev, javascript...',
-                  className: 'w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                  className: 'w-full px-3 py-2 border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500',
                   rows: 3
                 }),
-                h('p', { className: 'mt-1 text-xs text-zinc-500' }, 'Separate with commas or new lines')
+                h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate with commas or new lines')
               ),
               h('div', null,
-                h('p', { className: 'text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2' }, 'Popular'),
+                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2' }, 'Popular'),
                 h('div', { className: 'flex flex-wrap gap-1.5' },
                   POPULAR_SUBREDDITS.slice(0, 10).map(sub =>
                     h('button', {
                       key: sub,
                       onClick: () => { handleAddSub(sub); setAddSubOpen(false); },
                       disabled: subs.some(s => s.toLowerCase() === sub.toLowerCase()),
-                      className: 'px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 text-zinc-700 hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+                      className: 'px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
                     }, sub)
                   )
                 )
               )
             ),
-            h('div', { className: 'p-4 border-t border-zinc-200 flex justify-end gap-2' },
+            h('div', { className: 'p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end gap-2' },
               h('button', {
                 onClick: () => setAddSubOpen(false),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors'
+                className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors'
               }, 'Cancel'),
               h('button', {
                 onClick: handleAddSubSubmit,
                 disabled: !addSubInput.trim(),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 transition-colors'
+                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-indigo-600 text-white hover:bg-zinc-800 dark:hover:bg-indigo-700 disabled:opacity-50 transition-colors'
               }, 'Add')
             )
           )
         ),
 
         // Settings modal
-        settingsOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4' },
+        settingsOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4', onClick: () => setSettingsOpen(false) },
           h('div', {
-            className: 'w-full max-w-lg bg-white rounded-xl shadow-xl',
+            className: 'w-full max-w-lg bg-white dark:bg-zinc-800 rounded-xl shadow-xl max-h-[90vh] overflow-auto',
             onClick: (e) => e.stopPropagation()
           },
-            h('div', { className: 'p-4 border-b border-zinc-200 flex items-center justify-between' },
-              h('h3', { className: 'font-semibold text-zinc-900' }, 'Settings'),
+            h('div', { className: 'p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-800' },
+              h('h3', { className: 'font-semibold text-zinc-900 dark:text-white' }, 'Settings'),
                 h('button', {
                 onClick: () => setSettingsOpen(false),
-                className: 'p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+                className: 'p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
               }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
               ))
@@ -776,21 +1109,21 @@
             h('div', { className: 'p-4 space-y-5' },
               h('div', { className: 'flex items-center justify-between' },
                 h('div', null,
-                  h('p', { className: 'font-medium text-zinc-900' }, 'Auto-refresh'),
-                  h('p', { className: 'text-sm text-zinc-500' }, 'Automatically fetch new posts')
+                  h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Auto-refresh'),
+                  h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Automatically fetch new posts')
                 ),
                 h('div', { className: 'flex items-center gap-3' },
                   h('select', {
                     value: autoRefreshInterval,
                     onChange: (e) => setAutoRefreshInterval(Number(e.target.value)),
                     disabled: !autoRefreshEnabled,
-                    className: 'px-2 py-1.5 rounded-lg border border-zinc-200 text-sm disabled:opacity-50'
+                    className: 'px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50'
                   },
                     AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `${opt} min`))
                   ),
                   h('button', {
                     onClick: () => setAutoRefreshEnabled(!autoRefreshEnabled),
-                    className: `relative w-11 h-6 rounded-full transition-colors ${autoRefreshEnabled ? 'bg-indigo-600' : 'bg-zinc-300'}`
+                    className: `relative w-11 h-6 rounded-full transition-colors ${autoRefreshEnabled ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'}`
                   },
                     h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${autoRefreshEnabled ? 'translate-x-5' : ''}` })
                   )
@@ -798,23 +1131,23 @@
               ),
               h('div', { className: 'grid grid-cols-2 gap-4' },
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Listing mode'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Listing mode'),
                     h('select', {
                       value: mode,
                     onChange: (e) => setMode(e.target.value),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
                     },
                       h('option', { value: 'new' }, 'New'),
                       h('option', { value: 'top' }, 'Top')
                     )
                   ),
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Top range'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Top range'),
                     h('select', {
                       value: time,
                     onChange: (e) => setTime(e.target.value),
                       disabled: mode !== 'top',
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm disabled:opacity-50'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50'
                     },
                       h('option', { value: 'hour' }, 'Hour'),
                       h('option', { value: 'day' }, 'Day'),
@@ -823,11 +1156,11 @@
                     )
                   ),
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Lookback window'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Lookback window'),
                     h('select', {
                       value: days,
                     onChange: (e) => setDays(Number(e.target.value)),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
                     },
                     h('option', { value: 1 }, 'Day'),
                       h('option', { value: 3 }, '3 Days'),
@@ -835,26 +1168,74 @@
                     )
                   ),
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700' }, 'Max pages'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Max pages'),
                     h('select', {
                       value: maxPages,
                     onChange: (e) => setMaxPages(Number(e.target.value)),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
                     },
                       [5, 10, 20, 50, 100, 200].map(n => h('option', { key: n, value: n }, n))
                   )
                 )
               ),
-              h('div', { className: 'pt-4 border-t border-zinc-200' },
-                h('p', { className: 'text-xs font-medium text-zinc-500 uppercase tracking-wide mb-3' }, 'Data Management'),
+              // Notifications section
+              h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
+                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, 'Notifications'),
+                h('div', { className: 'space-y-4' },
+                  h('div', { className: 'flex items-center justify-between' },
+                    h('div', null,
+                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Enable alerts'),
+                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified on auto-refresh')
+                    ),
+                    h('div', { className: 'flex items-center gap-2' },
+                      Notification.permission !== 'granted' && h('button', {
+                        onClick: requestNotificationPermission,
+                        className: 'px-2 py-1 text-xs rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900'
+                      }, 'Allow'),
+                      h('button', {
+                        onClick: () => setNotificationsEnabled(!notificationsEnabled),
+                        disabled: Notification.permission !== 'granted',
+                        className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${notificationsEnabled ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                      },
+                        h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notificationsEnabled ? 'translate-x-5' : ''}` })
+                      )
+                    )
+                  ),
+                  h('label', { className: 'block' },
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Upvote threshold'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Alert when a post crosses this score'),
+                    h('input', {
+                      type: 'number',
+                      value: upvoteThreshold,
+                      onChange: (e) => setUpvoteThreshold(Number(e.target.value) || 100),
+                      disabled: !notificationsEnabled,
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50'
+                    })
+                  ),
+                  h('label', { className: 'block' },
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Alert keywords'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Notify when new posts contain these (comma-separated)'),
+                    h('input', {
+                      type: 'text',
+                      value: alertKeywords,
+                      onChange: (e) => setAlertKeywords(e.target.value),
+                      placeholder: 'breaking, launch, announcement...',
+                      disabled: !notificationsEnabled,
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50'
+                    })
+                  )
+                )
+              ),
+              h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
+                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, 'Data Management'),
                 h('div', { className: 'flex gap-2' },
                   h('button', {
                     onClick: () => {
-                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval });
+                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords });
                       navigator.clipboard.writeText(backup);
                       alert('Settings copied to clipboard');
                     },
-                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors'
+                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
                   }, 'Export settings'),
                   h('button', {
                     onClick: () => {
@@ -866,21 +1247,24 @@
                           if (parsed.maxPages) setMaxPages(parsed.maxPages);
                           if (typeof parsed.autoRefreshEnabled === 'boolean') setAutoRefreshEnabled(parsed.autoRefreshEnabled);
                           if (parsed.autoRefreshInterval) setAutoRefreshInterval(parsed.autoRefreshInterval);
+                          if (typeof parsed.notificationsEnabled === 'boolean') setNotificationsEnabled(parsed.notificationsEnabled);
+                          if (parsed.upvoteThreshold) setUpvoteThreshold(parsed.upvoteThreshold);
+                          if (parsed.alertKeywords !== undefined) setAlertKeywords(parsed.alertKeywords);
                           alert('Settings restored');
                         } catch (e) {
                           alert('Invalid backup format');
                         }
                       }
                     },
-                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors'
+                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
                   }, 'Import settings')
                 )
               )
             ),
-            h('div', { className: 'p-4 border-t border-zinc-200 flex justify-end' },
+            h('div', { className: 'p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end sticky bottom-0 bg-white dark:bg-zinc-800' },
                 h('button', {
                 onClick: () => setSettingsOpen(false),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 transition-colors'
+                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-indigo-600 text-white hover:bg-zinc-800 dark:hover:bg-indigo-700 transition-colors'
               }, 'Done')
             )
           )
@@ -942,14 +1326,14 @@
           .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
           .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
         return h('div', {
-          className: 'post-body prose prose-sm prose-zinc max-w-none',
+          className: 'post-body prose prose-sm prose-zinc dark:prose-invert max-w-none',
           dangerouslySetInnerHTML: { __html: decoded },
         });
       }
       if (post.selftext) {
-        return h('div', { className: 'post-body whitespace-pre-wrap text-zinc-700 text-sm' }, post.selftext);
+        return h('div', { className: 'post-body whitespace-pre-wrap text-zinc-700 dark:text-zinc-300 text-sm' }, post.selftext);
       }
-      return h('div', { className: 'text-sm text-zinc-400 italic' }, 'Link post — no text content');
+      return h('div', { className: 'text-sm text-zinc-400 dark:text-zinc-500 italic' }, 'Link post — no text content');
     }
 
     const root = createRoot(document.getElementById('root'));
