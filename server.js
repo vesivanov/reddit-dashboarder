@@ -5,6 +5,7 @@ const express = require('express');
 const path = require('path');
 const redditHandler = require('./api/reddit.js');
 const redditTestHandler = require('./api/reddit-test.js');
+const aiRankHandler = require('./api/reddit/ai-rank.js');
 const authStartHandler = require('./api/auth/start.js');
 const authCallbackHandler = require('./api/auth/callback.js');
 const authLogoutHandler = require('./api/auth/logout.js');
@@ -13,12 +14,16 @@ const authStatusHandler = require('./api/auth/status.js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Parse JSON bodies for POST requests (increase limit for AI ranking endpoint)
+app.use(express.json({ limit: '10mb' }));
+
 // Serve static files from root
 app.use(express.static(__dirname));
 
 // API routes
 app.get('/api/reddit', redditHandler);
 app.get('/api/reddit-test', redditTestHandler);
+app.post('/api/reddit/ai-rank', aiRankHandler);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

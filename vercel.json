@@ -3,6 +3,9 @@
     "api/reddit.js": {
       "maxDuration": 30
     },
+    "api/reddit/ai-rank.js": {
+      "maxDuration": 60
+    },
     "api/health.js": {
       "maxDuration": 10
     },
@@ -18,7 +21,7 @@
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
       ]
     }

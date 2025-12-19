@@ -43,15 +43,32 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+  console.log('OAuth callback: Request received');
+  console.log('OAuth callback: req.url:', req.url);
+  console.log('OAuth callback: req.headers.host:', req.headers.host);
+
+  const baseUrl = process.env.APP_BASE_URL || `http://${req.headers.host || 'localhost:3000'}`;
   const url = new URL(req.url, baseUrl);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
 
+  console.log('OAuth callback: Parsed code:', code ? 'present' : 'missing');
+  console.log('OAuth callback: Parsed state:', state ? 'present' : 'missing');
+
   const savedState = readSignedCookie(req, 'oauth_state');
   const verifier = readSignedCookie(req, 'pkce_verifier');
 
+  console.log('OAuth callback: Saved state:', savedState ? 'present' : 'missing');
+  console.log('OAuth callback: Verifier:', verifier ? 'present' : 'missing');
+
   if (!code || !state || !verifier || !savedState || state !== savedState) {
+    console.error('OAuth callback: Validation failed', {
+      hasCode: !!code,
+      hasState: !!state,
+      hasVerifier: !!verifier,
+      hasSavedState: !!savedState,
+      stateMatch: state === savedState
+    });
     res.status(400).send('Invalid OAuth state');
     return;
   }
@@ -66,6 +83,9 @@ module.exports = async function handler(req, res) {
       clearCookie('pkce_verifier'),
     ].filter(Boolean);
 
+    console.log('OAuth callback: Setting cookies:', cookies.map(c => c.split(';')[0]));
+    console.log('OAuth callback: Cookie secure flag enabled:', process.env.NODE_ENV === 'production' || process.env.REDDIT_REDIRECT_URI?.startsWith('https://'));
+    
     res.setHeader('Set-Cookie', cookies);
     res.redirect('/');
   } catch (error) {
