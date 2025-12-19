@@ -334,13 +334,15 @@
             case 'ai-relevance': {
               const scoreA = postRelevanceScores.get(String(a.id));
               const scoreB = postRelevanceScores.get(String(b.id));
-              // Posts without scores go to the end (treated as -1 for sorting)
-              if (scoreA === undefined && scoreB === undefined) {
-                delta = 0; // Both undefined, maintain order
-              } else if (scoreA === undefined) {
-                delta = 1; // a has no score, should go after b (always positive, so a comes after b regardless of multiplier)
-              } else if (scoreB === undefined) {
-                delta = -1; // b has no score, should go after a (always negative, so a comes before b regardless of multiplier)
+              // Posts without scores (undefined or null) go to the end
+              const hasScoreA = scoreA !== undefined && scoreA !== null;
+              const hasScoreB = scoreB !== undefined && scoreB !== null;
+              if (!hasScoreA && !hasScoreB) {
+                delta = 0; // Both have no score, maintain order
+              } else if (!hasScoreA) {
+                delta = 1; // a has no score, should go after b
+              } else if (!hasScoreB) {
+                delta = -1; // b has no score, should go after a
               } else {
                 delta = scoreA - scoreB; // Both have scores, compare normally
               }
@@ -563,13 +565,41 @@
 
                       if (response.ok) {
                         const result = await response.json();
-                        console.log(`AI Ranking: Batch ${batchIdx + 1} - Received scores for`, result.scores?.length || 0, 'posts');
+                        // New format: scores is an object map {postId: score}
+                        // Old format: scores is an array [{postId, relevanceScore}]
+                        const scoresObj = result.scores || {};
+                        const scoreCount = typeof scoresObj === 'object' && !Array.isArray(scoresObj) 
+                          ? Object.keys(scoresObj).length 
+                          : (Array.isArray(scoresObj) ? scoresObj.length : 0);
+                        console.log(`AI Ranking: Batch ${batchIdx + 1} - Received scores for`, scoreCount, 'posts', result.cached ? `(${result.cached} cached)` : '');
                         
-                        if (result.scores && Array.isArray(result.scores)) {
-                          result.scores.forEach(({ postId, relevanceScore }) => {
-                            allScores.set(String(postId), relevanceScore);
-                            cache[String(postId)] = { score: relevanceScore, timestamp: Date.now() };
+                        // Handle new object map format
+                        if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
+                          Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
+                            // Only cache non-null scores (null means failed to score)
+                            if (relevanceScore !== null && relevanceScore !== undefined) {
+                              allScores.set(String(postId), relevanceScore);
+                              cache[String(postId)] = { score: relevanceScore, timestamp: Date.now() };
+                            } else {
+                              // Track null scores but don't cache them
+                              allScores.set(String(postId), null);
+                            }
                           });
+                        } else if (Array.isArray(scoresObj)) {
+                          // Fallback: handle old array format for backwards compatibility
+                          scoresObj.forEach(({ postId, relevanceScore }) => {
+                            if (relevanceScore !== null && relevanceScore !== undefined) {
+                              allScores.set(String(postId), relevanceScore);
+                              cache[String(postId)] = { score: relevanceScore, timestamp: Date.now() };
+                            } else {
+                              allScores.set(String(postId), null);
+                            }
+                          });
+                        }
+                        
+                        // Log failed post IDs if provided
+                        if (result.failedPostIds && result.failedPostIds.length > 0) {
+                          console.warn(`AI Ranking: ${result.failedPostIds.length} posts failed to score:`, result.failedPostIds);
                         }
                       } else {
                         const errorText = await response.text();
@@ -592,7 +622,7 @@
                     console.warn('Error saving AI scores cache:', cacheError);
                   }
                   
-                  const highRelevanceCount = Array.from(allScores.values()).filter(s => s >= 7).length;
+                  const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
                   console.log(`AI Ranking: Complete! ${allScores.size} total scores, ${highRelevanceCount} posts scored >= 7`);
                   
                   setPostRelevanceScores(allScores);
@@ -608,7 +638,7 @@
               } else {
                 // All posts are cached, use cached scores
                 console.log('AI Ranking: All posts already cached, using cached scores');
-                const highRelevanceCount = Array.from(cachedScores.values()).filter(s => s >= 7).length;
+                const highRelevanceCount = Array.from(cachedScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
                 console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 7`);
                 setPostRelevanceScores(cachedScores);
                 setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
@@ -1067,7 +1097,7 @@
                         const flairBg = post.link_flair_background_color || '#e4e4e7';
                         const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
                         const relevanceScore = postRelevanceScores.get(String(post.id));
-                        const isHighlyRelevant = relevanceScore !== undefined && relevanceScore >= 7;
+                        const isHighlyRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 7;
                         // Debug: log first post's score retrieval
                         if (visiblePosts.indexOf(post) === 0) {
                           console.log('Post rendering debug:', {
@@ -1110,7 +1140,7 @@
                                   }, flair),
                                   h('span', null, '•'),
                                   h('span', null, timeAgo(post.created_utc)),
-                                  relevanceScore !== undefined && h('span', {
+                                  relevanceScore !== undefined && relevanceScore !== null && h('span', {
                                     className: `px-1.5 py-0.5 rounded text-[10px] font-semibold ${isHighlyRelevant ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'}`
                                   }, `AI: ${relevanceScore}/10`)
                                 ),
@@ -1227,7 +1257,7 @@
                       h('span', null, timeAgo(selectedPost.created_utc)),
                       (() => {
                         const detailRelevanceScore = postRelevanceScores.get(String(selectedPost.id));
-                        return detailRelevanceScore !== undefined && h('span', {
+                        return detailRelevanceScore !== undefined && detailRelevanceScore !== null && h('span', {
                           className: `px-1.5 py-0.5 rounded text-[10px] font-semibold ${detailRelevanceScore >= 7 ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'}`
                         }, `AI: ${detailRelevanceScore}/10`);
                       })()
