@@ -5,10 +5,8 @@
 const SERVER_OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Default model - using free Meta Llama 3.3 70B for fast, efficient relevance scoring
-// Can be overridden via OPENROUTER_MODEL env var or per-request
-// Other good free options: qwen/qwen-2.5-72b-instruct:free, google/gemini-2.0-flash-exp:free
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+// Model is required from frontend - no backend default to avoid duplication
+// Frontend always provides openRouterModel in the request body
 
 // Prompt version for cache invalidation
 const PROMPT_VERSION = 'v2.0';
@@ -245,7 +243,6 @@ async function handler(req, res) {
     console.log('AI Ranking: Received request for', posts?.length || 0, 'posts');
     console.log('AI Ranking: User goals length:', userGoals?.length || 0);
     console.log('AI Ranking: Using custom API key:', openRouterApiKey ? 'Yes' : 'No (server default)');
-    console.log('AI Ranking: Using model:', openRouterModel || DEFAULT_MODEL);
 
     if (!posts || !Array.isArray(posts)) {
       console.error('AI Ranking: Invalid posts array');
@@ -257,9 +254,18 @@ async function handler(req, res) {
       return withCORS(res).status(400).json({ error: 'userGoals string is required' });
     }
 
+    // Model is required - frontend always sends it
+    const model = openRouterModel?.trim();
+    if (!model) {
+      console.error('AI Ranking: Model is required');
+      return withCORS(res).status(400).json({ 
+        error: 'Model is required',
+        message: 'Please provide openRouterModel in the request body'
+      });
+    }
+
     // Use provided API key or fall back to server's env variable
     const apiKey = openRouterApiKey?.trim() || SERVER_OPENROUTER_API_KEY;
-    const model = openRouterModel?.trim() || DEFAULT_MODEL;
 
     if (!apiKey) {
       return withCORS(res).status(400).json({ 

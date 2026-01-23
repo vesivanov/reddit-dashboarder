@@ -186,7 +186,7 @@
         try { return localStorage.getItem('dashboard_openrouter_api_key') || ''; } catch { return ''; }
       });
       const [openRouterModel, setOpenRouterModel] = useState(() => {
-        try { return localStorage.getItem('dashboard_openrouter_model') || 'meta-llama/llama-3.3-70b-instruct:free'; } catch { return 'meta-llama/llama-3.3-70b-instruct:free'; }
+        try { return localStorage.getItem('dashboard_openrouter_model') || 'qwen/qwen3-next-80b-a3b-instruct:free'; } catch { return 'qwen/qwen3-next-80b-a3b-instruct:free'; }
       });
       const [postRelevanceScores, setPostRelevanceScores] = useState(new Map());
       const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(new Map()); // Store confidence, reason, source
@@ -667,7 +667,7 @@
                           })),
                           userGoals: aiGoals.trim(),
                           openRouterApiKey: openRouterApiKey.trim() || undefined,
-                          openRouterModel: openRouterModel.trim() || undefined,
+                          openRouterModel: openRouterModel.trim(), // Always required - has default in useState
                         }),
                       });
 
@@ -1854,13 +1854,23 @@
                       disabled: !aiEnabled,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500'
                     },
-                      h('optgroup', { label: 'Free Models' },
+                      h('optgroup', { label: 'Free Models (Latest)' },
+                        h('option', { value: 'xiaomi/mimo-v2-flash:free' }, 'Xiaomi MiMo-V2-Flash (Free)'),
+                        h('option', { value: 'mistralai/devstral-2512:free' }, 'Mistral Devstral 2 2512 (Free)'),
+                        h('option', { value: 'tngtech/deepseek-r1t2-chimera:free' }, 'TNG DeepSeek R1T2 Chimera (Free)'),
+                        h('option', { value: 'z-ai/glm-4.5-air:free' }, 'Z.AI GLM 4.5 Air (Free)'),
+                        h('option', { value: 'deepseek/deepseek-r1-0528:free' }, 'DeepSeek R1 0528 (Free)'),
+                        h('option', { value: 'qwen/qwen3-coder:free' }, 'Qwen3 Coder 480B A35B (Free)'),
+                        h('option', { value: 'qwen/qwen3-next-80b-a3b-instruct:free' }, 'Qwen3 Next 80B A3B (Free)'),
                         h('option', { value: 'meta-llama/llama-3.3-70b-instruct:free' }, 'Meta Llama 3.3 70B (Free)'),
-                        h('option', { value: 'qwen/qwen-2.5-72b-instruct:free' }, 'Qwen 2.5 72B (Free)'),
-                        h('option', { value: 'google/gemini-2.0-flash-exp:free' }, 'Google Gemini 2.0 Flash (Free)')
+                        h('option', { value: 'google/gemma-3-27b-it:free' }, 'Google Gemma 3 27B (Free)'),
+                        h('option', { value: 'nvidia/nemotron-3-nano-30b-a3b:free' }, 'NVIDIA Nemotron 3 Nano 30B (Free)'),
+                        h('option', { value: 'openai/gpt-oss-120b:free' }, 'OpenAI gpt-oss-120b (Free)'),
+                        h('option', { value: 'openai/gpt-oss-20b:free' }, 'OpenAI gpt-oss-20b (Free)'),
+                        h('option', { value: 'arcee-ai/trinity-mini:free' }, 'Arcee AI Trinity Mini (Free)')
                       ),
-                      h('optgroup', { label: 'Paid Models' },
-                        h('option', { value: 'anthropic/claude-3.5-sonnet' }, 'Claude 3.5 Sonnet'),
+                      h('optgroup', { label: 'Paid Models (Popular)' },
+                        h('option', { value: 'anthropic/claude-sonnet-4.5' }, 'Claude Sonnet 4.5'),
                         h('option', { value: 'openai/gpt-4o' }, 'GPT-4o'),
                         h('option', { value: 'openai/gpt-4o-mini' }, 'GPT-4o Mini'),
                         h('option', { value: 'google/gemini-pro-1.5' }, 'Gemini Pro 1.5')
