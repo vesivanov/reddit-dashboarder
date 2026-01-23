@@ -248,52 +248,8 @@
       const [openRouterModel, setOpenRouterModel] = useState(() => {
         try { return localStorage.getItem('dashboard_openrouter_model') || 'qwen/qwen3-next-80b-a3b-instruct:free'; } catch { return 'qwen/qwen3-next-80b-a3b-instruct:free'; }
       });
-      const [postRelevanceScores, setPostRelevanceScores] = useState(() => {
-        // Restore cached AI scores on initial load
-        try {
-          const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-          if (cacheStr) {
-            const cache = JSON.parse(cacheStr);
-            const now = Date.now();
-            const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
-            const scores = new Map();
-            Object.entries(cache).forEach(([postId, data]) => {
-              if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0) {
-                scores.set(postId, data.score);
-              }
-            });
-            return scores;
-          }
-        } catch (error) {
-          console.warn('Unable to restore AI scores', error);
-        }
-        return new Map();
-      });
-      const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(() => {
-        // Restore cached AI metadata on initial load
-        try {
-          const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-          if (cacheStr) {
-            const cache = JSON.parse(cacheStr);
-            const now = Date.now();
-            const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
-            const metadata = new Map();
-            Object.entries(cache).forEach(([postId, data]) => {
-              if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0) {
-                metadata.set(postId, {
-                  confidence: data.confidence || 'medium',
-                  reason: data.reason || '',
-                  source: data.source || 'cache'
-                });
-              }
-            });
-            return metadata;
-          }
-        } catch (error) {
-          console.warn('Unable to restore AI metadata', error);
-        }
-        return new Map();
-      });
+      const [postRelevanceScores, setPostRelevanceScores] = useState(new Map());
+      const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(new Map());
       const [scoresVersion, setScoresVersion] = useState(0); // Version counter to force useMemo recalculation
       const [aiRankingLoading, setAiRankingLoading] = useState(false);
       const loadingRef = useRef(false);
@@ -387,6 +343,59 @@
           }
         } catch {}
       }, [fetchedAt]);
+
+      // Restore and apply AI scores on initial load with restored data
+      const hasRestoredScoresRef = useRef(false);
+      useEffect(() => {
+        // Only run once when data is available, AI is enabled, and we haven't restored scores yet
+        if (data.length > 0 && aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size === 0 && !hasRestoredScoresRef.current) {
+          hasRestoredScoresRef.current = true;
+          console.log('Restoring AI scores from cache on page load...');
+          
+          // Load cached scores
+          try {
+            const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
+            if (cacheStr) {
+              const cache = JSON.parse(cacheStr);
+              const now = Date.now();
+              const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+              const rawScores = new Map();
+              const metadata = new Map();
+              
+              // Get all post IDs from current data
+              const allPosts = data.flatMap(group => group.posts || []);
+              
+              // Load cached scores for posts that exist in cache
+              allPosts.forEach(post => {
+                const postId = post.id || post.data?.id;
+                if (postId && cache[postId]) {
+                  const cachedData = cache[postId];
+                  if (cachedData.timestamp && (now - cachedData.timestamp) < CACHE_EXPIRY && cachedData.score > 0) {
+                    rawScores.set(postId, cachedData.score);
+                    metadata.set(postId, {
+                      confidence: cachedData.confidence || 'medium',
+                      reason: cachedData.reason || '',
+                      source: 'cache-restored'
+                    });
+                  }
+                }
+              });
+              
+              if (rawScores.size > 0) {
+                // Calibrate scores based on current feed
+                const calibratedScores = calibrateScores(rawScores);
+                const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
+                console.log(`Restored and calibrated ${calibratedScores.size} AI scores from cache (${highRelevanceCount} posts scored >= 7)`);
+                setPostRelevanceScores(calibratedScores);
+                setPostRelevanceMetadata(metadata);
+                setScoresVersion(v => v + 1);
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to restore AI scores on load:', error);
+          }
+        }
+      }, [data, aiEnabled, aiGoals, postRelevanceScores.size]); // Run when data or AI settings change
 
       // Touch/swipe gesture handlers
       const handleTouchStart = useCallback((e) => {
