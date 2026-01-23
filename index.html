@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reddit Three-Pane Dashboard</title>
+  <title>Reddit Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -27,6 +27,43 @@
     .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #71717a; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     .animate-fadeIn { animation: fadeIn 0.15s ease-out; }
+    
+    /* Glassmorphism styles */
+    .glass {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+    .dark .glass {
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.6);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Login overlay with blur */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(8px) saturate(1.2);
+      -webkit-backdrop-filter: blur(8px) saturate(1.2);
+      z-index: 50;
+    }
+    .dark .login-overlay {
+      background: rgba(0, 0, 0, 0.5);
+    }
+    
+    /* Preview dashboard blur */
+    .dashboard-preview {
+      filter: blur(2px) brightness(0.95);
+      pointer-events: none;
+      user-select: none;
+    }
+    .dark .dashboard-preview {
+      filter: blur(2px) brightness(0.85);
+    }
   </style>
 </head>
 <body class="bg-zinc-100 dark:bg-zinc-900 min-h-screen text-zinc-900 dark:text-zinc-100 transition-colors">
@@ -123,10 +160,33 @@
       });
       const [error, setError] = useState('');
       const [needsAuth, setNeedsAuth] = useState(false);
-      const [data, setData] = useState([]);
+      const [data, setData] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_data');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            // Validate structure
+            if (Array.isArray(parsed) && parsed.every(item => item.subreddit && Array.isArray(item.posts))) {
+              return parsed;
+            }
+          }
+        } catch (error) {
+          console.warn('Unable to restore saved data', error);
+        }
+        return [];
+      });
       const [selectedSub, setSelectedSub] = useState('ALL');
       const [selectedPost, setSelectedPost] = useState(null);
-      const [fetchedAt, setFetchedAt] = useState(null);
+      const [fetchedAt, setFetchedAt] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_fetched_at');
+          if (saved) {
+            const timestamp = Number(saved);
+            if (timestamp > 0) return timestamp;
+          }
+        } catch (error) {}
+        return null;
+      });
       const [keyword, setKeyword] = useState('');
       const [fetchMethod, setFetchMethod] = useState('server');
       const [authenticated, setAuthenticated] = useState(false);
@@ -188,8 +248,52 @@
       const [openRouterModel, setOpenRouterModel] = useState(() => {
         try { return localStorage.getItem('dashboard_openrouter_model') || 'qwen/qwen3-next-80b-a3b-instruct:free'; } catch { return 'qwen/qwen3-next-80b-a3b-instruct:free'; }
       });
-      const [postRelevanceScores, setPostRelevanceScores] = useState(new Map());
-      const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(new Map()); // Store confidence, reason, source
+      const [postRelevanceScores, setPostRelevanceScores] = useState(() => {
+        // Restore cached AI scores on initial load
+        try {
+          const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
+          if (cacheStr) {
+            const cache = JSON.parse(cacheStr);
+            const now = Date.now();
+            const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+            const scores = new Map();
+            Object.entries(cache).forEach(([postId, data]) => {
+              if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0) {
+                scores.set(postId, data.score);
+              }
+            });
+            return scores;
+          }
+        } catch (error) {
+          console.warn('Unable to restore AI scores', error);
+        }
+        return new Map();
+      });
+      const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(() => {
+        // Restore cached AI metadata on initial load
+        try {
+          const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
+          if (cacheStr) {
+            const cache = JSON.parse(cacheStr);
+            const now = Date.now();
+            const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+            const metadata = new Map();
+            Object.entries(cache).forEach(([postId, data]) => {
+              if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0) {
+                metadata.set(postId, {
+                  confidence: data.confidence || 'medium',
+                  reason: data.reason || '',
+                  source: data.source || 'cache'
+                });
+              }
+            });
+            return metadata;
+          }
+        } catch (error) {
+          console.warn('Unable to restore AI metadata', error);
+        }
+        return new Map();
+      });
       const [scoresVersion, setScoresVersion] = useState(0); // Version counter to force useMemo recalculation
       const [aiRankingLoading, setAiRankingLoading] = useState(false);
       const loadingRef = useRef(false);
@@ -264,6 +368,25 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_openrouter_model', openRouterModel); } catch {}
       }, [openRouterModel]);
+
+      // Persist fetched data and timestamp
+      useEffect(() => {
+        try {
+          if (data && data.length > 0) {
+            localStorage.setItem('dashboard_data', JSON.stringify(data));
+          }
+        } catch (e) {
+          console.warn('Unable to persist data', e);
+        }
+      }, [data]);
+
+      useEffect(() => {
+        try {
+          if (fetchedAt) {
+            localStorage.setItem('dashboard_fetched_at', String(fetchedAt));
+          }
+        } catch {}
+      }, [fetchedAt]);
 
       // Touch/swipe gesture handlers
       const handleTouchStart = useCallback((e) => {
@@ -2107,8 +2230,148 @@
       return h('div', { className: 'text-sm text-zinc-400 dark:text-zinc-500 italic' }, 'Link post — no text content');
     }
 
+    // Login Page Component with Dashboard Preview
+    function LoginPage({ onAuthSuccess, showPreview = true }) {
+      const [isDark, setIsDark] = useState(() => {
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('theme');
+          if (saved) return saved === 'dark';
+          return window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+        return false;
+      });
+
+      useEffect(() => {
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      }, [isDark]);
+
+      const handleLogin = () => {
+        window.location.href = '/api/auth/start';
+      };
+
+      return h('div', { className: 'relative min-h-screen' },
+        // Dashboard preview in background (blurred)
+        showPreview && h('div', { className: 'dashboard-preview' },
+          h(App)
+        ),
+        // Login overlay
+        h('div', { className: 'login-overlay flex items-center justify-center p-4' },
+          h('div', { className: 'w-full max-w-md animate-fadeIn' },
+            // Glass card
+            h('div', { className: 'glass rounded-xl p-8 text-center space-y-6' },
+              // Logo/Icon area
+              h('div', { className: 'flex justify-center' },
+                h('div', { className: 'w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg' },
+                  h('svg', { className: 'w-10 h-10 text-white', fill: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { d: 'M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z' })
+                  )
+                )
+              ),
+              // Title
+              h('div', null,
+                h('h1', { className: 'text-3xl font-bold text-zinc-900 dark:text-zinc-100' }, 'Reddit Dashboard'),
+                h('p', { className: 'mt-2 text-base text-zinc-600 dark:text-zinc-400' }, 'Browse your favorite subreddits with AI-powered insights')
+              ),
+              // Features list
+              h('div', { className: 'space-y-2 text-left' },
+                h('div', { className: 'flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300' },
+                  h('div', { className: 'w-1.5 h-1.5 rounded-full bg-indigo-600' }),
+                  h('span', null, 'AI-powered post ranking')
+                ),
+                h('div', { className: 'flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300' },
+                  h('div', { className: 'w-1.5 h-1.5 rounded-full bg-indigo-600' }),
+                  h('span', null, 'Multi-subreddit browsing')
+                ),
+                h('div', { className: 'flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300' },
+                  h('div', { className: 'w-1.5 h-1.5 rounded-full bg-indigo-600' }),
+                  h('span', null, 'Advanced filtering & sorting')
+                )
+              ),
+              // Login button
+              h('button', {
+                onClick: handleLogin,
+                className: 'w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold leading-5 transition-all duration-150 bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+              },
+                h('svg', { className: 'w-5 h-5', fill: 'currentColor', viewBox: '0 0 24 24' },
+                  h('path', { d: 'M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z' })
+                ),
+                'Sign in with Reddit'
+              ),
+              // Divider
+              h('div', { className: 'flex items-center gap-3' },
+                h('div', { className: 'flex-1 border-t border-zinc-300 dark:border-zinc-600' }),
+                h('div', { className: 'flex-1 border-t border-zinc-300 dark:border-zinc-600' })
+              ),
+              // Theme toggle
+              h('button', {
+                onClick: () => setIsDark(!isDark),
+                className: 'text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors inline-flex items-center gap-2'
+              },
+                h('span', null, isDark ? '☀️' : '🌙'),
+                h('span', null, isDark ? 'Light Mode' : 'Dark Mode')
+              )
+            )
+          )
+        )
+      );
+    }
+
+    // App with Auth wrapper
+    function AppWithAuth() {
+      const [authState, setAuthState] = useState({ loading: true, authenticated: false });
+
+      useEffect(() => {
+        // Check auth status on mount
+        fetch('/api/auth/status')
+          .then(res => res.json())
+          .then(data => {
+            setAuthState({ loading: false, authenticated: data.authenticated });
+          })
+          .catch(err => {
+            console.error('Auth check failed:', err);
+            setAuthState({ loading: false, authenticated: false });
+          });
+      }, []);
+
+      if (authState.loading) {
+        return h('div', { className: 'relative min-h-screen' },
+          // Dashboard preview in background
+          h('div', { className: 'dashboard-preview' },
+            h(App)
+          ),
+          // Loading overlay
+          h('div', { className: 'login-overlay flex items-center justify-center' },
+            h('div', { className: 'glass rounded-xl p-8' },
+              h('div', { className: 'text-center' },
+                h('div', { className: 'w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse' },
+                  h('svg', { className: 'w-8 h-8 text-white', fill: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { d: 'M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z' })
+                  )
+                ),
+                h('p', { className: 'text-zinc-700 dark:text-zinc-300 font-medium' }, 'Loading...')
+              )
+            )
+          )
+        );
+      }
+
+      if (!authState.authenticated) {
+        return h(LoginPage, { 
+          onAuthSuccess: () => setAuthState({ loading: false, authenticated: true }),
+          showPreview: true 
+        });
+      }
+
+      return h(App);
+    }
+
     const root = createRoot(document.getElementById('root'));
-    root.render(h(App));
+    root.render(h(AppWithAuth));
   </script>
 </body>
 </html>
