@@ -10,6 +10,7 @@ const authStartHandler = require('./api/auth/start.js');
 const authCallbackHandler = require('./api/auth/callback.js');
 const authLogoutHandler = require('./api/auth/logout.js');
 const authStatusHandler = require('./api/auth/status.js');
+const authDebugRedirectHandler = require('./api/auth/debug-redirect.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,7 @@ app.get('/api/auth/start', authStartHandler);
 app.get('/api/auth/callback', authCallbackHandler);
 app.get('/api/auth/logout', authLogoutHandler);
 app.get('/api/auth/status', authStatusHandler);
+app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
 
 // Serve index.html for all other routes (SPA routing)
 app.get('*', (req, res) => {

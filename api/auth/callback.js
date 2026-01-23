@@ -1,9 +1,8 @@
 const { readSignedCookie, makeSignedCookie, clearCookie } = require('../../lib/cookies');
 
-async function exchangeCodeForTokens(code, verifier) {
+async function exchangeCodeForTokens(code, verifier, redirectUri) {
   const clientId = process.env.REDDIT_CLIENT_ID;
   const clientSecret = process.env.REDDIT_CLIENT_SECRET;
-  const redirectUri = process.env.REDDIT_REDIRECT_URI;
   const userAgent = process.env.REDDIT_USER_AGENT;
 
   if (!clientId || !clientSecret || !redirectUri || !userAgent) {
@@ -47,7 +46,34 @@ module.exports = async function handler(req, res) {
   console.log('OAuth callback: req.url:', req.url);
   console.log('OAuth callback: req.headers.host:', req.headers.host);
 
-  const baseUrl = process.env.APP_BASE_URL || `http://${req.headers.host || 'localhost:3000'}`;
+  // Construct redirect URI - use env var if set, otherwise construct from request
+  // This must match exactly what was sent in start.js
+  let redirectUri = process.env.REDDIT_REDIRECT_URI;
+  
+  if (!redirectUri) {
+    // Dynamically construct redirect URI from request
+    // Priority: x-forwarded-proto (Vercel/proxies) > connection.encrypted > default http
+    let protocol = 'http';
+    if (req.headers['x-forwarded-proto']) {
+      protocol = req.headers['x-forwarded-proto'].split(',')[0].trim();
+    } else if (req.connection && req.connection.encrypted) {
+      protocol = 'https';
+    } else if (req.headers['x-forwarded-ssl'] === 'on') {
+      protocol = 'https';
+    } else if (req.secure) {
+      protocol = 'https';
+    }
+    
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    const baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
+    redirectUri = `${baseUrl}/api/auth/callback`;
+  }
+  
+  // Normalize: remove trailing slashes and ensure proper format
+  redirectUri = redirectUri.trim().replace(/\/+$/, '');
+  
+  console.log('OAuth callback: Constructed redirect URI:', redirectUri);
+
   const url = new URL(req.url, baseUrl);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -74,7 +100,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const tokenResponse = await exchangeCodeForTokens(code, verifier);
+    const tokenResponse = await exchangeCodeForTokens(code, verifier, redirectUri);
 
     const cookies = [
       makeSignedCookie('access', tokenResponse.access_token, { maxAge: Math.max(0, (tokenResponse.expires_in || 3600) - 10) }),
