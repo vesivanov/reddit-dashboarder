@@ -14,26 +14,43 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  // Construct redirect URI - use env var if set, otherwise construct from request
-  let redirectUri = process.env.REDDIT_REDIRECT_URI;
+  // Construct redirect URI dynamically from request
+  // This ensures we always use the correct URI for the current environment
+  // If REDDIT_REDIRECT_URI contains a comma (multiple URIs), ignore it and construct dynamically
+  // Priority: x-forwarded-proto (Vercel/proxies) > connection.encrypted > default http
+  let protocol = 'http';
+  if (req.headers['x-forwarded-proto']) {
+    protocol = req.headers['x-forwarded-proto'].split(',')[0].trim();
+  } else if (req.connection && req.connection.encrypted) {
+    protocol = 'https';
+  } else if (req.headers['x-forwarded-ssl'] === 'on') {
+    protocol = 'https';
+  } else if (req.secure) {
+    protocol = 'https';
+  }
   
-  if (!redirectUri) {
-    // Dynamically construct redirect URI from request
-    // Priority: x-forwarded-proto (Vercel/proxies) > connection.encrypted > default http
-    let protocol = 'http';
-    if (req.headers['x-forwarded-proto']) {
-      protocol = req.headers['x-forwarded-proto'].split(',')[0].trim();
-    } else if (req.connection && req.connection.encrypted) {
-      protocol = 'https';
-    } else if (req.headers['x-forwarded-ssl'] === 'on') {
-      protocol = 'https';
-    } else if (req.secure) {
-      protocol = 'https';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+  const baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
+  let redirectUri = `${baseUrl}/api/auth/callback`;
+  
+  // If REDDIT_REDIRECT_URI is set and is a single URI (not comma-separated), use it as override
+  // But only if it matches the current request context
+  const envRedirectUri = process.env.REDDIT_REDIRECT_URI;
+  if (envRedirectUri && !envRedirectUri.includes(',')) {
+    try {
+      const envUri = envRedirectUri.trim().replace(/\/+$/, '');
+      const envUrl = new URL(envUri);
+      const currentHost = host.toLowerCase();
+      const envHost = envUrl.host.toLowerCase();
+      
+      // Only use env var if it matches the current host
+      if (envHost === currentHost || (envHost === 'localhost:3000' && currentHost === 'localhost:3000')) {
+        redirectUri = envUri;
+      }
+    } catch (e) {
+      // Invalid URL in env var, use dynamically constructed one
+      console.warn('Invalid REDDIT_REDIRECT_URI in env, using dynamically constructed URI');
     }
-    
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
-    const baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
-    redirectUri = `${baseUrl}/api/auth/callback`;
   }
   
   // Normalize: remove trailing slashes and ensure proper format
