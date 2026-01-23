@@ -8,12 +8,6 @@
     },
     "api/health.js": {
       "maxDuration": 10
-    },
-    "api/test.js": {
-      "maxDuration": 15
-    },
-    "api/reddit-test.js": {
-      "maxDuration": 15
     }
   },
   "headers": [
