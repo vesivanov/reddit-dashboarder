@@ -1071,7 +1071,7 @@
               : error
                 ? h('span', { className: 'text-rose-600 dark:text-rose-400 font-medium' }, error)
                 : needsAuth
-                  ? h('span', { className: 'text-amber-600 dark:text-amber-400 font-medium' }, 'Sign in required')
+                  ? h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, 'Sign in required')
                   : h('span', { className: 'text-zinc-600 dark:text-zinc-400' },
                       visiblePosts.length > 0
                         ? `${visiblePosts.length} posts`
@@ -1103,7 +1103,7 @@
               h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                className: 'p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors',
+                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors',
                 title: 'Add subreddit'
               }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
@@ -1113,13 +1113,13 @@
               subs.length === 0
                 ? h('div', { className: 'p-4 text-center' },
                     // Better empty state with icon
-                    h('div', { className: 'w-12 h-12 mx-auto mb-3 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center' },
-                      h('svg', { className: 'w-6 h-6 text-indigo-600 dark:text-indigo-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    h('div', { className: 'w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
+                      h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' })
                       )
                     ),
-                    h('h3', { className: 'font-medium text-zinc-900 dark:text-white mb-1' }, 'Welcome!'),
-                    h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400 mb-4' }, 'Get started with a starter pack'),
+                    h('h3', { className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'Welcome!'),
+                    h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, 'Get started with a starter pack'),
                     h('div', { className: 'space-y-2' },
                       STARTER_PACKS.map(pack =>
                         h('button', {
@@ -1204,7 +1204,7 @@
                   h('button', {
                     key: `upvote-${preset.value}`,
                     onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
-                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minUpvoteFilter === preset.value ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${minUpvoteFilter === preset.value ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
@@ -1214,7 +1214,7 @@
                   h('button', {
                     key: `comment-${preset.value}`,
                     onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
-                    className: `px-2 py-1 rounded text-xs font-medium transition-colors ${minCommentFilter === preset.value ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${minCommentFilter === preset.value ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
@@ -1283,7 +1283,7 @@
                             h('button', { 
                               key: 'clear',
                               onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setKeyword(''); },
-                              className: 'px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors'
+                              className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 transition-colors'
                             }, 'Clear all filters')
                           ]
                   )
@@ -1342,14 +1342,14 @@
                                 h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1 flex-wrap' },
                                   h('span', null, `r/${post.subreddit}`),
                                   flair && h('span', { 
-                                    className: 'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                    className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
                                     style: { backgroundColor: flairBg, color: flairTextColor }
                                   }, flair),
                                   h('span', null, '•'),
                                   h('span', null, timeAgo(post.created_utc)),
                                   relevanceScore !== undefined && relevanceScore !== null && h('div', { className: 'flex items-center gap-1.5' },
                                     h('span', {
-                                      className: `px-2 py-0.5 rounded-md text-xs font-bold shadow-sm ${
+                                      className: `px-2 py-0.5 rounded text-xs font-bold shadow-sm ${
                                         relevanceScore >= 8 ? 'bg-emerald-500 dark:bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
                                         relevanceScore >= 7 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300' :
                                         relevanceScore >= 5 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400' :
@@ -1372,15 +1372,15 @@
                                       })
                                     ),
                                     relevanceMeta?.source === 'heuristic' && h('span', {
-                                      className: 'text-[9px] px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 uppercase tracking-wide',
+                                      className: 'text-[9px] px-1 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 uppercase tracking-wide',
                                       title: 'Keyword-based relevance score'
                                     }, 'H')
                                   )
                                 ),
                                 h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
                                 h('div', { className: 'flex items-center gap-3 mt-1.5 text-xs' },
-                                  h('span', { className: 'text-emerald-600 dark:text-emerald-400 font-medium' }, `▲ ${score}`),
-                                  h('span', { className: 'text-amber-600 dark:text-amber-400 font-medium' }, `💬 ${comments}`),
+                                  h('span', { className: 'text-emerald-700 dark:text-emerald-400 font-medium' }, `▲ ${score}`),
+                                  h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, `💬 ${comments}`),
                                   h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
                                 )
                               )
@@ -1390,7 +1390,7 @@
                           h('div', { className: 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity' },
                             h('button', {
                               onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
-                              className: 'p-1.5 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                              className: 'p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors'
                             }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z' })
                             )),
@@ -1454,7 +1454,7 @@
               h('div', { className: 'flex items-center gap-2' },
                 h('button', {
                   onClick: () => setMobileView('posts'),
-                  className: 'lg:hidden p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300',
+                  className: 'lg:hidden p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
                   title: 'Back to posts'
                 }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
@@ -1463,7 +1463,7 @@
               ),
               h('button', {
                 onClick: () => setDetailCollapsed(true),
-                className: 'hidden lg:block p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300',
+                className: 'hidden lg:block p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
                 title: 'Collapse'
               }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 5l7 7-7 7M5 5l7 7-7 7' })
@@ -1472,7 +1472,7 @@
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-4' },
             !selectedPost
                 ? h('div', { className: 'flex flex-col items-center justify-center h-full' },
-                    h('div', { className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center' },
+                    h('div', { className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
                       h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' }),
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' })
@@ -1482,9 +1482,9 @@
                   )
                 : h('article', { className: 'space-y-4' },
                     h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 flex-wrap' },
-                      h('span', { className: 'px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium' }, `r/${selectedPost.subreddit}`),
+                      h('span', { className: 'px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium text-xs' }, `r/${selectedPost.subreddit}`),
                       selectedPost.link_flair_text && h('span', { 
-                        className: 'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                        className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
                         style: { backgroundColor: selectedPost.link_flair_background_color || '#e4e4e7', color: selectedPost.link_flair_text_color === 'light' ? '#fff' : '#18181b' }
                       }, selectedPost.link_flair_text),
                       h('span', null, timeAgo(selectedPost.created_utc))
@@ -1503,14 +1503,14 @@
                           }`
                         },
                           h('div', { className: 'flex items-center gap-2 mb-2' },
-                            h('svg', { className: `w-4 h-4 ${detailRelevanceScore >= 7 ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-500'}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            h('svg', { className: `w-4 h-4 ${detailRelevanceScore >= 7 ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-500'}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z' })
                             ),
                             h('span', { className: `text-xs font-semibold uppercase tracking-wide ${detailRelevanceScore >= 7 ? 'text-emerald-700 dark:text-emerald-300' : 'text-zinc-600 dark:text-zinc-400'}` }, 'AI Relevance')
                           ),
                           h('div', { className: 'flex items-center gap-3 mb-2' },
                             h('span', {
-                              className: `px-3 py-1 rounded-md text-lg font-bold ${
+                              className: `px-3 py-1 rounded text-lg font-bold ${
                                 detailRelevanceScore >= 8 ? 'bg-emerald-500 dark:bg-emerald-600 text-white shadow-md' :
                                 detailRelevanceScore >= 7 ? 'bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200' :
                                 detailRelevanceScore >= 5 ? 'bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200' :
@@ -1535,10 +1535,10 @@
                             detailRelevanceMeta.reason && h('p', { className: 'text-xs text-zinc-700 dark:text-zinc-300' }, detailRelevanceMeta.reason),
                             h('div', { className: 'flex items-center gap-2 text-xs' },
                               detailRelevanceMeta.confidence && h('span', { 
-                                className: `px-1.5 py-0.5 rounded ${
+                                className: `px-2.5 py-1 rounded-full text-xs font-medium ${
                                   detailRelevanceMeta.confidence === 'high' ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' :
                                   detailRelevanceMeta.confidence === 'medium' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400' :
-                                  'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                                  'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
                                 }`
                               }, `${detailRelevanceMeta.confidence} confidence`),
                               detailRelevanceMeta.source && h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, 
@@ -1551,8 +1551,8 @@
                       return null;
                     })(),
                     h('div', { className: 'flex items-center gap-3 text-sm' },
-                      h('span', { className: 'text-emerald-600 dark:text-emerald-400 font-medium' }, `▲ ${selectedPost.score}`),
-                      h('span', { className: 'text-amber-600 dark:text-amber-400 font-medium' }, `💬 ${selectedPost.num_comments}`),
+                      h('span', { className: 'text-emerald-700 dark:text-emerald-400 font-medium' }, `▲ ${selectedPost.score}`),
+                      h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, `💬 ${selectedPost.num_comments}`),
                       h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `u/${selectedPost.author}`)
                     ),
                     h('a', {
@@ -1622,10 +1622,10 @@
           },
             h('div', { className: 'p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
               h('h3', { className: 'font-semibold text-zinc-900 dark:text-white' }, 'Add Subreddits'),
-              h('button', {
-                onClick: () => setAddSubOpen(false),
-                className: 'p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-              }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('button', {
+                  onClick: () => setAddSubOpen(false),
+                  className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors'
+                }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
               ))
             ),
@@ -1637,7 +1637,7 @@
                   value: addSubInput,
                   onChange: (e) => setAddSubInput(e.target.value),
                   placeholder: 'programming, webdev, javascript...',
-                  className: 'w-full px-3 py-2 border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500',
+                  className: 'w-full px-3 py-2 border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
                   rows: 3
                 }),
                 h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate with commas or new lines')
@@ -1680,7 +1680,7 @@
               h('h3', { className: 'font-semibold text-zinc-900 dark:text-white' }, 'Settings'),
                 h('button', {
                 onClick: () => setSettingsOpen(false),
-                className: 'p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors'
               }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
               ))
@@ -1769,7 +1769,7 @@
                     h('div', { className: 'flex items-center gap-2' },
                       Notification.permission !== 'granted' && h('button', {
                         onClick: requestNotificationPermission,
-                        className: 'px-2 py-1 text-xs rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900'
+                        className: 'px-2.5 py-1 text-xs font-medium rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900 transition-colors'
                       }, 'Allow'),
                       h('button', {
                         onClick: () => setNotificationsEnabled(!notificationsEnabled),
@@ -1830,7 +1830,7 @@
                       placeholder: 'e.g., I run an SEO agency and am looking for leads',
                       disabled: !aiEnabled,
                       rows: 3,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
                     })
                   ),
                   h('label', { className: 'block' },
@@ -1842,7 +1842,7 @@
                       onChange: (e) => setOpenRouterApiKey(e.target.value),
                       placeholder: 'sk-or-v1-...',
                       disabled: !aiEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono'
                     })
                   ),
                   h('label', { className: 'block' },
@@ -1852,7 +1852,7 @@
                       value: openRouterModel,
                       onChange: (e) => setOpenRouterModel(e.target.value),
                       disabled: !aiEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
                     },
                       h('optgroup', { label: 'Free Models (Latest)' },
                         h('option', { value: 'xiaomi/mimo-v2-flash:free' }, 'Xiaomi MiMo-V2-Flash (Free)'),
@@ -1892,7 +1892,7 @@
                       navigator.clipboard.writeText(backup);
                       alert('Settings copied to clipboard');
                     },
-                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
+                    className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
                   }, 'Export settings'),
                   h('button', {
                     onClick: () => {
@@ -1917,7 +1917,7 @@
                         }
                       }
                     },
-                    className: 'px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
+                    className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
                   }, 'Import settings')
                 )
               )
