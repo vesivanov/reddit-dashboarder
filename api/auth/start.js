@@ -30,7 +30,9 @@ module.exports = async function handler(req, res) {
   }
   
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
-  const baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
+  let baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
+  // Remove trailing slash from APP_BASE_URL if present
+  baseUrl = baseUrl.replace(/\/+$/, '');
   let redirectUri = `${baseUrl}/api/auth/callback`;
   
   // If REDDIT_REDIRECT_URI is set and is a single URI (not comma-separated), use it as override
