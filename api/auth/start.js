@@ -8,22 +8,51 @@ module.exports = async function handler(req, res) {
   }
 
   const clientId = process.env.REDDIT_CLIENT_ID;
-  let redirectUri = process.env.REDDIT_REDIRECT_URI;
 
-  if (!clientId || !redirectUri) {
+  if (!clientId) {
     res.status(500).send('Missing Reddit OAuth configuration');
     return;
   }
 
-  // Normalize redirect URI - remove trailing slashes and ensure proper format
+  // Construct redirect URI - use env var if set, otherwise construct from request
+  let redirectUri = process.env.REDDIT_REDIRECT_URI;
+  
+  if (!redirectUri) {
+    // Dynamically construct redirect URI from request
+    // Priority: x-forwarded-proto (Vercel/proxies) > connection.encrypted > default http
+    let protocol = 'http';
+    if (req.headers['x-forwarded-proto']) {
+      protocol = req.headers['x-forwarded-proto'].split(',')[0].trim();
+    } else if (req.connection && req.connection.encrypted) {
+      protocol = 'https';
+    } else if (req.headers['x-forwarded-ssl'] === 'on') {
+      protocol = 'https';
+    } else if (req.secure) {
+      protocol = 'https';
+    }
+    
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    const baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
+    redirectUri = `${baseUrl}/api/auth/callback`;
+  }
+  
+  // Normalize: remove trailing slashes and ensure proper format
   redirectUri = redirectUri.trim().replace(/\/+$/, '');
   
   // Log the redirect URI being used (for debugging)
   console.log('=== OAuth Start ===');
   console.log('Client ID:', clientId ? `${clientId.substring(0, 8)}...` : 'MISSING');
-  console.log('Redirect URI (raw from env):', process.env.REDDIT_REDIRECT_URI);
-  console.log('Redirect URI (normalized):', redirectUri);
-  console.log('IMPORTANT: This redirect URI must EXACTLY match what you configured in your Reddit app settings!');
+  console.log('Request URL:', req.url);
+  console.log('Request host:', req.headers.host);
+  console.log('X-Forwarded-Host:', req.headers['x-forwarded-host']);
+  console.log('X-Forwarded-Proto:', req.headers['x-forwarded-proto']);
+  console.log('REDDIT_REDIRECT_URI env:', process.env.REDDIT_REDIRECT_URI);
+  console.log('Final redirect URI:', redirectUri);
+  console.log('⚠️  IMPORTANT: This redirect URI must EXACTLY match what you configured in your Reddit app settings!');
+  console.log('⚠️  Check Reddit app settings at: https://www.reddit.com/prefs/apps');
+  console.log('⚠️  Redirect URI should be one of:');
+  console.log('    - http://localhost:3000/api/auth/callback');
+  console.log('    - https://reddit-dashboarder.vercel.app/api/auth/callback');
 
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);

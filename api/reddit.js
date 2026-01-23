@@ -302,12 +302,17 @@ function normalize(data) {
       selftext: post.selftext || '',
       selftext_html: post.selftext_html || '',
       author: post.author,
-      url: `https://www.reddit.com${post.permalink}`,
+      // Preserve both Reddit permalink and external URL
+      reddit_url: `https://www.reddit.com${post.permalink}`,
+      external_url: post.url || '',
       domain: post.domain,
       score: safeScore,
       num_comments: safeComments,
       created_utc: post.created_utc,
       thumbnail: validThumb(post.thumbnail) ? post.thumbnail : null,
+      link_flair_text: post.link_flair_text || '',
+      link_flair_background_color: post.link_flair_background_color || '',
+      link_flair_text_color: post.link_flair_text_color || '',
     };
   });
 }

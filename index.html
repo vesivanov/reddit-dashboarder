@@ -502,15 +502,20 @@
                 return hash.toString(36);
               };
 
-              // Check if goals changed and invalidate cache if so
+              // Cache versioning: invalidate if goals, model, or prompt version changed
               const currentGoalsHash = hashGoals(aiGoals.trim());
+              const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
+              const MODEL_KEY = 'dashboard_ai_model';
+              const savedModel = localStorage.getItem(MODEL_KEY) || 'unknown';
+              const currentCacheVersion = `${currentGoalsHash}_v2.0_${savedModel}`; // v2.0 matches PROMPT_VERSION
+              
               try {
-                const savedGoalsHash = localStorage.getItem('dashboard_ai_goals_hash');
-                if (savedGoalsHash && savedGoalsHash !== currentGoalsHash) {
-                  console.log('AI Ranking: Goals changed, clearing cached scores');
+                const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
+                if (savedCacheVersion && savedCacheVersion !== currentCacheVersion) {
+                  console.log('AI Ranking: Cache version changed (goals/model/prompt), clearing cached scores');
                   localStorage.removeItem('dashboard_ai_scores_cache');
                 }
-                localStorage.setItem('dashboard_ai_goals_hash', currentGoalsHash);
+                localStorage.setItem(CACHE_VERSION_KEY, currentCacheVersion);
               } catch {}
 
               // Clear any cached 0 scores (they were from errors) - one-time cleanup
@@ -532,7 +537,7 @@
                 }
               } catch {}
               
-              // Load cached scores
+              // Load cached scores with version check
               let cachedScores = new Map();
               try {
                 const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
@@ -549,6 +554,15 @@
                       }
                     }
                   });
+                  
+                  // Clean up expired entries
+                  const validEntries = Object.entries(cache).filter(([_, data]) => 
+                    data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0
+                  );
+                  if (validEntries.length < Object.keys(cache).length) {
+                    localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(Object.fromEntries(validEntries)));
+                    console.log(`AI Ranking: Cleaned up ${Object.keys(cache).length - validEntries.length} expired cache entries`);
+                  }
                 }
               } catch (cacheError) {
                 console.warn('Error loading AI scores cache:', cacheError);
@@ -564,13 +578,30 @@
 
               if (uncachedPosts.length > 0) {
                 setAiRankingLoading(true);
-                console.log('AI Ranking: Calling API with', uncachedPosts.length, 'posts (will batch)');
+                
+                // Two-stage ranking: heuristic prefilter + LLM rerank
+                const keywords = extractGoalKeywords(aiGoals.trim());
+                console.log('AI Ranking: Extracted', keywords.length, 'keywords from goals:', keywords.slice(0, 10).join(', '));
+                
+                // Compute heuristic scores for all uncached posts
+                const postsWithHeuristic = uncachedPosts.map(post => ({
+                  post,
+                  heuristicScore: computeHeuristicScore(post, keywords),
+                }));
+                
+                // Sort by heuristic score and take top N for LLM ranking
+                const MAX_LLM_POSTS = 60;
+                postsWithHeuristic.sort((a, b) => b.heuristicScore - a.heuristicScore);
+                const topPosts = postsWithHeuristic.slice(0, MAX_LLM_POSTS).map(x => x.post);
+                const remainingPosts = postsWithHeuristic.slice(MAX_LLM_POSTS);
+                
+                console.log(`AI Ranking: Sending top ${topPosts.length} posts to LLM (${remainingPosts.length} will use heuristic scores only)`);
                 
                 // Batch posts into chunks of 50 to avoid payload size limits
                 const BATCH_SIZE = 50;
                 const batches = [];
-                for (let i = 0; i < uncachedPosts.length; i += BATCH_SIZE) {
-                  batches.push(uncachedPosts.slice(i, i + BATCH_SIZE));
+                for (let i = 0; i < topPosts.length; i += BATCH_SIZE) {
+                  batches.push(topPosts.slice(i, i + BATCH_SIZE));
                 }
                 console.log(`AI Ranking: Processing ${batches.length} batches of up to ${BATCH_SIZE} posts each`);
                 
@@ -601,6 +632,13 @@
                             title: p.title,
                             selftext: p.selftext || '',
                             subreddit: p.subreddit,
+                            url: p.reddit_url,
+                            external_url: p.external_url,
+                            domain: p.domain,
+                            score: p.score,
+                            num_comments: p.num_comments,
+                            created_utc: p.created_utc,
+                            link_flair_text: p.link_flair_text,
                           })),
                           userGoals: aiGoals.trim(),
                         }),
@@ -608,6 +646,15 @@
 
                       if (response.ok) {
                         const result = await response.json();
+                        if (result.model) {
+                          localStorage.setItem(MODEL_KEY, result.model);
+                          const updatedCacheVersion = `${currentGoalsHash}_v2.0_${result.model}`;
+                          if (updatedCacheVersion !== currentCacheVersion) {
+                            console.log('AI Ranking: Model changed, clearing cached scores');
+                            localStorage.removeItem('dashboard_ai_scores_cache');
+                            localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
+                          }
+                        }
                         // New format: scores is an object map {postId: score}
                         // Old format: scores is an array [{postId, relevanceScore}]
                         const scoresObj = result.scores || {};
@@ -622,7 +669,12 @@
                             // Only cache non-null scores (null means failed to score)
                             if (relevanceScore !== null && relevanceScore !== undefined) {
                               allScores.set(String(postId), relevanceScore);
-                              cache[String(postId)] = { score: relevanceScore, timestamp: Date.now() };
+                              cache[String(postId)] = { 
+                                score: relevanceScore, 
+                                timestamp: Date.now(),
+                                version: result.promptVersion || 'v2.0',
+                                model: result.model || 'unknown',
+                              };
                             } else {
                               // Track null scores but don't cache them
                               allScores.set(String(postId), null);
@@ -633,7 +685,12 @@
                           scoresObj.forEach(({ postId, relevanceScore }) => {
                             if (relevanceScore !== null && relevanceScore !== undefined) {
                               allScores.set(String(postId), relevanceScore);
-                              cache[String(postId)] = { score: relevanceScore, timestamp: Date.now() };
+                              cache[String(postId)] = { 
+                                score: relevanceScore, 
+                                timestamp: Date.now(),
+                                version: result.promptVersion || 'v1.0',
+                                model: result.model || 'unknown',
+                              };
                             } else {
                               allScores.set(String(postId), null);
                             }
@@ -683,8 +740,18 @@
                     }
                   }
                   
+                  // Add heuristic scores for remaining posts (normalized to 0-5 range to stay below LLM scores)
+                  remainingPosts.forEach(({ post, heuristicScore }) => {
+                    const postId = String(post.id);
+                    if (!allScores.has(postId)) {
+                      // Normalize heuristic score to 0-5 range (below typical LLM scores)
+                      const normalizedScore = Math.min(5, Math.round(heuristicScore * 0.5));
+                      allScores.set(postId, normalizedScore);
+                    }
+                  });
+                  
                   const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
-                  console.log(`AI Ranking: Complete! ${allScores.size} total scores, ${highRelevanceCount} posts scored >= 7`);
+                  console.log(`AI Ranking: Complete! ${allScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 7`);
                   
                   setPostRelevanceScores(allScores);
                   setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
@@ -852,7 +919,7 @@
 
       // Quick action handlers
       const handleCopyLink = useCallback((post) => {
-        const url = post.url;
+        const url = post.reddit_url || post.external_url || '';
         navigator.clipboard.writeText(url);
         setActivePostMenu(null);
       }, []);
@@ -1239,7 +1306,7 @@
                               onClick: (e) => e.stopPropagation()
                             },
                               h('button', {
-                                onClick: () => { window.open(post.url, '_blank'); setActivePostMenu(null); },
+                                onClick: () => { window.open(post.reddit_url || post.external_url, '_blank'); setActivePostMenu(null); },
                                 className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
                               }, 
                                 h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1341,7 +1408,7 @@
                       h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `u/${selectedPost.author}`)
                     ),
                     h('a', {
-                      href: selectedPost.url,
+                      href: selectedPost.reddit_url || selectedPost.external_url,
                       target: '_blank',
                       rel: 'noreferrer',
                       className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-indigo-600 text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-indigo-700 transition-colors'
@@ -1673,6 +1740,61 @@
     }
 
     // Utility functions
+    
+    // Heuristic scoring for two-stage ranking
+    function extractGoalKeywords(goalsText) {
+      if (!goalsText) return [];
+      // Simple keyword extraction: split by common delimiters and filter short words
+      const words = goalsText.toLowerCase()
+        .split(/[\s,;.!?()]+/)
+        .filter(w => w.length >= 3)
+        .filter(w => !['the', 'and', 'for', 'that', 'this', 'with', 'from', 'are', 'was', 'have', 'has'].includes(w));
+      // Remove duplicates and return top 20
+      return [...new Set(words)].slice(0, 20);
+    }
+    
+    function computeHeuristicScore(post, keywords) {
+      if (!keywords || keywords.length === 0) return 0;
+      
+      const title = (post.title || '').toLowerCase();
+      const selftext = (post.selftext || '').toLowerCase();
+      const subreddit = (post.subreddit || '').toLowerCase();
+      const domain = post.domain || '';
+      
+      let score = 0;
+      
+      // Title keyword matches (weighted heavily)
+      keywords.forEach(kw => {
+        if (title.includes(kw)) score += 3;
+      });
+      
+      // Selftext keyword matches
+      keywords.forEach(kw => {
+        if (selftext.includes(kw)) score += 1;
+      });
+      
+      // Subreddit match bonus
+      keywords.forEach(kw => {
+        if (subreddit.includes(kw)) score += 2;
+      });
+      
+      // Domain-based signals
+      if (domain && !domain.includes('reddit')) {
+        // External link, slight bonus for being a resource
+        score += 0.5;
+      }
+      
+      // Engagement signals (normalized)
+      const upvotes = Number(post.score) || 0;
+      const comments = Number(post.num_comments) || 0;
+      if (upvotes > 100) score += 1;
+      if (upvotes > 500) score += 1;
+      if (comments > 20) score += 1;
+      if (comments > 50) score += 1;
+      
+      return score;
+    }
+    
     function formatTimeUntil(timestamp) {
       if (!timestamp) return '';
       const diff = Math.max(0, Number(timestamp) - Date.now());

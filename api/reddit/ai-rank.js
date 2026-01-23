@@ -10,6 +10,9 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Other good free options: qwen/qwen-2.5-72b-instruct:free, google/gemini-2.0-flash-exp:free
 const MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
 
+// Prompt version for cache invalidation
+const PROMPT_VERSION = 'v2.0';
+
 function withCORS(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -23,29 +26,65 @@ function clampScore(n) {
 }
 
 function buildBatches(posts, {
-  maxCharsPerBatch = 30000,
+  maxPostsPerBatch = 30,
+  maxTokensPerBatch = 8000,
   perPostTextLimit = 300,
 } = {}) {
-  const normalized = posts.map(p => ({
-    id: String(p.id),
-    title: (p.title || '').slice(0, 180),
-    subreddit: (p.subreddit || '').slice(0, 80),
-    text: (p.selftext || '').slice(0, perPostTextLimit),
-  }));
+  const normalized = posts.map(p => {
+    // Extract domain and path from external URL when available
+    let urlDomain = '';
+    let urlPath = '';
+    try {
+      const url = new URL(p.external_url || p.url || '');
+      urlDomain = url.hostname;
+      urlPath = url.pathname;
+    } catch (e) {
+      // Invalid URL, keep empty
+    }
+
+    // Determine if it's a link post (has external URL vs self post)
+    const isLinkPost = !p.selftext && (p.external_url || p.url) && !String(p.external_url || p.url).includes('reddit.com');
+    
+    // Calculate age in hours
+    const ageHours = p.created_utc ? Math.floor((Date.now() / 1000 - p.created_utc) / 3600) : 0;
+
+    return {
+      id: String(p.id),
+      title: (p.title || '').slice(0, 180),
+      subreddit: (p.subreddit || '').slice(0, 80),
+      text: (p.selftext || '').slice(0, perPostTextLimit),
+      url_domain: urlDomain.slice(0, 100),
+      url_path: urlPath.slice(0, 100),
+      is_link_post: isLinkPost,
+      flair: (p.link_flair_text || '').slice(0, 50),
+      score: Number(p.score) || 0,
+      num_comments: Number(p.num_comments) || 0,
+      age_hours: ageHours,
+    };
+  });
+
+  // Simple token estimation: ~4 chars per token
+  function estimateTokens(text) {
+    return Math.ceil(text.length / 4);
+  }
 
   const batches = [];
   let cur = [];
-  let curChars = 0;
+  let curTokens = 0;
 
   for (const post of normalized) {
     const postStr = JSON.stringify(post);
-    if (cur.length > 0 && curChars + postStr.length > maxCharsPerBatch) {
+    const postTokens = estimateTokens(postStr);
+    
+    // Check if adding this post would exceed limits
+    if (cur.length > 0 && (cur.length >= maxPostsPerBatch || curTokens + postTokens > maxTokensPerBatch)) {
       batches.push(cur);
       cur = [];
-      curChars = 0;
+      curTokens = 0;
     }
+    
     cur.push(post);
-    curChars += postStr.length;
+    curTokens += postTokens;
   }
   if (cur.length) batches.push(cur);
 
@@ -65,17 +104,25 @@ async function callOpenRouter({ userGoals, postsBatch, timeoutMs = 25000 }) {
     '',
     'Score each post 0–10 using:',
     '0-2 irrelevant, 3-4 weak/tangential, 5-6 moderate, 7-8 strong/actionable, 9-10 perfect/high-value.',
-    'Return ONLY valid JSON.',
     '',
-    'Required output JSON array format:',
-    '[{"postId":"abc","relevanceScore":7}]',
+    'IMPORTANT CALIBRATION: Only assign scores ≥7 to the top 10% of posts unless there are unusually many perfect matches.',
+    'Most posts should be in the 3-6 range. Reserve 9-10 for exceptional alignment with user goals.',
+    '',
+    'Return ONLY valid JSON with this exact structure:',
+    '[{"postId":"abc","score":7,"confidence":"high","reason":"Direct lead signals and strong alignment with goals"}]',
+    '',
+    'Fields:',
+    '- postId: the post ID (string)',
+    '- score: relevance score 0-10 (number)',
+    '- confidence: "low", "medium", or "high" (string)',
+    '- reason: brief 1-sentence explanation (string, max 100 chars)',
   ].join('\n');
 
   const user = [
     'Posts JSON:',
     JSON.stringify(postsBatch),
     '',
-    'Return one entry per postId. No extra keys, no markdown.',
+    'Return one entry per postId with postId, score, confidence, and reason fields. No extra keys, no markdown, no code blocks.',
   ].join('\n');
 
   try {
@@ -116,11 +163,25 @@ async function callOpenRouter({ userGoals, postsBatch, timeoutMs = 25000 }) {
 
     if (!Array.isArray(arr)) throw new Error('Model did not return an array');
 
-    // Normalize
+    // Normalize - extract score and optionally preserve metadata
     const out = new Map();
+    const metadata = new Map(); // Store confidence and reason for debugging
+    
     for (const item of arr) {
       if (!item || !item.postId) continue;
-      out.set(String(item.postId), clampScore(item.relevanceScore));
+      const postId = String(item.postId);
+      
+      // Handle both old format (relevanceScore) and new format (score)
+      const score = item.score !== undefined ? item.score : item.relevanceScore;
+      out.set(postId, clampScore(score));
+      
+      // Store metadata if present
+      if (item.confidence || item.reason) {
+        metadata.set(postId, {
+          confidence: item.confidence || 'unknown',
+          reason: item.reason || '',
+        });
+      }
     }
 
     // Fill missing as null (so UI can show "not scored" vs forcing 0)
@@ -128,7 +189,7 @@ async function callOpenRouter({ userGoals, postsBatch, timeoutMs = 25000 }) {
       if (!out.has(p.id)) out.set(p.id, null);
     }
 
-    return out; // Map(postId -> score|null)
+    return { scores: out, metadata }; // Return both scores map and metadata map
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error('Request timeout');
@@ -205,6 +266,7 @@ async function handler(req, res) {
 
     // Build adaptive batches for all posts (client-side localStorage handles caching)
     const allScores = {};
+    const allMetadata = {};
     const batches = buildBatches(posts);
     console.log(`AI Ranking: Processing ${batches.length} batches (adaptive sizing)`);
 
@@ -215,10 +277,14 @@ async function handler(req, res) {
       const batch = batches[i];
       try {
         console.log(`AI Ranking: Processing batch ${i + 1}/${batches.length} (${batch.length} posts)`);
-        const batchScores = await callOpenRouter({
+        const result = await callOpenRouter({
           userGoals: userGoals.trim(),
           postsBatch: batch,
         });
+
+        // Extract scores and metadata from result
+        const batchScores = result.scores;
+        const batchMetadata = result.metadata;
 
         // Store scores
         for (const [postId, score] of batchScores.entries()) {
@@ -226,6 +292,11 @@ async function handler(req, res) {
           if (score === null) {
             failedPostIds.push(postId);
           }
+        }
+
+        // Store metadata
+        for (const [postId, meta] of batchMetadata.entries()) {
+          allMetadata[postId] = meta;
         }
 
         // Small delay between batches to avoid rate limiting
@@ -257,7 +328,9 @@ async function handler(req, res) {
 
     return withCORS(res).status(200).json({
       scores: allScores,
+      metadata: allMetadata,
       model: MODEL,
+      promptVersion: PROMPT_VERSION,
       processed: processedCount,
       ...(failedPostIds.length > 0 && { failedPostIds }),
     });
