@@ -1,25 +1,44 @@
 // Debug endpoint to show what redirect URI is being constructed
 module.exports = async function handler(req, res) {
   // Construct redirect URI the same way start.js does
-  let redirectUri = process.env.REDDIT_REDIRECT_URI;
-  
-  if (!redirectUri) {
-    let protocol = 'http';
-    if (req.headers['x-forwarded-proto']) {
-      protocol = req.headers['x-forwarded-proto'].split(',')[0].trim();
-    } else if (req.connection && req.connection.encrypted) {
-      protocol = 'https';
-    } else if (req.headers['x-forwarded-ssl'] === 'on') {
-      protocol = 'https';
-    } else if (req.secure) {
-      protocol = 'https';
-    }
-    
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
-    const baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
-    redirectUri = `${baseUrl}/api/auth/callback`;
+  // If REDDIT_REDIRECT_URI contains a comma (multiple URIs), ignore it and construct dynamically
+  let protocol = 'http';
+  if (req.headers['x-forwarded-proto']) {
+    protocol = req.headers['x-forwarded-proto'].split(',')[0].trim();
+  } else if (req.connection && req.connection.encrypted) {
+    protocol = 'https';
+  } else if (req.headers['x-forwarded-ssl'] === 'on') {
+    protocol = 'https';
+  } else if (req.secure) {
+    protocol = 'https';
   }
   
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+  let baseUrl = process.env.APP_BASE_URL || `${protocol}://${host}`;
+  // Remove trailing slash from APP_BASE_URL if present
+  baseUrl = baseUrl.replace(/\/+$/, '');
+  let redirectUri = `${baseUrl}/api/auth/callback`;
+  
+  // If REDDIT_REDIRECT_URI is set and is a single URI (not comma-separated), use it as override
+  // But only if it matches the current request context
+  const envRedirectUri = process.env.REDDIT_REDIRECT_URI;
+  if (envRedirectUri && !envRedirectUri.includes(',')) {
+    try {
+      const envUri = envRedirectUri.trim().replace(/\/+$/, '');
+      const envUrl = new URL(envUri);
+      const currentHost = host.toLowerCase();
+      const envHost = envUrl.host.toLowerCase();
+      
+      // Only use env var if it matches the current host
+      if (envHost === currentHost || (envHost === 'localhost:3000' && currentHost === 'localhost:3000')) {
+        redirectUri = envUri;
+      }
+    } catch (e) {
+      // Invalid URL in env var, use dynamically constructed one
+    }
+  }
+  
+  // Normalize: remove trailing slashes and ensure proper format
   redirectUri = redirectUri.trim().replace(/\/+$/, '');
   
   res.setHeader('Content-Type', 'text/html');
@@ -57,7 +76,9 @@ module.exports = async function handler(req, res) {
           <li><strong>X-Forwarded-Proto:</strong> ${req.headers['x-forwarded-proto'] || 'N/A'}</li>
           <li><strong>Protocol detected:</strong> ${redirectUri.startsWith('https') ? 'https' : 'http'}</li>
           <li><strong>REDDIT_REDIRECT_URI env:</strong> ${process.env.REDDIT_REDIRECT_URI || 'Not set (using dynamic construction)'}</li>
+          <li><strong>REDDIT_REDIRECT_URI contains comma:</strong> ${process.env.REDDIT_REDIRECT_URI && process.env.REDDIT_REDIRECT_URI.includes(',') ? 'YES (will be ignored, using dynamic construction)' : 'NO'}</li>
           <li><strong>APP_BASE_URL env:</strong> ${process.env.APP_BASE_URL || 'Not set'}</li>
+          <li><strong>Constructed from:</strong> ${process.env.REDDIT_REDIRECT_URI && !process.env.REDDIT_REDIRECT_URI.includes(',') ? 'Environment variable (single URI)' : 'Dynamic construction from request headers'}</li>
         </ul>
       </div>
       
