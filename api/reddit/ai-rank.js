@@ -2,13 +2,13 @@
 // Uses OpenRouter to analyze post relevance based on user goals
 // Returns relevance scores (0-10) for each post
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const SERVER_OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Default model - using free Meta Llama 3.3 70B for fast, efficient relevance scoring
-// Can be overridden via OPENROUTER_MODEL env var
+// Can be overridden via OPENROUTER_MODEL env var or per-request
 // Other good free options: qwen/qwen-2.5-72b-instruct:free, google/gemini-2.0-flash-exp:free
-const MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
 
 // Prompt version for cache invalidation
 const PROMPT_VERSION = 'v2.0';
@@ -91,7 +91,7 @@ function buildBatches(posts, {
   return batches;
 }
 
-async function callOpenRouter({ userGoals, postsBatch, timeoutMs = 25000 }) {
+async function callOpenRouter({ userGoals, postsBatch, apiKey, model, timeoutMs = 25000 }) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -130,13 +130,13 @@ async function callOpenRouter({ userGoals, postsBatch, timeoutMs = 25000 }) {
       method: 'POST',
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.OPENROUTER_REFERER || 'https://reddit-dashboarder.vercel.app',
         'X-Title': 'Reddit Dashboarder AI Ranking',
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: model,
         temperature: 0, // More consistent scoring
         messages: [
           { role: 'system', content: system },
@@ -240,10 +240,12 @@ async function handler(req, res) {
       }
     }
 
-    const { posts, userGoals } = body;
+    const { posts, userGoals, openRouterApiKey, openRouterModel } = body;
 
     console.log('AI Ranking: Received request for', posts?.length || 0, 'posts');
     console.log('AI Ranking: User goals length:', userGoals?.length || 0);
+    console.log('AI Ranking: Using custom API key:', openRouterApiKey ? 'Yes' : 'No (server default)');
+    console.log('AI Ranking: Using model:', openRouterModel || DEFAULT_MODEL);
 
     if (!posts || !Array.isArray(posts)) {
       console.error('AI Ranking: Invalid posts array');
@@ -255,13 +257,20 @@ async function handler(req, res) {
       return withCORS(res).status(400).json({ error: 'userGoals string is required' });
     }
 
-    if (posts.length === 0) {
-      console.log('AI Ranking: No posts to rank');
-      return withCORS(res).status(200).json({ scores: {}, model: MODEL });
+    // Use provided API key or fall back to server's env variable
+    const apiKey = openRouterApiKey?.trim() || SERVER_OPENROUTER_API_KEY;
+    const model = openRouterModel?.trim() || DEFAULT_MODEL;
+
+    if (!apiKey) {
+      return withCORS(res).status(400).json({ 
+        error: 'OpenRouter API key required',
+        message: 'Please provide your OpenRouter API key in settings or configure OPENROUTER_API_KEY environment variable'
+      });
     }
 
-    if (!OPENROUTER_API_KEY) {
-      return withCORS(res).status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
+    if (posts.length === 0) {
+      console.log('AI Ranking: No posts to rank');
+      return withCORS(res).status(200).json({ scores: {}, model });
     }
 
     // Build adaptive batches for all posts (client-side localStorage handles caching)
@@ -280,6 +289,8 @@ async function handler(req, res) {
         const result = await callOpenRouter({
           userGoals: userGoals.trim(),
           postsBatch: batch,
+          apiKey,
+          model,
         });
 
         // Extract scores and metadata from result
@@ -329,7 +340,7 @@ async function handler(req, res) {
     return withCORS(res).status(200).json({
       scores: allScores,
       metadata: allMetadata,
-      model: MODEL,
+      model,
       promptVersion: PROMPT_VERSION,
       processed: processedCount,
       ...(failedPostIds.length > 0 && { failedPostIds }),
