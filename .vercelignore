@@ -1,7 +1,0 @@
-# Exclude test and debug API endpoints from Vercel deployment
-# These endpoints are only needed for local development
-api/test.js
-api/reddit-test.js
-api/auth/test-oauth-url.js
-api/auth/debug-redirect.js
-api/auth/verify-reddit-settings.js
