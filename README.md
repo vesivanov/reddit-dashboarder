@@ -76,9 +76,14 @@ reddit-dashboarder/
 
 ### Step 2: Get OpenRouter API Key (Optional)
 
+AI ranking can work in two ways:
+- **Option A (Recommended for personal use)**: Enter your own API key in the UI settings after setup
+- **Option B (For shared deployments)**: Configure a server-side API key in environment variables
+
+To get an API key:
 1. Sign up at [OpenRouter.ai](https://openrouter.ai/)
-2. Create an API key
-3. The free tier includes access to several models
+2. Go to [Keys](https://openrouter.ai/keys) and create an API key
+3. The free tier includes access to several powerful models (Llama 3.3 70B, Qwen 2.5 72B, Gemini 2.0 Flash)
 
 ### Step 3: Environment Setup
 
@@ -173,10 +178,17 @@ The `server.js` file provides a full Express server that can be deployed to any 
 
 ### AI Ranking (Optional)
 
-1. Ensure `OPENROUTER_API_KEY` is configured
-2. Enter your goals/objectives in the AI ranking section
-3. Posts will be scored 0-10 based on relevance to your goals
-4. Sort by "AI Score" to see the most relevant posts first
+1. Enable AI ranking in the Settings panel
+2. Enter your goals/objectives (e.g., "I run an SEO agency and am looking for leads")
+3. **Option A**: Enter your own OpenRouter API key in the settings (get one free at [openrouter.ai/keys](https://openrouter.ai/keys))
+4. **Option B**: Use server-side API key by configuring `OPENROUTER_API_KEY` environment variable
+5. Choose your preferred AI model (several free models available)
+6. Posts will be scored 0-10 based on relevance to your goals
+7. Sort by "AI Score" to see the most relevant posts first
+
+**Available Models:**
+- Free: Meta Llama 3.3 70B, Qwen 2.5 72B, Google Gemini 2.0 Flash
+- Paid: Claude 3.5 Sonnet, GPT-4o, GPT-4o Mini, Gemini Pro 1.5
 
 ### Features
 
@@ -284,8 +296,8 @@ npm run dev
 | `REDDIT_CLIENT_SECRET` | Yes | Reddit OAuth app client secret |
 | `REDDIT_REDIRECT_URI` | Yes | OAuth redirect URI (must match Reddit app settings) |
 | `SESSION_COOKIE_SECRET` | Yes | Secret key for signing cookies (32+ random bytes) |
-| `OPENROUTER_API_KEY` | No | OpenRouter API key for AI ranking |
-| `OPENROUTER_MODEL` | No | Model to use (default: `meta-llama/llama-3.3-70b-instruct:free`) |
+| `OPENROUTER_API_KEY` | No | OpenRouter API key for AI ranking (users can also provide their own in UI settings) |
+| `OPENROUTER_MODEL` | No | Default model (default: `meta-llama/llama-3.3-70b-instruct:free`) |
 | `REDDIT_USER_AGENT` | No | Custom User-Agent string |
 | `APP_BASE_URL` | No | Base URL for the application |
 | `NODE_ENV` | No | Environment (`development` or `production`) |
@@ -298,10 +310,18 @@ The dashboard uses Tailwind CSS with dark mode support. Customize colors in `ind
 
 ### AI Models
 
-Change the AI model by setting `OPENROUTER_MODEL` environment variable. Popular free options:
-- `meta-llama/llama-3.3-70b-instruct:free`
+Choose your AI model in the Settings panel under "AI Relevance Ranking", or set a default via `OPENROUTER_MODEL` environment variable. 
+
+Popular free options:
+- `meta-llama/llama-3.3-70b-instruct:free` (default)
 - `qwen/qwen-2.5-72b-instruct:free`
 - `google/gemini-2.0-flash-exp:free`
+
+Paid options (requires credits):
+- `anthropic/claude-3.5-sonnet`
+- `openai/gpt-4o`
+- `openai/gpt-4o-mini`
+- `google/gemini-pro-1.5`
 
 ### Rate Limiting
 
@@ -316,11 +336,13 @@ The app includes built-in rate limiting and retry logic. Adjust concurrency and 
 
 ## 🐛 Troubleshooting
 
-### "OPENROUTER_API_KEY not configured"
+### "OpenRouter API key required"
 
-AI ranking is optional. Either:
-- Add `OPENROUTER_API_KEY` to your environment variables, or
-- Disable AI ranking features in the UI
+AI ranking requires an OpenRouter API key. You have two options:
+- **Option A (Recommended)**: Enter your personal API key in the Settings panel under "AI Relevance Ranking"
+  - Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys)
+- **Option B**: Configure `OPENROUTER_API_KEY` environment variable on the server
+  - Useful for shared deployments where all users use the same API key
 
 ### "Missing Reddit OAuth configuration"
 
