@@ -1,343 +1,395 @@
-# Design System (Reddit Dashboarder)
-
-This document defines a coherent, reusable UI language for the entire site/app. It is intentionally **implementation-friendly** for the current stack: **Tailwind (CDN)** + **Inter** + **light/dark mode via `dark` class**.
-
-## Goals
-
-- **Clarity over decoration**: dense information, fast scanning, minimal visual noise.
-- **Consistency**: the same UI intent uses the same tokens and component recipes everywhere.
-- **Themeable**: parity between light and dark with predictable semantics.
-- **Accessible by default**: keyboard, focus, contrast, and motion-reduction are first-class.
-
-## Brand & Visual Language
-
-- **Typeface**: Inter (already loaded), with system fallbacks.
-- **Base palette**: neutral **zinc** surfaces and text; **indigo** for primary actions/focus; **emerald/amber/rose** for semantic signals.
-- **Shape**: soft corners (mostly `rounded-lg`), subtle borders, restrained shadows.
-- **Motion**: quick, functional transitions (100–200ms). Prefer opacity/transform changes.
-
-## Design Tokens
-
-Tokens are described two ways:
-- **Semantic names**: what the token *means* (preferred in docs and component specs).
-- **Tailwind mapping**: what to *use today* in this repo.
-
-### Color tokens
-
-#### Neutrals (surfaces + borders)
-
-- **`bg/app`**: overall app background  
-  - Tailwind: `bg-zinc-100 dark:bg-zinc-900`
-- **`bg/surface`**: panels, toolbars, modals  
-  - Tailwind: `bg-white dark:bg-zinc-800`
-- **`bg/surface-muted`**: subtle contrast surface (lists, mid-panels)  
-  - Tailwind: `bg-zinc-50 dark:bg-zinc-800/50` or `bg-zinc-50 dark:bg-zinc-900`
-- **`border/default`**: separators and outlines  
-  - Tailwind: `border-zinc-200 dark:border-zinc-700`
-- **`border/strong`**: stronger dividers or selected outlines  
-  - Tailwind: `border-zinc-300 dark:border-zinc-600`
-
-#### Text (hierarchy)
-
-- **`text/primary`**: main content  
-  - Tailwind: `text-zinc-900 dark:text-white` (or `dark:text-zinc-100`)
-- **`text/secondary`**: supporting text  
-  - Tailwind: `text-zinc-600 dark:text-zinc-400`
-- **`text/tertiary`**: metadata, timestamps, counts  
-  - Tailwind: `text-zinc-400 dark:text-zinc-500`
-
-#### Brand / emphasis
-
-- **`accent/primary`**: primary action, selection, focus ring  
-  - Tailwind: `bg-indigo-600 text-white hover:bg-indigo-700`
-  - Selection surfaces: `bg-indigo-50 dark:bg-indigo-900/30`
-  - Text on selection: `text-indigo-700 dark:text-indigo-400`
-- **`accent/focus`**: focus indicator  
-  - Tailwind: `focus:ring-2 focus:ring-indigo-500 focus:border-transparent`
+Reddit Dashboarder Design System v2
+0) Principles
 
-#### Semantics
+Intent-first: choose tokens/recipes by meaning (primary, muted, danger), not by color preference.
 
-- **`semantic/success`** (good / high relevance):  
-  - Tailwind: `text-emerald-700 dark:text-emerald-400`, `bg-emerald-100 dark:bg-emerald-900/50`
-- **`semantic/warning`** (caution / medium relevance):  
-  - Tailwind: `text-amber-700 dark:text-amber-400`, `bg-amber-100 dark:bg-amber-900/50`
-- **`semantic/danger`** (errors / destructive):  
-  - Tailwind: `text-rose-600 dark:text-rose-400`
+No drift: each semantic token has exactly one Tailwind mapping.
 
-### Typography tokens
+Density-aware: dashboard UI supports compact and comfortable spacing.
 
-- **Font family**: `Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial`
-- **Weights**:
-  - **Regular**: 400
-  - **Medium**: 500
-  - **Semibold**: 600
-  - **Bold**: 700
-- **Type scale (recommended)**:
-  - **`text-xs`**: 12px (labels, microcopy)
-  - **`text-sm`**: 14px (most UI controls + lists)
-  - **`text-base`**: 16px (body text in detail view)
-  - **`text-lg`**: 18px (section titles / empty state titles)
-- **Line height**:
-  - UI text: `leading-5` / `leading-6`
-  - Body text: ~1.6 (see `.post-body`)
+Accessible by default: keyboard focus is consistent; contrast is checked; motion respects preferences.
 
-### Spacing & layout tokens
+1) Foundations
+1.1 Color tokens (single mapping)
+Surfaces
 
-- **Base spacing unit**: 4px (Tailwind default).
-- **Common paddings**:
-  - Toolbar: `px-4 py-2` / `py-2.5`
-  - Panel: `p-3` or `p-4`
-- **Gaps**:
-  - Dense: `gap-1.5` / `space-y-1`
-  - Standard: `gap-2` / `gap-3` / `space-y-4`
+surface/app (page background)
+bg-zinc-100 dark:bg-zinc-900
 
-### Radius tokens
+surface/panel (panes, cards, toolbars, modals)
+bg-white dark:bg-zinc-800
 
-- **Small**: `rounded` (4px) for micro elements
-- **Standard**: `rounded-lg` (8px) for most controls
-- **Large**: `rounded-xl` (12px) for modals
-- **Pills**: `rounded-full` for chips
+surface/muted (subtle inset areas inside panel)
+bg-zinc-50 dark:bg-zinc-800/50
 
-### Elevation tokens
+surface/raised (dropdowns, popovers)
+bg-white dark:bg-zinc-800 + shadow-lg
 
-- **Modal elevation**: `shadow-xl` on `rounded-xl` surface
-- **In-app elevation**: avoid heavy shadows; prefer borders + subtle surface differences
+surface/selected (selected row/region)
+bg-indigo-50 dark:bg-indigo-900/30
 
-### Motion tokens
+surface/overlay (modal backdrop)
+bg-black/40
 
-- **Standard transition**: `transition-colors` (plus `transition-transform` where needed)
-- **Duration**: 150ms typical
-- **Animation**: `animate-fadeIn` (opacity + translateY) for newly shown content
-- **Reduce motion**: when implementing globally, respect `prefers-reduced-motion` (disable non-essential animations)
+Borders
 
-## Theme Rules (Light + Dark)
+border/default
+border-zinc-200 dark:border-zinc-700
 
-- **Switching strategy**: theme is controlled by toggling the `dark` class on the root element.
-- **Parity rule**: every component recipe must specify both light and dark values for:
-  - Surface
-  - Border
-  - Text
-  - Hover/active states
-  - Focus ring
+border/strong
+border-zinc-300 dark:border-zinc-600
 
-## Layout System
+Text
 
-### Primary layout: three-pane dashboard
+text/primary
+text-zinc-900 dark:text-zinc-100
 
-- **Header**: fixed-height top bar with title + utility actions.
-- **Status bar**: thin row under header for fetch status, errors, “updated”, and primary CTA.
-- **Main panes**:
-  - **Left sidebar**: subreddits list  
-    - Width: `w-52` (208px)
-  - **Center pane**: post list + filter toolbar  
-    - Flexible: `flex-1 min-w-0`
-  - **Right pane**: post detail view  
-    - Collapsible; on mobile becomes a separate view
+text/secondary
+text-zinc-600 dark:text-zinc-400
 
-### Responsive breakpoints
+text/muted (safe tertiary for most metadata)
+text-zinc-500 dark:text-zinc-500
 
-- **Desktop** (`lg` and up): show all panes; sidebar is persistent.
-- **Mobile**: single-pane view with bottom navigation (“Subs”, “Posts”, “Detail”).
+text/link
+text-indigo-700 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300
 
-### Scrolling
+Accent + semantics
 
-- Panes scroll independently (avoid scrolling the entire page when possible).
-- Use consistent thin scrollbars (`scrollbar-thin`) with light/dark thumb colors.
+accent/primary (primary actions + highlights)
+bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800
 
-## Component Recipes (Tailwind-first)
+accent/soft (soft selection chips, subtle highlights)
+bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300
 
-These are the “approved” building blocks. Implement them as reusable class strings (or later as React components) so they stay consistent.
+semantic/success
+text-emerald-700 dark:text-emerald-300 + bg-emerald-100 dark:bg-emerald-900/50
 
-### Buttons
+semantic/warning
+text-amber-700 dark:text-amber-300 + bg-amber-100 dark:bg-amber-900/40
 
-#### Primary button (`Button/Primary`)
+semantic/danger
+text-rose-600 dark:text-rose-300 + bg-rose-100 dark:bg-rose-900/40
 
-Use for the single most important action in a context (e.g., “Refresh”, “Sign in”, “Add”).
+1.2 Typography tokens
 
-- Tailwind:
-  - `px-4 py-2 rounded-lg text-sm font-medium`
-  - `bg-zinc-900 text-white hover:bg-zinc-800`
-  - `dark:bg-indigo-600 dark:hover:bg-indigo-700`
-  - `disabled:opacity-50 transition-colors`
+Font: font-sans (Inter loaded)
 
-#### Secondary button (`Button/Secondary`)
+Scale
 
-Use for neutral actions (e.g., “Cancel”).
+text-xs labels/microcopy
 
-- Tailwind:
-  - `px-4 py-2 rounded-lg text-sm font-medium`
-  - `text-zinc-600 hover:bg-zinc-100`
-  - `dark:text-zinc-400 dark:hover:bg-zinc-700`
-  - `transition-colors`
+text-sm default UI
 
-#### Ghost / icon button (`Button/Icon`)
+text-base body/detail
 
-Use for toolbar actions (settings, theme toggle, close).
+text-lg section titles
 
-- Tailwind:
-  - `p-2 rounded-lg`
-  - `text-zinc-600 hover:bg-zinc-100`
-  - `dark:text-zinc-400 dark:hover:bg-zinc-700`
-  - `transition-colors`
+Numbers: counts use tabular-nums
 
-### Inputs
+Truncation: list primary lines usually truncate; detail view wraps.
 
-#### Text input (`Input/Text`)
+1.3 Radius, elevation, z-index
 
-- Tailwind:
-  - `w-full px-3 py-2 rounded-lg text-sm`
-  - `border border-zinc-200 bg-white`
-  - `dark:border-zinc-600 dark:bg-zinc-700 dark:text-white`
-  - `focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`
+Radius
 
-#### Select (`Input/Select`)
+controls: rounded-lg
 
-- Tailwind:
-  - `px-2 py-1.5 rounded-lg text-sm`
-  - `border border-zinc-200 bg-white`
-  - `dark:border-zinc-600 dark:bg-zinc-700 dark:text-white`
-  - `disabled:opacity-50`
+modals: rounded-xl
 
-#### Textarea (`Input/Textarea`)
+chips: rounded-full
 
-Same as `Input/Text`, with `rows` and slightly larger vertical padding as needed.
+Elevation
 
-### Toggles (`Toggle/Switch`)
+in-app: prefer borders; minimal shadow
 
-Use for binary settings.
+popovers: shadow-lg
 
-- Track:
-  - Base: `relative w-11 h-6 rounded-full transition-colors`
-  - On: `bg-indigo-600`
-  - Off: `bg-zinc-300 dark:bg-zinc-600`
-- Thumb:
-  - `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform`
-  - On: add `translate-x-5`
+modal: shadow-xl
 
-### Pills / chips (`Chip`)
+Z-index scale
 
-Use for selectable presets (e.g., upvotes/comments filters) and “popular subreddit” chips.
+dropdown/popover: z-40
 
-- Neutral chip:
-  - `px-2.5 py-1 rounded-full text-xs font-medium`
-  - `bg-zinc-100 text-zinc-700 hover:bg-zinc-200`
-  - `dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600`
-- Selected semantic chip:
-  - Success: `bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400`
-  - Warning: `bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400`
+modal: z-50
 
-### List rows (`List/Row`)
+toast: z-[60] (if needed)
 
-Use for sidebar items and post list items.
+1.4 Motion
 
-- Base:
-  - `rounded-lg transition-colors`
-  - Hover: `hover:bg-zinc-50 dark:hover:bg-zinc-700`
-- Selected:
-  - `bg-indigo-50 dark:bg-indigo-900/30`
-  - Primary text: `text-indigo-700 dark:text-indigo-400`
+Default: transition-colors duration-150
 
-### Panels & toolbars
+Optional: transition-transform duration-150
 
-- Toolbar surface:
-  - `bg-white dark:bg-zinc-800`
-  - `border-b border-zinc-200 dark:border-zinc-700`
-  - `px-4 py-2.5`
-- Sidebar surface:
-  - `bg-white dark:bg-zinc-800`
-  - `border-r border-zinc-200 dark:border-zinc-700`
+Respect reduced motion (when you centralize): disable non-essential animations.
 
-### Modals (`Modal`)
+2) Universal Interaction Contract (no exceptions)
+2.1 Focus ring (buttons/links/icon buttons)
 
-Use for “Add subreddits”, “Settings”, etc.
+Use focus-visible so mouse clicks don’t draw rings:
 
-- Overlay:
-  - `fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center`
-- Container:
-  - `w-full max-w-md` (or `max-w-lg`)
-  - `bg-white dark:bg-zinc-800 rounded-xl shadow-xl`
-  - For long content: `max-h-[90vh] overflow-auto`
-- Header:
-  - `p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between`
-  - Sticky headers: `sticky top-0 bg-white dark:bg-zinc-800`
-- Footer:
-  - `p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end gap-2`
+focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500
 
-### Empty states
+focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900
 
-Empty states should always include:
-- **Icon** (simple outline) in a muted circular surface
-- **Title** (semibold)
-- **One-sentence guidance**
-- **One clear next action** (button/link)
+2.2 Focus ring (text inputs)
 
-Suggested base:
-- Icon container: `w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center`
-- Title: `text-lg font-semibold text-zinc-900 dark:text-white`
-- Body: `text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs`
+Use focus::
 
-### Status & feedback
+focus:outline-none focus:ring-2 focus:ring-indigo-500
 
-- **Loading**: small spinner + “Fetching…” in secondary text.
-- **Error**: `text-rose-600 dark:text-rose-400 font-medium` (keep wording short and actionable).
-- **Auth required / warning**: `text-amber-600 dark:text-amber-400 font-medium`.
-- **AI active**: `text-emerald-500` (avoid too many green indicators at once).
+focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900
 
-## Data Visualization & AI Scoring (Domain-specific)
+focus:border-transparent
 
-### AI relevance score badge (`Badge/AIRelevance`)
+2.3 Disabled + hit targets
 
-Use **three tiers** for readability and stable meaning:
+Disabled: disabled:opacity-50 disabled:cursor-not-allowed
 
-- **High** (≥ 8): “strongly relevant”  
-  - `bg-emerald-500 dark:bg-emerald-600 text-white`
-- **Medium-high** (≥ 7): “likely relevant”  
-  - `bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300`
-- **Medium** (≥ 5): “maybe relevant”  
-  - `bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400`
-- **Low** (< 5): treat as neutral; don’t over-emphasize.
+Icon buttons should aim for ~40×40px (use p-2 and don’t shrink below).
 
-### Confidence label (`Badge/Confidence`)
+3) Density system (pick one per surface)
 
-- High: emerald semantic chip styling
-- Medium: amber semantic chip styling
-- Low: neutral chip styling
+Define two spacing modes for repeated UI:
 
-## Interaction States
+Comfortable (default)
+List row: px-3 py-2.5
+Toolbar: px-4 py-2.5
+Panel: p-4
 
-Every interactive component must specify:
+Compact (power user)
+List row: px-3 py-2
+Toolbar: px-3 py-2
+Panel: p-3
 
-- **Default**
-- **Hover**
-- **Active/pressed** (optional but recommended for buttons)
-- **Disabled** (`disabled:opacity-50`, plus `disabled:cursor-not-allowed` when appropriate)
-- **Focus-visible** (ring on inputs; visible outline on buttons if added later)
+Rule: a screen should not mix densities in the same region.
 
-## Accessibility Standards
+4) Component recipes (Tailwind-first)
+4.1 Buttons
 
-- **Keyboard**:
-  - All controls reachable via Tab.
-  - Icon-only buttons must have an accessible label (`title` is a fallback; prefer `aria-label` when formalizing components).
-- **Hit targets**:
-  - Minimum 40×40px for icon buttons where feasible.
-- **Focus**:
-  - Use the indigo focus ring (`focus:ring-indigo-500`) and avoid removing outlines without replacement.
-- **Contrast**:
-  - Default text must pass contrast on both themes; avoid using `text-zinc-400` for essential information.
-- **Motion**:
-  - When you centralize motion rules, respect `prefers-reduced-motion`.
+Button base (required)
 
-## Content & Microcopy
+inline-flex items-center justify-center gap-2 rounded-lg
 
-- Prefer short, descriptive verbs: “Add”, “Refresh”, “Clear”.
-- Errors should be specific and actionable (what happened + what to do next).
-- Use consistent terminology:
-  - “Subreddits”, “Posts”, “Detail”
-  - “AI ranking”, “AI relevance”, “AI score”
+text-sm font-medium leading-5
 
-## Implementation Guidance (when you’re ready)
+transition-colors duration-150
 
-- **Centralize recipes**: create a small `ui/` module (or constants in `index.html`) that exports class strings for each component type.
-- **Prefer semantic composition**: choose the component recipe based on intent (Primary vs Secondary), not on color preference.
-- **Keep tokens stable**: if you change a token (e.g., accent color), update the mapping once and let the whole UI follow.
+disabled:opacity-50 disabled:cursor-not-allowed
 
+focus-visible ring (from contract)
+
+Primary
+
+bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800
+
+Secondary
+
+bg-transparent text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200
+
+dark:text-zinc-200 dark:hover:bg-zinc-700 dark:active:bg-zinc-600
+
+Ghost
+
+bg-transparent text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200
+
+dark:text-zinc-300 dark:hover:bg-zinc-700 dark:active:bg-zinc-600
+
+Danger
+
+bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800
+
+Sizes
+
+md: px-4 py-2
+
+sm: px-3 py-1.5
+
+icon: p-2
+
+4.2 Links
+
+text-indigo-700 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300
+
+Apply focus-visible ring like buttons if the link is a primary control.
+
+4.3 Inputs
+
+Text / Textarea / Select
+
+rounded-lg text-sm bg-white dark:bg-zinc-700 dark:text-white
+
+border border-zinc-200 dark:border-zinc-600
+
+focus contract for inputs
+
+Checkbox / Radio (simple)
+
+Use native + focus ring + label click target (min 40px total row height)
+
+4.4 Chips + Badges
+
+Chip (neutral)
+
+px-2.5 py-1 rounded-full text-xs font-medium
+
+bg-zinc-100 text-zinc-700 hover:bg-zinc-200
+
+dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600
+
+Chip (selected) - use accent/soft
+
+bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300
+
+Rule: Filter chips (upvotes, comments, etc.) should use selected style when active, NOT semantic colors. Only use semantic colors for status/result badges.
+
+Badge (neutral)
+
+px-2 py-0.5 rounded-full text-xs font-medium
+
+bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200
+
+Badge (success/warn/danger) use semantic tokens above.
+
+4.5 List row (sidebar + posts)
+
+Base
+
+rounded-lg transition-colors
+
+hover:bg-zinc-50 dark:hover:bg-zinc-700
+
+recommended anatomy:
+
+left: icon/avatar (fixed)
+
+middle: title (truncate) + subtitle (secondary)
+
+right: meta (muted + tabular-nums)
+
+Selected
+
+bg-indigo-50 dark:bg-indigo-900/30
+
+primary text shifts: text-indigo-700 dark:text-indigo-300
+
+4.6 Panels, toolbars, separators
+
+Panel
+
+surface/panel + border border/default + rounded-lg
+
+Toolbar
+
+surface/panel + border-b border/default + padding (density)
+
+Sidebar
+
+surface/panel + border-r border/default
+
+Divider
+
+border-t border/default
+
+4.7 Modal
+
+Overlay: fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center
+
+Container: w-full max-w-md bg-white dark:bg-zinc-800 rounded-xl shadow-xl
+
+Header/Footer: borders default + sticky optional
+
+4.8 Feedback components
+
+Inline banner (status/error/auth)
+
+Container: rounded-lg border border/default p-3
+
+Variants:
+
+success: semantic success background/text
+
+warning: semantic warning background/text
+
+danger: semantic danger background/text
+
+Copy rule: “What happened + what to do next”.
+
+Toast (optional)
+
+Use raised surface + shadow + border/default; z-[60]
+
+4.9 Skeleton loading (recommended)
+
+Row skeleton: animate-pulse blocks with bg-zinc-200 dark:bg-zinc-700
+
+Use skeletons for lists + detail, not just spinners.
+
+5) Domain-specific: AI scoring
+
+AI relevance badge tiers
+
+High (≥8): bg-emerald-600 text-white (ring-2 ring-emerald-300 dark:ring-emerald-400/30 for emphasis)
+
+Likely (≥7): bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200
+
+Maybe (≥5): bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200
+
+Low: use neutral badge (bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400)
+
+AI progress indicator bars (visual score representation)
+
+High (≥8): bg-emerald-600 (solid, no dark variant)
+
+Likely (≥7): bg-emerald-500 dark:bg-emerald-400
+
+Maybe (≥5): bg-amber-500 dark:bg-amber-400
+
+Low: bg-zinc-400 dark:bg-zinc-500
+
+AI status text (in status bar)
+
+Active/Loading: text-emerald-700 dark:text-emerald-300 (use semantic success text)
+
+Inactive: text-zinc-500 (use muted text)
+
+6) Patterns (this is what stops “screen-by-screen drift”)
+6.1 Filter toolbar pattern
+
+Left: search → chips → sort select
+Right: view toggles + primary CTA (only one)
+
+6.2 List + detail pattern
+
+List rows use consistent anatomy + truncation
+
+Detail header has: title (wrap), metadata (muted), actions (icon buttons)
+
+6.3 Empty state pattern
+
+Icon in muted circle
+
+Title (lg, semibold)
+
+One sentence guidance
+
+One primary action
+
+6.4 Error/retry pattern
+
+Banner at top of the relevant pane
+
+Include “Retry” (secondary) and “Details” (ghost/link) if needed
+
+7) Accessibility checklist (non-negotiable)
+
+All controls reachable by keyboard
+
+Icon-only buttons require aria-label
+
+Focus rings must be visible in both themes
+
+Don’t use muted text for essential content
+
+Prefer real buttons for actions (not divs)
+
+Reduced motion respected when you add animations
