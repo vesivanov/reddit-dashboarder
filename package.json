@@ -2,7 +2,6 @@
   "name": "reddit-dashboard",
   "version": "1.0.0",
   "description": "A beautiful Reddit dashboard to browse multiple subreddits efficiently",
-  "main": "index.html",
   "scripts": {
     "dev": "vercel dev",
     "local": "node server.js",
