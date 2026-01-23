@@ -10,21 +10,6 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Other good free options: qwen/qwen-2.5-72b-instruct:free, google/gemini-2.0-flash-exp:free
 const MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
 
-// In-memory cache with TTL (24 hours)
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-const cache = new Map(); // Map<cacheKey, {score: number, timestamp: number}>
-
-// Simple hash function for cache keys
-function hashString(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return hash.toString(36);
-}
-
 function withCORS(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -35,12 +20,6 @@ function withCORS(res) {
 function clampScore(n) {
   const x = Number.isFinite(n) ? n : 0;
   return Math.max(0, Math.min(10, Math.round(x)));
-}
-
-function createCacheKey(postId, userGoals, postContent) {
-  const contentHash = hashString(`${postId}:${postContent.title}:${postContent.subreddit}:${postContent.text}`);
-  const key = `${MODEL}:${hashString(userGoals)}:${postId}:${contentHash}`;
-  return `ai_score:${hashString(key)}`;
 }
 
 function buildBatches(posts, {
@@ -224,40 +203,9 @@ async function handler(req, res) {
       return withCORS(res).status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
     }
 
-    // Clean up expired cache entries
-    const now = Date.now();
-    for (const [key, value] of cache.entries()) {
-      if (now - value.timestamp > CACHE_TTL) {
-        cache.delete(key);
-      }
-    }
-
-    // Check cache for each post
+    // Build adaptive batches for all posts (client-side localStorage handles caching)
     const allScores = {};
-    const postsToScore = [];
-    const cachedCount = { count: 0 };
-
-    for (const post of posts) {
-      const postContent = {
-        title: (post.title || '').slice(0, 180),
-        subreddit: (post.subreddit || '').slice(0, 80),
-        text: (post.selftext || '').slice(0, 300),
-      };
-      const cacheKey = createCacheKey(String(post.id), userGoals, postContent);
-      const cached = cache.get(cacheKey);
-
-      if (cached && (now - cached.timestamp) < CACHE_TTL) {
-        allScores[String(post.id)] = cached.score;
-        cachedCount.count++;
-      } else {
-        postsToScore.push(post);
-      }
-    }
-
-    console.log(`AI Ranking: ${cachedCount.count} cached, ${postsToScore.length} to score`);
-
-    // Build adaptive batches for posts that need scoring
-    const batches = buildBatches(postsToScore);
+    const batches = buildBatches(posts);
     console.log(`AI Ranking: Processing ${batches.length} batches (adaptive sizing)`);
 
     const failedPostIds = [];
@@ -272,24 +220,10 @@ async function handler(req, res) {
           postsBatch: batch,
         });
 
-        // Store scores and update cache
+        // Store scores
         for (const [postId, score] of batchScores.entries()) {
           allScores[postId] = score;
-
-          // Cache non-null scores
-          if (score !== null) {
-            const post = batch.find(p => String(p.id) === postId);
-            if (post) {
-              const postContent = {
-                title: (post.title || '').slice(0, 180),
-                subreddit: (post.subreddit || '').slice(0, 80),
-                text: (post.selftext || '').slice(0, 300),
-              };
-              const cacheKey = createCacheKey(postId, userGoals, postContent);
-              cache.set(cacheKey, { score, timestamp: now });
-            }
-          } else {
-            // Track posts that couldn't be scored
+          if (score === null) {
             failedPostIds.push(postId);
           }
         }
@@ -324,7 +258,6 @@ async function handler(req, res) {
     return withCORS(res).status(200).json({
       scores: allScores,
       model: MODEL,
-      cached: cachedCount.count,
       processed: processedCount,
       ...(failedPostIds.length > 0 && { failedPostIds }),
     });

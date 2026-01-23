@@ -355,7 +355,19 @@ async function handler(req, res) {
   const { subs, mode = 'new', time = 'day', days = '1', limit = '100', max_pages = '5' } = req.query;
   console.log('Parsed parameters:', { subs, mode, time, days, limit, max_pages });
 
+  // Validate subreddit names: 2-21 alphanumeric chars or underscores
+  const SUBREDDIT_REGEX = /^[A-Za-z0-9_]{2,21}$/;
   const subsArray = (subs || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  for (const sub of subsArray) {
+    if (!SUBREDDIT_REGEX.test(sub)) {
+      console.log('Error: Invalid subreddit name:', sub);
+      return withCORS(res).status(400).json({
+        error: 'Invalid subreddit name',
+        message: `"${sub}" is not a valid subreddit name. Names must be 2-21 alphanumeric characters or underscores.`
+      });
+    }
+  }
   const modeValue = mode.toLowerCase();
   const daysValue = clampInt(days, 1, 7, 1);
   const limitValue = clampInt(limit, 25, 100, 100);
