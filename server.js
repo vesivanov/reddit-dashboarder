@@ -12,6 +12,7 @@ const authLogoutHandler = require('./api/auth/logout.js');
 const authStatusHandler = require('./api/auth/status.js');
 const authDebugRedirectHandler = require('./api/auth/debug-redirect.js');
 const authTestOAuthUrlHandler = require('./api/auth/test-oauth-url.js');
+const authVerifyRedditSettingsHandler = require('./api/auth/verify-reddit-settings.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ app.get('/api/auth/logout', authLogoutHandler);
 app.get('/api/auth/status', authStatusHandler);
 app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
 app.get('/api/auth/test-oauth-url', authTestOAuthUrlHandler);
+app.get('/api/auth/verify-reddit-settings', authVerifyRedditSettingsHandler);
 
 // Serve index.html for all other routes (SPA routing)
 app.get('*', (req, res) => {
