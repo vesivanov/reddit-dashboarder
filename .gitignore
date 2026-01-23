@@ -118,3 +118,6 @@ wrangler.toml.bak
 dist/
 build/
 .vercel
+
+# Development-only endpoints (not deployed to production)
+dev-only/
