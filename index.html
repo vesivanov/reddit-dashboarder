@@ -15,6 +15,7 @@
   </script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
   <style>
     body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial; }
     .post-body { font-size: 0.875rem; line-height: 1.6; }
@@ -101,9 +102,9 @@
       const [maxPages, setMaxPages] = useState(() => {
         try {
           const saved = localStorage.getItem('dashboard_max_pages');
-          if (saved) return Math.max(1, Math.min(500, Number(saved) || 5));
+          if (saved) return Math.max(1, Math.min(10, Number(saved) || 5));
         } catch (error) {}
-        return 100;
+        return 5;
       });
       const [loading, setLoading] = useState(false);
       const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
@@ -147,10 +148,19 @@
           return window.matchMedia('(prefers-color-scheme: dark)').matches;
         } catch { return false; }
       });
-      const [hiddenPosts, setHiddenPosts] = useState(new Set());
+      const [hiddenPosts, setHiddenPosts] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_hidden_posts');
+          if (saved) {
+            const arr = JSON.parse(saved);
+            return new Set(Array.isArray(arr) ? arr : []);
+          }
+        } catch {}
+        return new Set();
+      });
       const [activePostMenu, setActivePostMenu] = useState(null);
       const [hoverPost, setHoverPost] = useState(null);
-      const [hoverTimeout, setHoverTimeout] = useState(null);
+      const hoverTimeoutRef = useRef(null);
       const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
         try { return localStorage.getItem('dashboard_notifications') === '1'; } catch { return false; }
       });
@@ -210,6 +220,18 @@
           document.documentElement.classList.remove('dark');
         }
       }, [darkMode]);
+
+      // Hidden posts persistence (limit to 1000 entries)
+      useEffect(() => {
+        try {
+          const MAX_HIDDEN_POSTS = 1000;
+          let arr = Array.from(hiddenPosts);
+          if (arr.length > MAX_HIDDEN_POSTS) {
+            arr = arr.slice(-MAX_HIDDEN_POSTS);
+          }
+          localStorage.setItem('dashboard_hidden_posts', JSON.stringify(arr));
+        } catch {}
+      }, [hiddenPosts]);
 
       // Notification settings persistence
       useEffect(() => {
@@ -470,6 +492,27 @@
           console.log('AI Ranking check:', { aiEnabled, hasGoals: Boolean(aiGoals && aiGoals.trim()), goalsLength: aiGoals?.length });
           if (aiEnabled && aiGoals && aiGoals.trim()) {
             try {
+              // Simple hash function for goals comparison
+              const hashGoals = (str) => {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                  hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                  hash = hash & hash;
+                }
+                return hash.toString(36);
+              };
+
+              // Check if goals changed and invalidate cache if so
+              const currentGoalsHash = hashGoals(aiGoals.trim());
+              try {
+                const savedGoalsHash = localStorage.getItem('dashboard_ai_goals_hash');
+                if (savedGoalsHash && savedGoalsHash !== currentGoalsHash) {
+                  console.log('AI Ranking: Goals changed, clearing cached scores');
+                  localStorage.removeItem('dashboard_ai_scores_cache');
+                }
+                localStorage.setItem('dashboard_ai_goals_hash', currentGoalsHash);
+              } catch {}
+
               // Clear any cached 0 scores (they were from errors) - one-time cleanup
               try {
                 const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
@@ -615,11 +658,29 @@
                     }
                   }
                   
-                  // Save updated cache
+                  // Save updated cache with LRU eviction (max 5000 entries)
                   try {
-                    localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
+                    const MAX_CACHE_ENTRIES = 5000;
+                    const entries = Object.entries(cache);
+                    if (entries.length > MAX_CACHE_ENTRIES) {
+                      // Sort by timestamp (oldest first) and keep only newest entries
+                      entries.sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+                      const toKeep = entries.slice(-MAX_CACHE_ENTRIES);
+                      const trimmedCache = Object.fromEntries(toKeep);
+                      localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(trimmedCache));
+                      console.log(`AI Ranking: Trimmed cache from ${entries.length} to ${MAX_CACHE_ENTRIES} entries`);
+                    } else {
+                      localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
+                    }
                   } catch (cacheError) {
                     console.warn('Error saving AI scores cache:', cacheError);
+                    // If quota exceeded, clear cache and retry
+                    if (cacheError.name === 'QuotaExceededError') {
+                      try {
+                        localStorage.removeItem('dashboard_ai_scores_cache');
+                        console.log('AI Ranking: Cleared cache due to quota exceeded');
+                      } catch {}
+                    }
                   }
                   
                   const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
@@ -724,9 +785,9 @@
           if (cancelled || loadingRef.current || !subs.length) return;
           refreshRef.current({ triggeredByAuto: true });
         };
-        const kickoff = setTimeout(triggerRefresh, 200);
+        // Only use interval - no immediate kickoff to avoid race conditions
         const intervalId = setInterval(triggerRefresh, intervalMs);
-        return () => { cancelled = true; clearTimeout(kickoff); clearInterval(intervalId); };
+        return () => { cancelled = true; clearInterval(intervalId); };
       }, [autoRefreshEnabled, autoRefreshInterval, subs.length]);
 
       const handleAddSub = useCallback((name) => {
@@ -803,15 +864,26 @@
       }, [selectedPost]);
 
       const handlePostHoverStart = useCallback((post) => {
-        const timeout = setTimeout(() => setHoverPost(post), 500);
-        setHoverTimeout(timeout);
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = setTimeout(() => setHoverPost(post), 500);
       }, []);
 
       const handlePostHoverEnd = useCallback(() => {
-        if (hoverTimeout) clearTimeout(hoverTimeout);
-        setHoverTimeout(null);
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+          hoverTimeoutRef.current = null;
+        }
         setHoverPost(null);
-      }, [hoverTimeout]);
+      }, []);
+
+      // Cleanup hover timeout on unmount
+      useEffect(() => {
+        return () => {
+          if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+          }
+        };
+      }, []);
 
       const filtersActive = minUpvoteFilter || minCommentFilter || keyword;
 
@@ -1466,7 +1538,7 @@
                     onChange: (e) => setMaxPages(Number(e.target.value)),
                     className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
                     },
-                      [5, 10, 20, 50, 100, 200].map(n => h('option', { key: n, value: n }, n))
+                      [1, 2, 3, 5, 7, 10].map(n => h('option', { key: n, value: n }, n))
                   )
                 )
               ),
@@ -1653,9 +1725,10 @@
         const decoded = post.selftext_html
           .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
           .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        const sanitized = DOMPurify.sanitize(decoded);
         return h('div', {
           className: 'post-body prose prose-sm prose-zinc dark:prose-invert max-w-none',
-          dangerouslySetInnerHTML: { __html: decoded },
+          dangerouslySetInnerHTML: { __html: sanitized },
         });
       }
       if (post.selftext) {
