@@ -1,25 +1,51 @@
 # Reddit Dashboard
 
-A powerful, feature-rich Reddit dashboard for efficiently browsing multiple subreddits with AI-powered post ranking, OAuth authentication, and a beautiful three-pane interface.
+A powerful, feature-rich Reddit dashboard for efficiently browsing multiple subreddits with AI-powered post ranking, OAuth authentication, and a three-pane interface.
+
+🧭 Vision / North Star
+
+North Star: Decide what to do next on Reddit in minutes.
+
+Reddit has real signal, but it doesn’t scale across multiple subreddits—the cost is attention. Reddit Dashboard is a triage cockpit: it turns a noisy stream into a prioritized queue you can skim quickly, open what matters, and decide the next action (reply, save, research, share, ignore) — then move on.
+
+Definition: “What matters” = posts that match my intent and clear my action threshold (fresh enough + enough context + enough engagement).
+
+Success looks like:
+
+Review watched subreddits in under 10 minutes
+
+Surface a short list of posts worth acting on
+
+Trust the ordering enough to use it daily
 
 ## ✨ Features
 
 - **🔐 Reddit OAuth Authentication**: Secure PKCE-based authentication for higher API rate limits
-- **🤖 AI-Powered Ranking**: Uses OpenRouter API to intelligently rank posts based on your goals
-- **📊 Three-Pane Dashboard**: Clean, modern interface with subreddit list, post list, and post detail views
-- **🌙 Dark Mode**: Built-in dark mode support with system preference detection
-- **⚡ Auto-Refresh**: Configurable automatic refresh intervals (5-60 minutes)
-- **🔍 Advanced Filtering**: Filter by keywords, upvotes, comments, and more
-- **💾 Persistent Settings**: Auto-save subreddits and preferences with backup/restore
-- **📱 Responsive Design**: Works beautifully on desktop and mobile devices
-- **🚀 Multiple Deployment Options**: Deploy to Vercel, Cloudflare Workers, or run locally with Express
+- **🤖 AI-Powered Ranking**: Uses OpenRouter API to rank posts by relevance to your goals (user or server API key)
+- **📊 Three-Pane Dashboard**: Subreddit list, post list, and post detail views (React + Tailwind, `index.html` SPA)
+- **🔒 Secure API Key Storage**: OpenRouter key can be stored in an HttpOnly signed cookie via `/api/settings/openrouter-key`
+- **🌙 Dark Mode**: Dark/light theme with system preference detection
+- **⚡ Auto-Refresh**: Configurable intervals (5–60 minutes)
+- **🔍 Filtering**: Keywords, min upvotes/comments, time range, days
+- **💾 Persistent Settings**: Subreddits and preferences in `localStorage` with backup/restore
+- **📱 Responsive Design**: Works on desktop and mobile
+- **🚀 Deploy Anywhere**: Vercel, Cloudflare Workers, or local Express
+
+## 🎯 Final Vision
+
+Reddit Dashboard aims to be the **one place to skim, filter, and act on Reddit**—for work (leads, trends, SEO) or personal use (learning, discovery).
+
+- **One dashboard for many subs**: Aggregate and rank posts across any set of subreddits without tab-switching or manual checks.
+- **AI that adapts to you**: Goals-based relevance scoring via OpenRouter so the feed reflects what you care about, with multiple models and secure, user-controlled or server-side API keys.
+- **Deploy anywhere**: Same codebase on Vercel, Cloudflare Workers, or Express; same OAuth, Reddit API, and AI stack.
+- **Design that scales**: Consistent, accessible UI (see `design-system.md`) with density modes, semantic tokens, and keyboard-friendly controls—from quick checks to power-user sessions.
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   React UI      │───▶│  Express/Vercel  │───▶│   Reddit API    │
-│   (index.html)  │    │  Serverless API   │    │   (OAuth)        │
+│   React UI      │───▶│  Express/Vercel  │───▶│   Reddit API     │
+│   (index.html)  │    │  Serverless API  │    │   (OAuth)        │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
                               ▼
@@ -35,27 +61,29 @@ A powerful, feature-rich Reddit dashboard for efficiently browsing multiple subr
 reddit-dashboarder/
 ├── api/
 │   ├── auth/
-│   │   ├── start.js          # OAuth initiation endpoint
-│   │   ├── callback.js       # OAuth callback handler
-│   │   ├── logout.js         # Logout endpoint
-│   │   └── status.js         # Auth status check
+│   │   ├── start.js          # OAuth initiation
+│   │   ├── callback.js       # OAuth callback
+│   │   ├── logout.js         # Logout
+│   │   └── status.js         # Auth status
 │   ├── reddit/
-│   │   └── ai-rank.js        # AI-powered post ranking endpoint
-│   ├── reddit.js             # Main Reddit data fetching API
-│   ├── reddit-test.js        # Test endpoint for Reddit API
-│   ├── health.js             # Health check endpoint
-│   └── test.js               # General test endpoint
+│   │   └── ai-rank.js        # AI post ranking (OpenRouter)
+│   ├── settings/
+│   │   └── openrouter-key.js # Secure OpenRouter key storage (HttpOnly cookie)
+│   ├── reddit.js             # Reddit data API
+│   └── health.js             # Health check
 ├── lib/
-│   ├── cookies.js            # Signed cookie utilities
-│   └── pkce.js               # PKCE OAuth flow helpers
+│   ├── cookies.js            # Signed cookie helpers
+│   ├── cors.js               # CORS helpers
+│   └── pkce.js               # PKCE OAuth helpers
 ├── worker/
-│   ├── worker.js             # Cloudflare Worker implementation (optional)
-│   └── wrangler.toml         # Cloudflare Worker config
-├── index.html                # Main React dashboard (SPA)
-├── server.js                 # Express server for local development
-├── package.json              # Node.js dependencies
-├── vercel.json               # Vercel deployment configuration
-└── README.md                 # This file
+│   ├── worker.js             # Cloudflare Worker (optional)
+│   └── wrangler.toml         # Worker config
+├── index.html                # React SPA (Tailwind, DOMPurify)
+├── server.js                 # Express server (local)
+├── package.json
+├── vercel.json               # Vercel serverless config
+├── design-system.md          # UI tokens, components, patterns
+└── README.md
 ```
 
 ## 🚀 Quick Start
@@ -180,7 +208,7 @@ The `server.js` file provides a full Express server that can be deployed to any 
 
 1. Enable AI ranking in the Settings panel
 2. Enter your goals/objectives (e.g., "I run an SEO agency and am looking for leads")
-3. **Option A**: Enter your own OpenRouter API key in the settings (get one free at [openrouter.ai/keys](https://openrouter.ai/keys))
+3. **Option A**: Enter your own OpenRouter API key in the settings (get one free at [openrouter.ai/keys](https://openrouter.ai/keys)); it can be stored in an HttpOnly cookie for security
 4. **Option B**: Use server-side API key by configuring `OPENROUTER_API_KEY` environment variable
 5. Choose your preferred AI model (several free models available)
 6. Posts will be scored 0-10 based on relevance to your goals
@@ -258,9 +286,15 @@ POST /api/reddit/ai-rank
 ### Authentication Endpoints
 
 - `GET /api/auth/start` - Initiate OAuth flow
-- `GET /api/auth/callback` - OAuth callback handler
-- `GET /api/auth/logout` - Logout user
-- `GET /api/auth/status` - Check authentication status
+- `GET /api/auth/callback` - OAuth callback
+- `GET /api/auth/logout` - Logout
+- `GET /api/auth/status` - Auth status
+
+### Settings: OpenRouter Key (optional)
+
+- `GET /api/settings/openrouter-key` - Check if a key is stored (`hasKey`, `keyPreview`; never returns the key)
+- `POST /api/settings/openrouter-key` - Store key in HttpOnly signed cookie (body: `{ "apiKey": "sk-or-..." }`)
+- `DELETE /api/settings/openrouter-key` - Remove stored key
 
 ### Health Check
 
@@ -295,18 +329,20 @@ npm run dev
 | `REDDIT_CLIENT_ID` | Yes | Reddit OAuth app client ID |
 | `REDDIT_CLIENT_SECRET` | Yes | Reddit OAuth app client secret |
 | `REDDIT_REDIRECT_URI` | Yes | OAuth redirect URI (must match Reddit app settings) |
-| `SESSION_COOKIE_SECRET` | Yes | Secret key for signing cookies (32+ random bytes) |
-| `OPENROUTER_API_KEY` | No | OpenRouter API key for AI ranking (users can also provide their own in UI settings) |
-| `OPENROUTER_MODEL` | No | Default model (default: `meta-llama/llama-3.3-70b-instruct:free`) |
-| `REDDIT_USER_AGENT` | No | Custom User-Agent string |
-| `APP_BASE_URL` | No | Base URL for the application |
-| `NODE_ENV` | No | Environment (`development` or `production`) |
+| `SESSION_COOKIE_SECRET` | Yes | Secret for signing cookies (32+ random bytes hex) |
+| `OPENROUTER_API_KEY` | No | OpenRouter key for AI ranking (users can also store their own via Settings/HttpOnly cookie) |
+| `OPENROUTER_MODEL` | No | Default model (e.g. `meta-llama/llama-3.3-70b-instruct:free`) |
+| `OPENROUTER_REFERER` | No | HTTP-Referer sent to OpenRouter (default varies by deployment) |
+| `REDDIT_USER_AGENT` | No | User-Agent for Reddit API |
+| `APP_BASE_URL` | No | Base URL (used when `REDDIT_REDIRECT_URI` is not set; auth derives redirect from host otherwise) |
+| `APP_DOMAIN` | No | Used by CORS for allowed origins |
+| `NODE_ENV` | No | `development` or `production` |
 
 ## 🎨 Customization
 
 ### UI Themes
 
-The dashboard uses Tailwind CSS with dark mode support. Customize colors in `index.html` by modifying Tailwind classes.
+The dashboard uses Tailwind CSS with dark mode. See `design-system.md` for semantic tokens, component recipes, and patterns; override in `index.html` as needed.
 
 ### AI Models
 
@@ -329,10 +365,11 @@ The app includes built-in rate limiting and retry logic. Adjust concurrency and 
 
 ## 🔒 Security
 
-- **Signed Cookies**: Session cookies are cryptographically signed
-- **PKCE OAuth Flow**: Uses secure PKCE for OAuth authentication
-- **Environment Variables**: Sensitive data stored in environment variables
-- **HTTPS Required**: Production deployments should use HTTPS
+- **Signed Cookies**: Session and OpenRouter-key cookies are cryptographically signed
+- **HttpOnly OpenRouter Key**: User-supplied OpenRouter keys can be stored in an HttpOnly cookie (via `/api/settings/openrouter-key`) so they are not exposed to XSS
+- **PKCE OAuth Flow**: Secure PKCE for Reddit OAuth
+- **Environment Variables**: Secrets in env; never committed
+- **HTTPS**: Use HTTPS in production
 
 ## 🐛 Troubleshooting
 
@@ -380,7 +417,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## 🙏 Acknowledgments
 
-- Built with [React](https://react.dev/) and [Tailwind CSS](https://tailwindcss.com/)
-- Deployed on [Vercel](https://vercel.com/) and [Cloudflare Workers](https://workers.cloudflare.com/)
-- Powered by [Reddit API](https://www.reddit.com/dev/api/) and [OpenRouter](https://openrouter.ai/)
-- OAuth implementation uses [PKCE](https://oauth.net/2/pkce/) flow
+- [React](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/), [DOMPurify](https://github.com/cure53/DOMPurify)
+- [Vercel](https://vercel.com/), [Cloudflare Workers](https://workers.cloudflare.com/)
+- [Reddit API](https://www.reddit.com/dev/api/), [OpenRouter](https://openrouter.ai/)
+- [PKCE](https://oauth.net/2/pkce/) for OAuth
