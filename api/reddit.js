@@ -330,35 +330,36 @@ function clampInt(value, min, max, fallback) {
   return fallback;
 }
 
-function withCORS(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  return res;
-}
+const { withCORS } = require('../lib/cors');
 
 async function handler(req, res) {
-  // Add comprehensive logging
-  console.log('=== API Request Started ===');
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
-  console.log('Query:', req.query);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Timestamp:', new Date().toISOString());
-  
+  const isDev = process.env.NODE_ENV !== 'production';
+
+  // Only log in development, and sanitize sensitive data
+  if (isDev) {
+    console.log('=== API Request Started ===');
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+    console.log('Query:', req.query);
+    // Sanitize headers - remove sensitive data
+    const { cookie, authorization, ...safeHeaders } = req.headers;
+    console.log('Headers:', JSON.stringify(safeHeaders, null, 2));
+    console.log('Timestamp:', new Date().toISOString());
+  }
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight request');
-    return withCORS(res).status(204).end();
+    if (isDev) console.log('Handling CORS preflight request');
+    return withCORS(req, res).status(204).end();
   }
 
   if (req.method !== 'GET') {
-    console.log('Method not allowed:', req.method);
-    return withCORS(res).status(405).json({ error: 'Method not allowed' });
+    if (isDev) console.log('Method not allowed:', req.method);
+    return withCORS(req, res).status(405).json({ error: 'Method not allowed' });
   }
 
   const { subs, mode = 'new', time = 'day', days = '1', limit = '100', max_pages = '5' } = req.query;
-  console.log('Parsed parameters:', { subs, mode, time, days, limit, max_pages });
+  if (isDev) console.log('Parsed parameters:', { subs, mode, time, days, limit, max_pages });
 
   // Validate subreddit names: 2-21 alphanumeric chars or underscores
   const SUBREDDIT_REGEX = /^[A-Za-z0-9_]{2,21}$/;
@@ -366,8 +367,8 @@ async function handler(req, res) {
 
   for (const sub of subsArray) {
     if (!SUBREDDIT_REGEX.test(sub)) {
-      console.log('Error: Invalid subreddit name:', sub);
-      return withCORS(res).status(400).json({
+      if (isDev) console.log('Error: Invalid subreddit name:', sub);
+      return withCORS(req, res).status(400).json({
         error: 'Invalid subreddit name',
         message: `"${sub}" is not a valid subreddit name. Names must be 2-21 alphanumeric characters or underscores.`
       });
@@ -378,17 +379,19 @@ async function handler(req, res) {
   const limitValue = clampInt(limit, 25, 100, 100);
   const maxPagesValue = clampInt(max_pages, 1, 10, 5);
 
-  console.log('Processed parameters:', { 
-    subsArray, 
-    modeValue, 
-    daysValue, 
-    limitValue, 
-    maxPagesValue 
-  });
+  if (isDev) {
+    console.log('Processed parameters:', {
+      subsArray,
+      modeValue,
+      daysValue,
+      limitValue,
+      maxPagesValue
+    });
+  }
 
   if (!subsArray.length) {
-    console.log('Error: No subreddits provided');
-    return withCORS(res).status(400).json({ error: 'Missing subs param' });
+    if (isDev) console.log('Error: No subreddits provided');
+    return withCORS(req, res).status(400).json({ error: 'Missing subs param' });
   }
 
   const tokenManager = createTokenManager(req, res);
@@ -396,22 +399,22 @@ async function handler(req, res) {
   try {
     const token = await tokenManager.ensureToken();
     if (!token) {
-      console.log('No Reddit access token found; user must authenticate');
-      return withCORS(res).status(401).json({ error: 'Not authenticated' });
+      if (isDev) console.log('No Reddit access token found; user must authenticate');
+      return withCORS(req, res).status(401).json({ error: 'Not authenticated' });
     }
     fetchJSON = createFetchJSON(tokenManager);
   } catch (error) {
-    console.error('Error establishing Reddit token manager:', error);
-    return withCORS(res).status(500).json({ error: 'OAuth configuration error', message: error.message });
+    if (isDev) console.error('Error establishing Reddit token manager:', error.message);
+    return withCORS(req, res).status(500).json({ error: 'OAuth configuration error', message: error.message });
   }
 
   try {
     const cutoff = Math.floor(Date.now() / 1000) - daysValue * 86400;
-    console.log('Starting data fetch with cutoff timestamp:', cutoff, 'for', subsArray.length, 'subreddits');
-    
+    if (isDev) console.log('Starting data fetch with cutoff timestamp:', cutoff, 'for', subsArray.length, 'subreddits');
+
     // Create tasks for each subreddit with concurrency control
     const tasks = subsArray.map(sub => async () => {
-      console.log(`Starting fetch for subreddit: r/${sub}`);
+      if (isDev) console.log(`Starting fetch for subreddit: r/${sub}`);
       try {
         // Try to fetch subreddit metadata, but fallback to basic info if it fails
         let meta = {
@@ -421,10 +424,10 @@ async function handler(req, res) {
           icon_img: null,
           description: '',
         };
-        
+
         // Try to get subreddit info
         try {
-          console.log(`Attempting to fetch metadata for r/${sub}`);
+          if (isDev) console.log(`Attempting to fetch metadata for r/${sub}`);
           const subInfoUrl = `https://oauth.reddit.com/r/${encodeURIComponent(sub)}/about.json`;
           const subInfo = await fetchJSON(subInfoUrl);
           if (subInfo?.data) {
@@ -435,15 +438,15 @@ async function handler(req, res) {
               icon_img: subInfo.data.icon_img,
               description: subInfo.data.public_description || '',
             };
-            console.log(`Got metadata for r/${sub}: ${meta.subscribers} subscribers`);
+            if (isDev) console.log(`Got metadata for r/${sub}: ${meta.subscribers} subscribers`);
           }
         } catch (metaError) {
-          console.log(`Could not fetch metadata for r/${sub}: ${metaError.message}`);
+          if (isDev) console.log(`Could not fetch metadata for r/${sub}: ${metaError.message}`);
           // Keep the default meta object with null values
         }
 
         if (modeValue === 'top') {
-          console.log(`Fetching top posts for r/${sub} with time=${time}, limit=${limitValue}`);
+          if (isDev) console.log(`Fetching top posts for r/${sub} with time=${time}, limit=${limitValue}`);
           // Try multiple endpoints - some might be less blocked
           let posts = [];
           const endpoints = [
@@ -451,18 +454,18 @@ async function handler(req, res) {
             `https://www.reddit.com/r/${encodeURIComponent(sub)}.json?sort=top&t=${encodeURIComponent(time)}&limit=${limitValue}`,
             `https://old.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limitValue}`
           ];
-          
+
           for (const endpoint of endpoints) {
             try {
-              console.log(`Trying endpoint: ${endpoint}`);
+              if (isDev) console.log(`Trying endpoint: ${endpoint}`);
               const top = await fetchJSON(endpoint);
               posts = normalize(top);
               if (posts.length > 0) {
-                console.log(`Got ${posts.length} top posts for r/${sub} from ${endpoint}`);
+                if (isDev) console.log(`Got ${posts.length} top posts for r/${sub} from ${endpoint}`);
                 break;
               }
             } catch (e) {
-              console.log(`Endpoint failed: ${endpoint} - ${e.message}`);
+              if (isDev) console.log(`Endpoint failed: ${endpoint} - ${e.message}`);
               continue;
             }
           }
@@ -470,43 +473,43 @@ async function handler(req, res) {
         }
 
         // mode === 'new' with pagination - try multiple endpoints
-        console.log(`Fetching new posts for r/${sub} with pagination (max ${maxPagesValue} pages)`);
+        if (isDev) console.log(`Fetching new posts for r/${sub} with pagination (max ${maxPagesValue} pages)`);
         let after = '';
         let page = 0;
         const collected = [];
-        
+
         // Try different endpoints for new posts
         const baseEndpoints = [
           `https://www.reddit.com/r/${encodeURIComponent(sub)}/new.json`,
           `https://www.reddit.com/r/${encodeURIComponent(sub)}.json`,
           `https://old.reddit.com/r/${encodeURIComponent(sub)}/new.json`
         ];
-        
+
         let workingEndpoint = null;
         for (const baseEp of baseEndpoints) {
           try {
             const testEp = `${baseEp}?limit=1&raw_json=1`;
-            console.log(`Testing endpoint: ${testEp}`);
+            if (isDev) console.log(`Testing endpoint: ${testEp}`);
             await fetchJSON(testEp);
             workingEndpoint = baseEp;
-            console.log(`Found working endpoint: ${baseEp}`);
+            if (isDev) console.log(`Found working endpoint: ${baseEp}`);
             break;
           } catch (e) {
-            console.log(`Endpoint failed: ${baseEp} - ${e.message}`);
+            if (isDev) console.log(`Endpoint failed: ${baseEp} - ${e.message}`);
             continue;
           }
         }
-        
+
         if (!workingEndpoint) {
           throw new Error('All Reddit endpoints are blocked');
         }
-        
+
         while (page < maxPagesValue) {
           const ep = `${workingEndpoint}?limit=${limitValue}${after ? `&after=${after}` : ''}&raw_json=1`;
-          console.log(`Page ${page + 1} for r/${sub}: ${ep}`);
+          if (isDev) console.log(`Page ${page + 1} for r/${sub}: ${ep}`);
           const json = await fetchJSON(ep);
           const posts = normalize(json);
-          console.log(`Page ${page + 1} returned ${posts.length} posts for r/${sub}`);
+          if (isDev) console.log(`Page ${page + 1} returned ${posts.length} posts for r/${sub}`);
           if (!posts.length) break;
 
           for (const p of posts) if ((p.created_utc || 0) >= cutoff) collected.push(p);
@@ -520,29 +523,31 @@ async function handler(req, res) {
           // modest pause between pages to avoid rate limiting while keeping things fast
           await sleep(250 + Math.random() * 250);
         }
-        console.log(`Collected ${collected.length} posts from r/${sub} across ${page} pages`);
+        if (isDev) console.log(`Collected ${collected.length} posts from r/${sub} across ${page} pages`);
         const capped = page >= maxPagesValue;
         let partial = false;
         if (capped && collected.length) {
           const oldest = collected[collected.length - 1];
           if ((oldest.created_utc || 0) >= cutoff) partial = true;
         }
-        console.log(`Finished processing r/${sub}: ${collected.length} posts, partial=${partial}`);
+        if (isDev) console.log(`Finished processing r/${sub}: ${collected.length} posts, partial=${partial}`);
         return { subreddit: sub, meta, posts: collected, partial };
       } catch (e) {
-        console.error(`Error processing r/${sub}:`, e.message);
+        if (isDev) console.error(`Error processing r/${sub}:`, e.message);
         return { subreddit: sub, error: e.message, posts: [], partial: false };
       }
     });
 
-    console.log('Running tasks with concurrency limit of 2 and delays...');
+    if (isDev) console.log('Running tasks with concurrency limit of 3 and delays...');
     const perSubResults = await runWithConcurrency(tasks, 3);
     const results = perSubResults;
-    console.log('All subreddit tasks completed. Results:', results.map(r => ({ 
-      subreddit: r.subreddit, 
-      postCount: r.posts?.length || 0, 
-      hasError: !!r.error 
-    })));
+    if (isDev) {
+      console.log('All subreddit tasks completed. Results:', results.map(r => ({
+        subreddit: r.subreddit,
+        postCount: r.posts?.length || 0,
+        hasError: !!r.error
+      })));
+    }
 
     const rateLimited = results.some(r => (r?.error || '').includes('[RATE_LIMIT]'));
     const responseData = {
@@ -561,28 +566,35 @@ async function handler(req, res) {
     if (rateLimited) {
       res.setHeader('X-Rate-Limited', '1');
     }
-    
-    console.log('=== API Request Completed Successfully ===');
-    console.log('Response data summary:', {
-      mode: responseData.mode,
-      resultCount: responseData.results.length,
-      totalPosts: responseData.results.reduce((sum, r) => sum + (r.posts?.length || 0), 0)
-    });
-    
-    return withCORS(res).status(200).json(responseData);
-  } catch (error) {
-    console.error('=== API Request Failed ===');
-    console.error('Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
 
-    if (error.code === 'NOT_AUTHENTICATED' || error.status === 401) {
-      return withCORS(res).status(401).json({ error: 'Not authenticated' });
+    if (isDev) {
+      console.log('=== API Request Completed Successfully ===');
+      console.log('Response data summary:', {
+        mode: responseData.mode,
+        resultCount: responseData.results.length,
+        totalPosts: responseData.results.reduce((sum, r) => sum + (r.posts?.length || 0), 0)
+      });
     }
 
-    return withCORS(res).status(500).json({ 
+    return withCORS(req, res).status(200).json(responseData);
+  } catch (error) {
+    if (isDev) {
+      console.error('=== API Request Failed ===');
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    } else {
+      // In production, only log minimal error info
+      console.error('API Request Failed:', error.message);
+    }
+
+    if (error.code === 'NOT_AUTHENTICATED' || error.status === 401) {
+      return withCORS(req, res).status(401).json({ error: 'Not authenticated' });
+    }
+
+    return withCORS(req, res).status(500).json({
       error: 'Internal server error',
       message: error.message,
       timestamp: new Date().toISOString()
