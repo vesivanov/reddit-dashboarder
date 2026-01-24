@@ -238,6 +238,13 @@
         try { return localStorage.getItem('dashboard_alert_keywords') || ''; } catch { return ''; }
       });
       const [previousPostScores, setPreviousPostScores] = useState(new Map());
+      const [notifyHighRelevance, setNotifyHighRelevance] = useState(() => {
+        try { return localStorage.getItem('dashboard_notify_high_relevance') === '1'; } catch { return false; }
+      });
+      const [highRelevanceThreshold, setHighRelevanceThreshold] = useState(() => {
+        try { return Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 7; } catch { return 7; }
+      });
+      const [notifiedHighRelevancePostIds, setNotifiedHighRelevancePostIds] = useState(() => new Set());
       const [mobileView, setMobileView] = useState('posts');
       const [touchStart, setTouchStart] = useState(null);
       const [aiGoals, setAiGoals] = useState(() => {
@@ -319,6 +326,12 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_alert_keywords', alertKeywords); } catch {}
       }, [alertKeywords]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_notify_high_relevance', notifyHighRelevance ? '1' : '0'); } catch {}
+      }, [notifyHighRelevance]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_high_relevance_threshold', String(highRelevanceThreshold)); } catch {}
+      }, [highRelevanceThreshold]);
 
       // AI settings persistence
       useEffect(() => {
@@ -802,6 +815,7 @@
                 }
                 console.log(`AI Ranking: Processing ${batches.length} batches of up to ${BATCH_SIZE} posts each`);
                 
+                let scoresForHighRelevance = null;
                 try {
                   const allScores = new Map(cachedScores);
                   const allMetadata = new Map(cachedMetadata); // Store metadata for all scored posts
@@ -998,6 +1012,7 @@
                   setPostRelevanceScores(calibratedScores);
                   setPostRelevanceMetadata(allMetadata);
                   setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+                  scoresForHighRelevance = calibratedScores;
                 } catch (aiError) {
                   console.error('Error in AI ranking batch processing:', aiError);
                   // Use cached scores on error (with calibration)
@@ -1005,8 +1020,31 @@
                   setPostRelevanceScores(calibratedCached);
                   setPostRelevanceMetadata(cachedMetadata);
                   setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+                  scoresForHighRelevance = calibratedCached;
                 } finally {
                   setAiRankingLoading(false);
+                }
+                // High-relevance notifications (use freshly computed scores)
+                if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
+                  const threshold = Number(highRelevanceThreshold) || 7;
+                  const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
+                  const toNotify = [];
+                  for (const [postId, score] of scoresForHighRelevance.entries()) {
+                    if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
+                      toNotify.push({ postId, post: idToPost.get(postId) });
+                    }
+                  }
+                  toNotify.forEach(({ post }) => {
+                    new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
+                  });
+                  if (toNotify.length > 0) {
+                    const toAdd = toNotify.map(({ postId }) => postId);
+                    setNotifiedHighRelevancePostIds(prev => {
+                      const n = new Set(prev);
+                      toAdd.forEach(id => n.add(id));
+                      return n.size <= 500 ? n : new Set([...n].slice(-500));
+                    });
+                  }
                 }
               } else {
                 // All posts are cached, use cached scores with calibration
@@ -1017,6 +1055,28 @@
                 setPostRelevanceScores(calibratedCached);
                 setPostRelevanceMetadata(cachedMetadata);
                 setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+                // High-relevance notifications (use freshly computed scores)
+                if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && calibratedCached && calibratedCached.size > 0) {
+                  const threshold = Number(highRelevanceThreshold) || 7;
+                  const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
+                  const toNotify = [];
+                  for (const [postId, score] of calibratedCached.entries()) {
+                    if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
+                      toNotify.push({ postId, post: idToPost.get(postId) });
+                    }
+                  }
+                  toNotify.forEach(({ post }) => {
+                    new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
+                  });
+                  if (toNotify.length > 0) {
+                    const toAdd = toNotify.map(({ postId }) => postId);
+                    setNotifiedHighRelevancePostIds(prev => {
+                      const n = new Set(prev);
+                      toAdd.forEach(id => n.add(id));
+                      return n.size <= 500 ? n : new Set([...n].slice(-500));
+                    });
+                  }
+                }
               }
             } catch (aiError) {
               console.error('Error in AI ranking integration:', aiError);
@@ -1031,34 +1091,37 @@
           }
 
           // Check for notifications on auto-refresh
-          if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted') {
+          if (triggeredByAuto) {
             const allNewPosts = perSub.flatMap(g => g.posts || []);
-            // Check for upvote threshold crossing
-            allNewPosts.forEach(post => {
-              const prevScore = previousPostScores.get(post.id);
-              const currentScore = Number(post.score) || 0;
-              if (prevScore !== undefined && prevScore < upvoteThreshold && currentScore >= upvoteThreshold) {
-                new Notification('Post crossed threshold!', { body: `"${post.title}" now has ${currentScore} upvotes`, icon: '/favicon.ico' });
-              }
-            });
-            // Check for keyword matches in new posts
-            if (alertKeywords.trim()) {
-              const keywords = alertKeywords.toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
-              allNewPosts.forEach(post => {
-                if (!previousPostScores.has(post.id)) {
-                  const title = (post.title || '').toLowerCase();
-                  const selftext = (post.selftext || '').toLowerCase();
-                  const matchedKeyword = keywords.find(kw => title.includes(kw) || selftext.includes(kw));
-                  if (matchedKeyword) {
-                    new Notification(`Keyword "${matchedKeyword}" found!`, { body: post.title, icon: '/favicon.ico' });
-                  }
-                }
-              });
-            }
-            // Update previous scores
             const newScores = new Map();
             allNewPosts.forEach(post => newScores.set(post.id, Number(post.score) || 0));
             setPreviousPostScores(newScores);
+
+            if (Notification.permission === 'granted') {
+              if (notificationsEnabled) {
+                // Check for upvote threshold crossing
+                allNewPosts.forEach(post => {
+                  const prevScore = previousPostScores.get(post.id);
+                  const currentScore = Number(post.score) || 0;
+                  if (prevScore !== undefined && prevScore < upvoteThreshold && currentScore >= upvoteThreshold) {
+                    new Notification('Post crossed threshold!', { body: `"${post.title}" now has ${currentScore} upvotes`, icon: '/favicon.ico' });
+                  }
+                });
+              }
+              if (alertKeywords.trim()) {
+                const keywords = alertKeywords.toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
+                allNewPosts.forEach(post => {
+                  if (!previousPostScores.has(post.id)) {
+                    const title = (post.title || '').toLowerCase();
+                    const selftext = (post.selftext || '').toLowerCase();
+                    const matchedKeyword = keywords.find(kw => title.includes(kw) || selftext.includes(kw));
+                    if (matchedKeyword) {
+                      new Notification(`Keyword "${matchedKeyword}" found!`, { body: post.title, icon: '/favicon.ico' });
+                    }
+                  }
+                });
+              }
+            }
           }
         } catch (fetchError) {
           setNeedsAuth(false);
@@ -1079,7 +1142,7 @@
           }
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1314,7 +1377,11 @@
             autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `• Next ${formatTimeUntil(nextRefreshAt)}`),
             aiRankingLoading && h('span', { className: 'text-emerald-700 dark:text-emerald-300 font-medium' }, '• AI Ranking...'),
             !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-emerald-700 dark:text-emerald-300' }, '• AI Active'),
-            !aiRankingLoading && (!aiEnabled || !aiGoals || !aiGoals.trim()) && postRelevanceScores.size === 0 && h('span', { className: 'text-zinc-500 text-xs' }, '• AI Inactive')
+            !aiRankingLoading && (!aiEnabled || !aiGoals || !aiGoals.trim()) && postRelevanceScores.size === 0 && h('span', { className: 'text-zinc-500 text-xs' }, '• AI Inactive'),
+            (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
+              onClick: () => setSettingsOpen(true),
+              className: 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
+            }, '• Alerts')
           ),
           h('button', {
             onClick: () => refresh(),
@@ -1462,6 +1529,13 @@
                   }, preset.label)
                 )
               ),
+              (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
+                onClick: () => setSettingsOpen(true),
+                className: 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                title: 'Alerts settings'
+              }, h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
+              ), 'Alerts'),
               h('select', {
                 value: `${sortBy}-${sortOrder}`,
                 onChange: (e) => {
@@ -1993,15 +2067,41 @@
                   ),
                   h('label', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Alert keywords'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Notify when new posts contain these (comma-separated)'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Notify when new posts contain these (comma-separated). Works even if Enable alerts is off.'),
                     h('input', {
                       type: 'text',
                       value: alertKeywords,
                       onChange: (e) => setAlertKeywords(e.target.value),
                       placeholder: 'breaking, launch, announcement...',
-                      disabled: !notificationsEnabled,
+                      disabled: Notification.permission !== 'granted',
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
                     })
+                  ),
+                  h('div', { className: 'flex items-center justify-between' },
+                    h('div', null,
+                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on high AI relevance'),
+                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post scores at or above the threshold (AI ranking must be enabled)')
+                    ),
+                    h('button', {
+                      onClick: () => setNotifyHighRelevance(!notifyHighRelevance),
+                      disabled: !aiEnabled || !aiGoals || !aiGoals.trim(),
+                      className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyHighRelevance ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                    },
+                      h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifyHighRelevance ? 'translate-x-5' : ''}` })
+                    )
+                  ),
+                  h('label', { className: 'block' },
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'High-relevance threshold'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum AI score (7 or 8) to trigger a notification'),
+                    h('select', {
+                      value: highRelevanceThreshold,
+                      onChange: (e) => setHighRelevanceThreshold(Number(e.target.value) || 7),
+                      disabled: !notifyHighRelevance || !aiEnabled,
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                    },
+                      h('option', { value: 7 }, '7+'),
+                      h('option', { value: 8 }, '8+')
+                    )
                   )
                 )
               ),
@@ -2118,7 +2218,7 @@
                 h('div', { className: 'flex gap-2' },
                   h('button', {
                     onClick: () => {
-                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, aiGoals, aiEnabled, openRouterApiKey, openRouterModel });
+                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiEnabled, openRouterApiKey, openRouterModel });
                       navigator.clipboard.writeText(backup);
                       alert('Settings copied to clipboard');
                     },
@@ -2137,6 +2237,9 @@
                           if (typeof parsed.notificationsEnabled === 'boolean') setNotificationsEnabled(parsed.notificationsEnabled);
                           if (parsed.upvoteThreshold) setUpvoteThreshold(parsed.upvoteThreshold);
                           if (parsed.alertKeywords !== undefined) setAlertKeywords(parsed.alertKeywords);
+                          if (typeof parsed.notifyHighRelevance === 'boolean') setNotifyHighRelevance(parsed.notifyHighRelevance);
+                          if (parsed.highRelevanceThreshold != null) setHighRelevanceThreshold(Number(parsed.highRelevanceThreshold) || 7);
+                          if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
                           if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
                           if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
                           if (parsed.openRouterApiKey !== undefined) setOpenRouterApiKey(parsed.openRouterApiKey);
