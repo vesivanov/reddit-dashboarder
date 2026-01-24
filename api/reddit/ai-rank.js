@@ -2,6 +2,8 @@
 // Uses OpenRouter to analyze post relevance based on user goals
 // Returns relevance scores (0-10) for each post
 
+const { readSignedCookie } = require('../../lib/cookies');
+
 const SERVER_OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -11,12 +13,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Prompt version for cache invalidation
 const PROMPT_VERSION = 'v2.0';
 
-function withCORS(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  return res;
-}
+const { withCORS } = require('../../lib/cors');
 
 function clampScore(n) {
   const x = Number.isFinite(n) ? n : 0;
@@ -199,18 +196,22 @@ async function callOpenRouter({ userGoals, postsBatch, apiKey, model, timeoutMs 
 }
 
 async function handler(req, res) {
+  const isDev = process.env.NODE_ENV !== 'production';
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return withCORS(res).status(204).end();
+    return withCORS(req, res, 'POST, OPTIONS').status(204).end();
   }
 
   if (req.method !== 'POST') {
-    return withCORS(res).status(405).json({ error: 'Method not allowed' });
+    return withCORS(req, res, 'POST, OPTIONS').status(405).json({ error: 'Method not allowed' });
   }
 
-  console.log('=== AI Ranking API Request ===');
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
+  if (isDev) {
+    console.log('=== AI Ranking API Request ===');
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+  }
 
   try {
     // Parse request body (works with both Express and Vercel)
@@ -234,56 +235,60 @@ async function handler(req, res) {
           req.on('error', reject);
         });
       } catch (parseError) {
-        return withCORS(res).status(400).json({ error: 'Invalid JSON body' });
+        return withCORS(req, res, 'POST, OPTIONS').status(400).json({ error: 'Invalid JSON body' });
       }
     }
 
     const { posts, userGoals, openRouterApiKey, openRouterModel } = body;
 
-    console.log('AI Ranking: Received request for', posts?.length || 0, 'posts');
-    console.log('AI Ranking: User goals length:', userGoals?.length || 0);
-    console.log('AI Ranking: Using custom API key:', openRouterApiKey ? 'Yes' : 'No (server default)');
+    if (isDev) {
+      console.log('AI Ranking: Received request for', posts?.length || 0, 'posts');
+      console.log('AI Ranking: User goals length:', userGoals?.length || 0);
+      // Don't log whether API key is present - security concern
+    }
 
     if (!posts || !Array.isArray(posts)) {
-      console.error('AI Ranking: Invalid posts array');
-      return withCORS(res).status(400).json({ error: 'posts array is required' });
+      if (isDev) console.error('AI Ranking: Invalid posts array');
+      return withCORS(req, res, 'POST, OPTIONS').status(400).json({ error: 'posts array is required' });
     }
 
     if (!userGoals || typeof userGoals !== 'string' || !userGoals.trim()) {
-      console.error('AI Ranking: Invalid user goals');
-      return withCORS(res).status(400).json({ error: 'userGoals string is required' });
+      if (isDev) console.error('AI Ranking: Invalid user goals');
+      return withCORS(req, res, 'POST, OPTIONS').status(400).json({ error: 'userGoals string is required' });
     }
 
     // Model is required - frontend always sends it
     const model = openRouterModel?.trim();
     if (!model) {
-      console.error('AI Ranking: Model is required');
-      return withCORS(res).status(400).json({ 
+      if (isDev) console.error('AI Ranking: Model is required');
+      return withCORS(req, res, 'POST, OPTIONS').status(400).json({
         error: 'Model is required',
         message: 'Please provide openRouterModel in the request body'
       });
     }
 
-    // Use provided API key or fall back to server's env variable
-    const apiKey = openRouterApiKey?.trim() || SERVER_OPENROUTER_API_KEY;
+    // Priority: request body > HttpOnly cookie > server env variable
+    // This allows migration from localStorage to secure cookie storage
+    const cookieApiKey = readSignedCookie(req, 'openrouter_key');
+    const apiKey = openRouterApiKey?.trim() || cookieApiKey || SERVER_OPENROUTER_API_KEY;
 
     if (!apiKey) {
-      return withCORS(res).status(400).json({ 
+      return withCORS(req, res, 'POST, OPTIONS').status(400).json({
         error: 'OpenRouter API key required',
         message: 'Please provide your OpenRouter API key in settings or configure OPENROUTER_API_KEY environment variable'
       });
     }
 
     if (posts.length === 0) {
-      console.log('AI Ranking: No posts to rank');
-      return withCORS(res).status(200).json({ scores: {}, model });
+      if (isDev) console.log('AI Ranking: No posts to rank');
+      return withCORS(req, res, 'POST, OPTIONS').status(200).json({ scores: {}, model });
     }
 
     // Build adaptive batches for all posts (client-side localStorage handles caching)
     const allScores = {};
     const allMetadata = {};
     const batches = buildBatches(posts);
-    console.log(`AI Ranking: Processing ${batches.length} batches (adaptive sizing)`);
+    if (isDev) console.log(`AI Ranking: Processing ${batches.length} batches (adaptive sizing)`);
 
     const failedPostIds = [];
 
@@ -291,7 +296,7 @@ async function handler(req, res) {
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
       try {
-        console.log(`AI Ranking: Processing batch ${i + 1}/${batches.length} (${batch.length} posts)`);
+        if (isDev) console.log(`AI Ranking: Processing batch ${i + 1}/${batches.length} (${batch.length} posts)`);
         const result = await callOpenRouter({
           userGoals: userGoals.trim(),
           postsBatch: batch,
@@ -321,7 +326,11 @@ async function handler(req, res) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       } catch (batchError) {
-        console.error(`AI Ranking: Error processing batch ${i + 1}:`, batchError);
+        if (isDev) {
+          console.error(`AI Ranking: Error processing batch ${i + 1}:`, batchError);
+        } else {
+          console.error(`AI Ranking: Batch ${i + 1} failed:`, batchError.message);
+        }
         // Track all posts in failed batch
         batch.forEach(p => {
           const postId = String(p.id);
@@ -341,9 +350,9 @@ async function handler(req, res) {
     }
 
     const processedCount = Object.keys(allScores).length;
-    console.log(`AI Ranking: Complete! ${processedCount} total scores, ${failedPostIds.length} failed`);
+    if (isDev) console.log(`AI Ranking: Complete! ${processedCount} total scores, ${failedPostIds.length} failed`);
 
-    return withCORS(res).status(200).json({
+    return withCORS(req, res, 'POST, OPTIONS').status(200).json({
       scores: allScores,
       metadata: allMetadata,
       model,
@@ -352,8 +361,12 @@ async function handler(req, res) {
       ...(failedPostIds.length > 0 && { failedPostIds }),
     });
   } catch (error) {
-    console.error('AI ranking handler error:', error);
-    return withCORS(res).status(500).json({
+    if (isDev) {
+      console.error('AI ranking handler error:', error);
+    } else {
+      console.error('AI ranking error:', error.message);
+    }
+    return withCORS(req, res, 'POST, OPTIONS').status(500).json({
       error: 'Internal server error',
       message: error.message,
     });

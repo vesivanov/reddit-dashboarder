@@ -252,6 +252,8 @@
       const [openRouterApiKey, setOpenRouterApiKey] = useState(() => {
         try { return localStorage.getItem('dashboard_openrouter_api_key') || ''; } catch { return ''; }
       });
+      const [secureKeyStatus, setSecureKeyStatus] = useState({ hasKey: false, keyPreview: null, checking: true });
+      const [savingSecureKey, setSavingSecureKey] = useState(false);
       const [openRouterModel, setOpenRouterModel] = useState(() => {
         try { return localStorage.getItem('dashboard_openrouter_model') || 'qwen/qwen3-next-80b-a3b-instruct:free'; } catch { return 'qwen/qwen3-next-80b-a3b-instruct:free'; }
       });
@@ -464,6 +466,32 @@
         checkAuth();
         return () => { cancelled = true; };
       }, []);
+
+      // Check secure API key status on mount
+      useEffect(() => {
+        let cancelled = false;
+        async function checkSecureKey() {
+          try {
+            const response = await fetch('/api/settings/openrouter-key', {
+              credentials: 'include',
+              cache: 'no-store'
+            });
+            if (response.ok) {
+              const data = await response.json();
+              if (!cancelled) {
+                setSecureKeyStatus({ hasKey: data.hasKey, keyPreview: data.keyPreview, checking: false });
+              }
+            } else {
+              if (!cancelled) setSecureKeyStatus({ hasKey: false, keyPreview: null, checking: false });
+            }
+          } catch (e) {
+            console.warn('Failed to check secure API key status:', e);
+            if (!cancelled) setSecureKeyStatus({ hasKey: false, keyPreview: null, checking: false });
+          }
+        }
+        checkSecureKey();
+        return () => { cancelled = true; };
+      }, []); // Only run on mount - no dependencies needed
 
       const allPosts = useMemo(() => {
         const rows = [];
@@ -795,6 +823,7 @@
                     try {
                       const response = await fetch('/api/reddit/ai-rank', {
                         method: 'POST',
+                        credentials: 'include', // Include cookies for secure API key
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           posts: batch.map(p => ({
@@ -811,7 +840,8 @@
                             link_flair_text: p.link_flair_text,
                           })),
                           userGoals: aiGoals.trim(),
-                          openRouterApiKey: openRouterApiKey.trim() || undefined,
+                          // Only send key in body if not stored securely (fallback for migration)
+                          openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
                           openRouterModel: openRouterModel.trim(), // Always required - has default in useState
                         }),
                       });
@@ -1049,7 +1079,7 @@
           }
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1168,6 +1198,51 @@
             clearTimeout(hoverTimeoutRef.current);
           }
         };
+      }, []);
+
+      // Save API key securely (HttpOnly cookie)
+      const saveSecureApiKey = useCallback(async () => {
+        if (!openRouterApiKey.trim()) return;
+        setSavingSecureKey(true);
+        try {
+          const response = await fetch('/api/settings/openrouter-key', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: openRouterApiKey.trim() })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setSecureKeyStatus({ hasKey: true, keyPreview: data.keyPreview, checking: false });
+            // Clear localStorage version for security
+            try { localStorage.removeItem('dashboard_openrouter_api_key'); } catch {}
+            setOpenRouterApiKey(''); // Clear from state too
+            alert('API key saved securely! It is now stored in an HttpOnly cookie and cannot be accessed by JavaScript.');
+          } else {
+            const error = await response.json();
+            alert('Failed to save API key: ' + (error.error || 'Unknown error'));
+          }
+        } catch (e) {
+          alert('Failed to save API key: ' + e.message);
+        } finally {
+          setSavingSecureKey(false);
+        }
+      }, [openRouterApiKey]);
+
+      // Delete secure API key
+      const deleteSecureApiKey = useCallback(async () => {
+        if (!confirm('Remove the securely stored API key?')) return;
+        try {
+          const response = await fetch('/api/settings/openrouter-key', {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          if (response.ok) {
+            setSecureKeyStatus({ hasKey: false, keyPreview: null, checking: false });
+          }
+        } catch (e) {
+          alert('Failed to remove API key: ' + e.message);
+        }
       }, []);
 
       const filtersActive = minUpvoteFilter || minCommentFilter || minAiRelevance || keyword;
@@ -1958,17 +2033,47 @@
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     })
                   ),
-                  h('label', { className: 'block' },
+                  h('div', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'OpenRouter API Key'),
                     h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Optional: Your own OpenRouter API key (get one at ', h('a', { href: 'https://openrouter.ai/keys', target: '_blank', className: 'text-indigo-600 dark:text-indigo-400 hover:underline' }, 'openrouter.ai/keys'), ')'),
-                    h('input', {
-                      type: 'password',
-                      value: openRouterApiKey,
-                      onChange: (e) => setOpenRouterApiKey(e.target.value),
-                      placeholder: 'sk-or-v1-...',
-                      disabled: !aiEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono'
-                    })
+                    // Show secure key status
+                    secureKeyStatus.hasKey && h('div', { className: 'flex items-center gap-2 mb-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800' },
+                      h('svg', { className: 'w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' })
+                      ),
+                      h('div', { className: 'flex-1 min-w-0' },
+                        h('p', { className: 'text-xs font-medium text-emerald-700 dark:text-emerald-300' }, 'Secure key stored'),
+                        h('p', { className: 'text-xs text-emerald-600 dark:text-emerald-400 font-mono truncate' }, secureKeyStatus.keyPreview)
+                      ),
+                      h('button', {
+                        onClick: deleteSecureApiKey,
+                        className: 'p-1 text-emerald-600 dark:text-emerald-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors',
+                        title: 'Remove secure key'
+                      }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
+                      ))
+                    ),
+                    // Input for new key (only show if no secure key or user wants to update)
+                    !secureKeyStatus.hasKey && h('div', { className: 'flex gap-2' },
+                      h('input', {
+                        type: 'password',
+                        value: openRouterApiKey,
+                        onChange: (e) => setOpenRouterApiKey(e.target.value),
+                        placeholder: 'sk-or-v1-...',
+                        disabled: !aiEnabled,
+                        className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono'
+                      }),
+                      openRouterApiKey.trim() && h('button', {
+                        onClick: saveSecureApiKey,
+                        disabled: savingSecureKey || !aiEnabled,
+                        className: 'px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap',
+                        title: 'Save key securely (HttpOnly cookie - XSS-safe)'
+                      }, savingSecureKey ? 'Saving...' : 'Save securely')
+                    ),
+                    // Security note
+                    !secureKeyStatus.hasKey && openRouterApiKey.trim() && h('p', { className: 'mt-1 text-xs text-amber-600 dark:text-amber-400' },
+                      '⚠️ Click "Save securely" to protect your key from XSS attacks'
+                    )
                   ),
                   h('label', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'AI Model'),

@@ -10,6 +10,7 @@ const authStartHandler = require('./api/auth/start.js');
 const authCallbackHandler = require('./api/auth/callback.js');
 const authLogoutHandler = require('./api/auth/logout.js');
 const authStatusHandler = require('./api/auth/status.js');
+const openrouterKeyHandler = require('./api/settings/openrouter-key.js');
 function optionalHandler(relativePath) {
   try {
     if (!fs.existsSync(path.join(__dirname, relativePath))) return null;
@@ -49,6 +50,12 @@ app.get('/api/auth/start', authStartHandler);
 app.get('/api/auth/callback', authCallbackHandler);
 app.get('/api/auth/logout', authLogoutHandler);
 app.get('/api/auth/status', authStatusHandler);
+
+// Settings routes (secure API key storage)
+app.get('/api/settings/openrouter-key', openrouterKeyHandler);
+app.post('/api/settings/openrouter-key', openrouterKeyHandler);
+app.delete('/api/settings/openrouter-key', openrouterKeyHandler);
+app.options('/api/settings/openrouter-key', openrouterKeyHandler);
 if (authDebugRedirectHandler) {
   app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
 }
