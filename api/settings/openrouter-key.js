@@ -60,6 +60,14 @@ module.exports = async function handler(req, res) {
       return withCORS(req, res, 'GET, POST, DELETE, OPTIONS').status(400).json({ error: 'Invalid API key format' });
     }
 
+    if (trimmedKey.length > 200) {
+      return withCORS(req, res, 'GET, POST, DELETE, OPTIONS').status(400).json({ error: 'API key too long' });
+    }
+
+    if (!/^sk-[a-z0-9-]+$/i.test(trimmedKey)) {
+      return withCORS(req, res, 'GET, POST, DELETE, OPTIONS').status(400).json({ error: 'Invalid API key format' });
+    }
+
     // Store in HttpOnly signed cookie (expires in 1 year)
     const cookie = makeSignedCookie('openrouter_key', trimmedKey, { maxAge: 60 * 60 * 24 * 365 });
     res.setHeader('Set-Cookie', cookie);

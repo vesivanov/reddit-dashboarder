@@ -46,6 +46,19 @@ describe('Express contract tests', () => {
   beforeEach(() => {
     app = createApp();
     global.fetch = jest.fn();
+    // Mock app.listen when port binding isn't available
+    if (!canBind) {
+      app.listen = function(...args) {
+        return {
+          address: () => ({ port: 0, family: 'IPv4', address: '127.0.0.1' }),
+          close: (callback) => { if (callback) callback(); },
+          listen: () => {},
+          on: () => {},
+          once: () => {},
+          removeListener: () => {},
+        };
+      };
+    }
   });
 
   afterEach(() => {

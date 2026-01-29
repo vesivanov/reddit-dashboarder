@@ -65,6 +65,19 @@ describe('OpenRouter Key Settings Endpoint', () => {
     });
   });
 
+  test('POST: marks cookie as HttpOnly and SameSite Lax', async () => {
+    mockReq.method = 'POST';
+    mockReq.body = {
+      apiKey: 'sk-or-validkey-for-cookie-security-1234567890'
+    };
+
+    await openrouterKeyHandler(mockReq, mockRes);
+
+    const cookieHeader = mockRes.setHeader.mock.calls[0][1];
+    expect(cookieHeader).toContain('HttpOnly');
+    expect(cookieHeader).toContain('SameSite=Lax');
+  });
+
   test('POST: rejects invalid API key format', async () => {
     mockReq.method = 'POST';
     mockReq.body = {
@@ -88,6 +101,20 @@ describe('OpenRouter Key Settings Endpoint', () => {
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
       error: 'apiKey is required'
+    });
+  });
+
+  test('POST: rejects excessively long API keys', async () => {
+    mockReq.method = 'POST';
+    mockReq.body = {
+      apiKey: `sk-or-${'x'.repeat(400)}`
+    };
+
+    await openrouterKeyHandler(mockReq, mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      error: 'API key too long'
     });
   });
 
