@@ -2,11 +2,7 @@
   "framework": null,
   "buildCommand": "echo 'No build'",
   "outputDirectory": ".",
-  "rewrites": [
-    { "source": "/", "destination": "/api/serve-index.js" }
-  ],
   "functions": {
-    "api/serve-index.js": { "maxDuration": 5 },
     "api/reddit.js": { "maxDuration": 30 },
     "api/reddit/ai-rank.js": { "maxDuration": 60 },
     "api/health.js": { "maxDuration": 10 }
