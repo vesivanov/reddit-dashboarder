@@ -87,4 +87,32 @@ describe('createTokenManager', () => {
       expect(serialized).toContain('Max-Age=0');
     });
   });
+
+  test('token refresh respects timeout option', async () => {
+    jest.useFakeTimers();
+    const refreshCookie = makeSignedCookie('refresh', 'refresh123');
+    attachCookie(req, refreshCookie);
+
+    global.fetch.mockImplementation((url, options = {}) => {
+      return new Promise((resolve, reject) => {
+        const signal = options.signal;
+        if (signal && typeof signal.addEventListener === 'function') {
+          signal.addEventListener('abort', () => {
+            const err = new Error('Aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }
+      });
+    });
+
+    try {
+      const manager = createTokenManager(req, res, { tokenTimeoutMs: 5 });
+      const promise = manager.refreshAccessToken();
+      jest.advanceTimersByTime(2000);
+      await expect(promise).rejects.toThrow('Token refresh timeout');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
