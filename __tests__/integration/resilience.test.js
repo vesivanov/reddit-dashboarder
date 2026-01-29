@@ -21,18 +21,28 @@ const aiRankHandler = require('../../api/reddit/ai-rank');
 
 describe('Resilience: Error Handling', () => {
   let mockReq, mockRes;
+  function applyQuery(params) {
+    mockReq.query = params;
+    const search = Object.entries(params || {})
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    mockReq.url = search ? `/api/reddit?${search}` : '/api/reddit';
+  }
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockReq = {
       method: 'GET',
-      query: { subs: 'programming' },
+      url: '/api/reddit',
+      query: {},
       headers: { 
         cookie: '', 
         host: 'localhost:3000',
         origin: 'http://localhost:3000'
       }
     };
+    applyQuery({ subs: 'programming' });
     mockRes = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
@@ -107,7 +117,7 @@ describe('Resilience: Error Handling', () => {
     const accessCookie = makeSignedCookie('access', 'token');
     const accessCookieValue = accessCookie.split(';')[0].split('=')[1];
     
-    mockReq.query = { subs: 'programming,javascript,invalid_sub' };
+    applyQuery({ subs: 'programming,javascript,invalid_sub' });
     mockReq.headers.cookie = `rdd_access=${accessCookieValue}`;
 
     let callCount = 0;
@@ -203,7 +213,7 @@ describe('Resilience: Error Handling', () => {
   });
 
   test('Handles invalid subreddit names', async () => {
-    mockReq.query = { subs: 'invalid-subreddit-name-with-dashes-and-numbers-123' };
+    applyQuery({ subs: 'invalid-subreddit-name-with-dashes-and-numbers-123' });
 
     await redditHandler(mockReq, mockRes);
 
@@ -214,7 +224,7 @@ describe('Resilience: Error Handling', () => {
   });
 
   test('Handles empty subreddit list', async () => {
-    mockReq.query = { subs: '' };
+    applyQuery({ subs: '' });
 
     await redditHandler(mockReq, mockRes);
 
