@@ -123,9 +123,9 @@
     ];
     const AI_RELEVANCE_PRESETS = [
       { value: '', label: 'Any' },
+      { value: '3', label: '3+' },
+      { value: '4', label: '4+' },
       { value: '5', label: '5+' },
-      { value: '7', label: '7+' },
-      { value: '8', label: '8+' },
     ];
     const AUTO_REFRESH_OPTIONS = [5, 10, 15, 30, 45, 60];
     const MIN_AUTO_REFRESH_MINUTES = 5;
@@ -250,13 +250,16 @@
         try { return localStorage.getItem('dashboard_notify_high_relevance') === '1'; } catch { return false; }
       });
       const [highRelevanceThreshold, setHighRelevanceThreshold] = useState(() => {
-        try { return Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 7; } catch { return 7; }
+        try { return Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 4; } catch { return 4; }
       });
       const [notifiedHighRelevancePostIds, setNotifiedHighRelevancePostIds] = useState(() => new Set());
       const [mobileView, setMobileView] = useState('posts');
       const [touchStart, setTouchStart] = useState(null);
       const [aiGoals, setAiGoals] = useState(() => {
         try { return localStorage.getItem('dashboard_ai_goals') || ''; } catch { return ''; }
+      });
+      const [aiContext, setAiContext] = useState(() => {
+        try { return localStorage.getItem('dashboard_ai_context') || ''; } catch { return ''; }
       });
       const [aiEnabled, setAiEnabled] = useState(() => {
         try {
@@ -346,6 +349,9 @@
         try { localStorage.setItem('dashboard_ai_goals', aiGoals); } catch {}
       }, [aiGoals]);
       useEffect(() => {
+        try { localStorage.setItem('dashboard_ai_context', aiContext); } catch {}
+      }, [aiContext]);
+      useEffect(() => {
         try { localStorage.setItem('dashboard_ai_enabled', aiEnabled ? '1' : '0'); } catch {}
       }, [aiEnabled]);
       useEffect(() => {
@@ -414,8 +420,8 @@
               if (rawScores.size > 0) {
                 // Calibrate scores based on current feed
                 const calibratedScores = calibrateScores(rawScores);
-                const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
-                console.log(`Restored and calibrated ${calibratedScores.size} AI scores from cache (${highRelevanceCount} posts scored >= 7)`);
+                const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+                console.log(`Restored and calibrated ${calibratedScores.size} AI scores from cache (${highRelevanceCount} posts scored >= 4)`);
                 setPostRelevanceScores(calibratedScores);
                 setPostRelevanceMetadata(metadata);
                 setScoresVersion(v => v + 1);
@@ -710,11 +716,12 @@
               };
 
               // Cache versioning: invalidate if goals, model, or prompt version changed
-              const currentGoalsHash = hashGoals(aiGoals.trim());
+              const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
+              const currentGoalsHash = hashGoals(combinedGoals);
               const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
               const MODEL_KEY = 'dashboard_ai_model';
               const savedModel = localStorage.getItem(MODEL_KEY) || 'unknown';
-              const currentCacheVersion = `${currentGoalsHash}_v3.0_${savedModel}`; // v3.0 includes metadata + calibration
+              const currentCacheVersion = `${currentGoalsHash}_v4.0_${savedModel}`; // v4.0 includes context + tighter rubric
               
               try {
                 const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
@@ -745,7 +752,7 @@
               } catch {}
               
               // Load cached scores and metadata with version check
-              // NOTE: We cache raw LLM scores (0-10) and always recalibrate on load
+              // NOTE: We cache raw LLM scores (0-5) and always recalibrate on load
               // This ensures scores are relative to the current visible feed
               let cachedScores = new Map();
               let cachedMetadata = new Map();
@@ -862,6 +869,7 @@
                             link_flair_text: p.link_flair_text,
                           })),
                           userGoals: aiGoals.trim(),
+                          userContext: aiContext && aiContext.trim() ? aiContext.trim() : undefined,
                           // Only send key in body if not stored securely (fallback for migration)
                           openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
                           openRouterModel: openRouterModel.trim(), // Always required - has default in useState
@@ -907,7 +915,7 @@
                               cache[postIdStr] = { 
                                 score: relevanceScore, 
                                 timestamp: Date.now(),
-                                version: result.promptVersion || 'v2.0',
+                                version: result.promptVersion || 'v3.0',
                                 model: result.model || 'unknown',
                                 confidence: meta.confidence || 'medium',
                                 reason: meta.reason || 'LLM-scored relevance',
@@ -932,7 +940,7 @@
                               cache[postIdStr] = { 
                                 score: relevanceScore, 
                                 timestamp: Date.now(),
-                                version: result.promptVersion || 'v1.0',
+                                version: result.promptVersion || 'v3.0',
                                 model: result.model || 'unknown',
                                 confidence: 'medium',
                                 reason: 'LLM-scored relevance',
@@ -987,12 +995,12 @@
                     }
                   }
                   
-                  // Add heuristic scores for remaining posts (map to 0-10 range, will be calibrated)
+                  // Add heuristic scores for remaining posts (map to 0-5 range, will be calibrated)
                   remainingPosts.forEach(({ post, heuristicScore }) => {
                     const postId = String(post.id);
                     if (!allScores.has(postId)) {
-                      // Map heuristic score to 0-10 range (max observed heuristic ~15-20)
-                      const normalizedScore = Math.min(10, Math.round(heuristicScore * 0.6));
+                      // Map heuristic score to 0-5 range (max observed heuristic ~15-20)
+                      const normalizedScore = Math.min(5, Math.round(heuristicScore * 0.3));
                       allScores.set(postId, normalizedScore);
                       allMetadata.set(postId, { source: 'heuristic', confidence: 'low', reason: 'Keyword-based relevance' });
                     }
@@ -1001,8 +1009,8 @@
                   // Apply percentile-based calibration to all scores
                   const calibratedScores = calibrateScores(allScores);
                   
-                  const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
-                  console.log(`AI Ranking: Complete! ${calibratedScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 7 after calibration`);
+                  const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+                  console.log(`AI Ranking: Complete! ${calibratedScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4 after calibration`);
                   
                   // Update cache with calibrated scores
                   try {
@@ -1034,7 +1042,7 @@
                 }
                 // High-relevance notifications (use freshly computed scores)
                 if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
-                  const threshold = Number(highRelevanceThreshold) || 7;
+                      const threshold = Number(highRelevanceThreshold) || 4;
                   const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
                   const toNotify = [];
                   for (const [postId, score] of scoresForHighRelevance.entries()) {
@@ -1058,14 +1066,14 @@
                 // All posts are cached, use cached scores with calibration
                 console.log('AI Ranking: All posts already cached, using cached scores');
                 const calibratedCached = calibrateScores(cachedScores);
-                const highRelevanceCount = Array.from(calibratedCached.values()).filter(s => s !== null && s !== undefined && s >= 7).length;
-                console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 7 after calibration`);
+                const highRelevanceCount = Array.from(calibratedCached.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+                console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 4 after calibration`);
                 setPostRelevanceScores(calibratedCached);
                 setPostRelevanceMetadata(cachedMetadata);
                 setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
                 // High-relevance notifications (use freshly computed scores)
                 if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && calibratedCached && calibratedCached.size > 0) {
-                  const threshold = Number(highRelevanceThreshold) || 7;
+                  const threshold = Number(highRelevanceThreshold) || 4;
                   const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
                   const toNotify = [];
                   for (const [postId, score] of calibratedCached.entries()) {
@@ -1153,7 +1161,7 @@
           setNextRefreshAt(plan.nextRefreshAt);
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals, aiContext, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1632,8 +1640,8 @@
                         const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
                         const relevanceScore = postRelevanceScores.get(String(post.id));
                         const relevanceMeta = postRelevanceMetadata.get(String(post.id));
-                        const isHighlyRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 7;
-                        const isVeryHighRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 8;
+                        const isHighlyRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
+                        const isVeryHighRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
                         // Debug: log first post's score retrieval
                         if (visiblePosts.indexOf(post) === 0) {
                           console.log('Post rendering debug:', {
@@ -1684,12 +1692,12 @@
                                   h('span', null, timeAgo(post.created_utc)),
                                   relevanceScore !== undefined && relevanceScore !== null && h('span', {
                                     className: `px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                      relevanceScore >= 8 ? 'bg-emerald-600 text-white' :
-                                      relevanceScore >= 7 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
-                                      relevanceScore >= 5 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
+                                      relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
+                                      relevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
+                                      relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                                       'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                                     }`,
-                                    title: relevanceMeta ? `AI Relevance: ${relevanceScore}/10 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/10`
+                                    title: relevanceMeta ? `AI Relevance: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/5`
                                   }, `AI ${relevanceScore}`)
                                 ),
                                 h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
@@ -1811,27 +1819,27 @@
                       if (detailRelevanceScore !== undefined && detailRelevanceScore !== null) {
                         return h('div', { 
                           className: 'flex items-center gap-2 py-1',
-                          title: detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : `AI Relevance: ${detailRelevanceScore}/10`
+                          title: detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : `AI Relevance: ${detailRelevanceScore}/5`
                         },
                           h('span', {
                             className: `px-2 py-0.5 rounded text-xs font-bold shadow-sm ${
-                              detailRelevanceScore >= 8 ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
-                              detailRelevanceScore >= 7 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
-                              detailRelevanceScore >= 5 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
+                              detailRelevanceScore >= 5 ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
+                              detailRelevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
+                              detailRelevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                               'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                             }`
-                          }, `AI ${detailRelevanceScore}/10`),
+                          }, `AI ${detailRelevanceScore}/5`),
                           h('div', { 
                             className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
                           },
                             h('div', { 
                               className: `h-full rounded-full transition-all ${
-                                detailRelevanceScore >= 8 ? 'bg-emerald-600' :
-                                detailRelevanceScore >= 7 ? 'bg-emerald-500 dark:bg-emerald-400' :
-                                detailRelevanceScore >= 5 ? 'bg-amber-500 dark:bg-amber-400' :
+                                detailRelevanceScore >= 5 ? 'bg-emerald-600' :
+                                detailRelevanceScore >= 4 ? 'bg-emerald-500 dark:bg-emerald-400' :
+                                detailRelevanceScore >= 3 ? 'bg-amber-500 dark:bg-amber-400' :
                                 'bg-zinc-400 dark:bg-zinc-500'
                               }`,
-                              style: { width: `${Math.min(100, Math.max(0, (detailRelevanceScore / 10) * 100))}%` }
+                              style: { width: `${Math.min(100, Math.max(0, (detailRelevanceScore / 5) * 100))}%` }
                             })
                           ),
                           detailRelevanceMeta?.reason && h('span', { 
@@ -2109,15 +2117,15 @@
                   ),
                   h('label', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'High-relevance threshold'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum AI score (7 or 8) to trigger a notification'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum AI score (4 or 5) to trigger a notification'),
                     h('select', {
                       value: highRelevanceThreshold,
-                      onChange: (e) => setHighRelevanceThreshold(Number(e.target.value) || 7),
+                      onChange: (e) => setHighRelevanceThreshold(Number(e.target.value) || 4),
                       disabled: !notifyHighRelevance || !aiEnabled,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
                     },
-                      h('option', { value: 7 }, '7+'),
-                      h('option', { value: 8 }, '8+')
+                      h('option', { value: 4 }, '4+'),
+                      h('option', { value: 5 }, '5+')
                     )
                   )
                 )
@@ -2147,6 +2155,18 @@
                       placeholder: 'e.g., I run an SEO agency and am looking for leads',
                       disabled: !aiEnabled,
                       rows: 3,
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                    })
+                  ),
+                  h('label', { className: 'block mt-4' },
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Must include / avoid (optional)'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Add quick clarifiers like "prefer fresh launches, avoid memes"'),
+                    h('input', {
+                      type: 'text',
+                      value: aiContext,
+                      onChange: (e) => setAiContext(e.target.value),
+                      placeholder: 'e.g., prefer launch posts, avoid memes',
+                      disabled: !aiEnabled,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     })
                   ),
@@ -2235,7 +2255,7 @@
                 h('div', { className: 'flex gap-2' },
                   h('button', {
                     onClick: () => {
-                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiEnabled, openRouterApiKey, openRouterModel });
+                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterApiKey, openRouterModel });
                       navigator.clipboard.writeText(backup);
                       alert('Settings copied to clipboard');
                     },
@@ -2255,9 +2275,10 @@
                           if (parsed.upvoteThreshold) setUpvoteThreshold(parsed.upvoteThreshold);
                           if (parsed.alertKeywords !== undefined) setAlertKeywords(parsed.alertKeywords);
                           if (typeof parsed.notifyHighRelevance === 'boolean') setNotifyHighRelevance(parsed.notifyHighRelevance);
-                          if (parsed.highRelevanceThreshold != null) setHighRelevanceThreshold(Number(parsed.highRelevanceThreshold) || 7);
+                          if (parsed.highRelevanceThreshold != null) setHighRelevanceThreshold(Number(parsed.highRelevanceThreshold) || 4);
                           if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
                           if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
+                          if (parsed.aiContext !== undefined) setAiContext(parsed.aiContext);
                           if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
                           if (parsed.openRouterApiKey !== undefined) setOpenRouterApiKey(parsed.openRouterApiKey);
                           if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);

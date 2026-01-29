@@ -53,7 +53,7 @@ describe('AI rank handler', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [{ message: { content: JSON.stringify([{ postId: 'post1', score: 8, confidence: 'high', reason: 'Relevant' }]) } }],
+        choices: [{ message: { content: JSON.stringify([{ postId: 'post1', score: 5, confidence: 'high', reason: 'Relevant' }]) } }],
       })
     });
 
@@ -61,7 +61,7 @@ describe('AI rank handler', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const payload = res.json.mock.calls[0][0];
-    expect(payload.scores.post1).toBe(8);
+    expect(payload.scores.post1).toBe(5);
     expect(payload.processed).toBe(1);
   });
 
@@ -85,14 +85,14 @@ describe('AI rank handler', () => {
       ok: true,
       status: 200,
       json: async () => ({
-        choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 9, confidence: 'high', reason: 'Great' }]) } }],
+        choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 5, confidence: 'high', reason: 'Great' }]) } }],
       })
     });
 
     await handler(req, res);
 
     const payload = res.json.mock.calls[0][0];
-    expect(payload.scores.p1).toBe(9);
+    expect(payload.scores.p1).toBe(5);
     expect(payload.scores.p2).toBeNull();
     expect(payload.failedPostIds).toContain('p2');
   });

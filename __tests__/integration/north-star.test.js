@@ -197,8 +197,8 @@ describe('North Star: Complete User Journey', () => {
       choices: [{
         message: {
           content: JSON.stringify([
-            { postId: 'post1', score: 8, confidence: 'high', reason: 'Highly relevant React content' },
-            { postId: 'post2', score: 7, confidence: 'medium', reason: 'Relevant TypeScript content' }
+            { postId: 'post1', score: 5, confidence: 'high', reason: 'Highly relevant React content' },
+            { postId: 'post2', score: 4, confidence: 'medium', reason: 'Relevant TypeScript content' }
           ])
         }
       }]
@@ -217,7 +217,7 @@ describe('North Star: Complete User Journey', () => {
     
     // Step 4: Validate actionable posts surfaced
     const highRelevancePosts = Object.entries(aiResponse.scores)
-      .filter(([_, score]) => score !== null && score >= 7)
+      .filter(([_, score]) => score !== null && score >= 4)
       .map(([postId, score]) => ({ postId, score }));
 
     // If we have posts, validate that AI ranking worked
@@ -234,7 +234,7 @@ describe('North Star: Complete User Journey', () => {
     expect(elapsedTime).toBeLessThan(120000); // 2 minutes max (target: < 1 minute)
     
     // Quality check: Should surface relevant posts
-    console.log(`\n✅ Surfaces ${highRelevancePosts.length} highly relevant posts (score ≥ 7)`);
+    console.log(`\n✅ Surfaces ${highRelevancePosts.length} highly relevant posts (score ≥ 4)`);
   });
 
   test('Performance: Fetch multiple subreddits efficiently', async () => {

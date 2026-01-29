@@ -2,7 +2,7 @@
  * AI Quality Tests: Validate ranking accuracy and calibration
  * 
  * Tests that AI ranking:
- * - Properly calibrates scores (top 10% get ≥7)
+ * - Properly calibrates scores (top 10% get ≥4)
  * - Provides relevant scores based on user goals
  * - Handles edge cases (empty posts, very long content)
  * - Batches efficiently
@@ -33,7 +33,7 @@ describe('AI Ranking Quality', () => {
     };
   });
 
-  test('Calibrates scores correctly (top 10% get ≥7)', async () => {
+  test('Calibrates scores correctly (only top posts get ≥4)', async () => {
     // Create 20 posts
     const posts = Array.from({ length: 20 }, (_, i) => ({
       id: `post${i}`,
@@ -55,7 +55,7 @@ describe('AI Ranking Quality', () => {
     // Mock AI response with proper calibration
     const scores = posts.map((p, i) => ({
       postId: p.id,
-      score: i < 2 ? 8 : Math.floor(Math.random() * 5) + 2, // Top 2 get 8, others 2-6
+      score: i < 2 ? 5 : 2,
       confidence: i < 2 ? 'high' : 'medium',
       reason: 'Test reason'
     }));
@@ -75,11 +75,11 @@ describe('AI Ranking Quality', () => {
     await aiRankHandler(mockReq, mockRes);
 
     const response = mockRes.json.mock.calls[0][0];
-    const highScores = Object.values(response.scores).filter(s => s >= 7);
+    const highScores = Object.values(response.scores).filter(s => s >= 4);
     
-    // Top 10% (2 out of 20) should have scores ≥7
+    // Top 10% (2 out of 20) should have scores ≥4/5
     expect(highScores.length).toBeLessThanOrEqual(3); // Allow some flexibility
-    console.log(`\n✅ Calibration: ${highScores.length} posts scored ≥7 out of ${posts.length}`);
+    console.log(`\n✅ Calibration: ${highScores.length} posts scored ≥4 out of ${posts.length}`);
   });
 
   test('Ranks posts by relevance to user goals', async () => {
@@ -103,9 +103,9 @@ describe('AI Ranking Quality', () => {
         choices: [{
           message: {
             content: JSON.stringify([
-              { postId: 'post1', score: 9, confidence: 'high', reason: 'Highly relevant React content' },
-              { postId: 'post2', score: 2, confidence: 'low', reason: 'Not relevant to goals' },
-              { postId: 'post3', score: 8, confidence: 'high', reason: 'Relevant TypeScript content' }
+              { postId: 'post1', score: 5, confidence: 'high', reason: 'Highly relevant React content' },
+              { postId: 'post2', score: 1, confidence: 'low', reason: 'Not relevant to goals' },
+              { postId: 'post3', score: 4, confidence: 'high', reason: 'Relevant TypeScript content' }
             ])
           }
         }]
@@ -154,7 +154,7 @@ describe('AI Ranking Quality', () => {
             message: {
               content: JSON.stringify(posts.slice(0, 30).map(p => ({
                 postId: p.id,
-                score: 5,
+                score: 3,
                 confidence: 'medium',
                 reason: 'Test'
               })))
@@ -243,5 +243,33 @@ describe('AI Ranking Quality', () => {
 
     // Should handle gracefully
     expect(mockRes.status).toHaveBeenCalled();
+  });
+
+  test('passes optional user context into the OpenRouter prompt', async () => {
+    mockReq.body = {
+      posts: [{ id: 'post1', title: 'Test post', subreddit: 'test', selftext: '', score: 1, num_comments: 0, created_utc: Date.now() / 1000 }],
+      userGoals: 'Find sober market updates',
+      userContext: 'Avoid memes and jokes',
+      openRouterModel: 'test-model',
+      openRouterApiKey: 'test_key'
+    };
+
+    let capturedBody;
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: JSON.stringify([{ postId: 'post1', score: 4, confidence: 'medium', reason: 'Matches context' }])
+          }
+        }]
+      })
+    });
+
+    await aiRankHandler(mockReq, mockRes);
+
+    capturedBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(capturedBody.messages[0].content).toContain('Avoid memes and jokes');
   });
 });
