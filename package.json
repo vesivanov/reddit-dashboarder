@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A beautiful Reddit dashboard to browse multiple subreddits efficiently",
   "scripts": {
-    "dev": "vercel dev",
+    "dev": "node server.js",
     "local": "node server.js",
     "build": "echo 'Static site - no build needed'",
     "deploy": "vercel --prod",
