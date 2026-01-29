@@ -2,7 +2,7 @@
 
 A powerful, feature-rich Reddit dashboard for efficiently browsing multiple subreddits with AI-powered post ranking, OAuth authentication, and a three-pane interface.
 
-🧭 Vision / North Star
+## 🧭 Vision / North Star
 
 North Star: Decide what to do next on Reddit in minutes.
 
