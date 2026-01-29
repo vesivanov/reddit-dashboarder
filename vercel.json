@@ -2,6 +2,9 @@
   "framework": null,
   "buildCommand": "echo 'No build'",
   "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" }
+  ],
   "functions": {
     "api/reddit.js": { "maxDuration": 30 },
     "api/reddit/ai-rank.js": { "maxDuration": 60 },

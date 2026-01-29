@@ -2,3 +2,6 @@
 # They are for local dev only (npm run local).
 server.js
 app.js
+
+# Exclude tests from deploy (not needed in production).
+__tests__
