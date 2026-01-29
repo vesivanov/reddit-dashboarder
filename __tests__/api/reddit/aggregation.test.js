@@ -148,4 +148,32 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.limit).toBe(25);
     expect(res.body.max_pages).toBe(10);
   });
+
+  test('flags timed_out when execution budget is exhausted', async () => {
+    const originalRuntime = process.env.API_MAX_RUNTIME_MS;
+    const originalBuffer = process.env.API_TIMEOUT_BUFFER_MS;
+    process.env.API_MAX_RUNTIME_MS = '1100';
+    process.env.API_TIMEOUT_BUFFER_MS = '0';
+
+    const oauth = nock('https://oauth.reddit.com');
+    oauth
+      .get('/r/slow/about.json')
+      .reply(200, { data: { subscribers: 5, title: 'slow' } });
+
+    try {
+      const res = await runHandler(redditHandler, {
+        method: 'GET',
+        url: '/api/reddit?subs=slow&mode=top',
+        headers: { cookie: authCookie() },
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.timed_out).toBe(true);
+      expect(res.body.results[0].timed_out).toBe(true);
+      expect(res.headers['x-rdd-timed-out']).toBe('1');
+    } finally {
+      process.env.API_MAX_RUNTIME_MS = originalRuntime;
+      process.env.API_TIMEOUT_BUFFER_MS = originalBuffer;
+    }
+  });
 });
