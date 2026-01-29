@@ -197,6 +197,7 @@ async function callOpenRouter({ userGoals, postsBatch, apiKey, model, timeoutMs 
 
 async function handler(req, res) {
   const isDev = process.env.NODE_ENV !== 'production';
+  const startTime = Date.now();
 
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -281,7 +282,19 @@ async function handler(req, res) {
 
     if (posts.length === 0) {
       if (isDev) console.log('AI Ranking: No posts to rank');
-      return withCORS(req, res, 'POST, OPTIONS').status(200).json({ scores: {}, model });
+      const emptyMetrics = {
+        batchCount: 0,
+        processedCount: 0,
+        failedCount: 0,
+        durationMs: Date.now() - startTime,
+        promptVersion: PROMPT_VERSION,
+      };
+      try {
+        res.setHeader('X-RDD-Metrics', JSON.stringify(emptyMetrics));
+      } catch (setErr) {
+        if (isDev) console.warn('Unable to set metrics header:', setErr.message);
+      }
+      return withCORS(req, res, 'POST, OPTIONS').status(200).json({ scores: {}, model, metrics: emptyMetrics });
     }
 
     // Build adaptive batches for all posts (client-side localStorage handles caching)
@@ -352,15 +365,42 @@ async function handler(req, res) {
     const processedCount = Object.keys(allScores).length;
     if (isDev) console.log(`AI Ranking: Complete! ${processedCount} total scores, ${failedPostIds.length} failed`);
 
+    const metrics = {
+      batchCount: batches.length,
+      processedCount,
+      failedCount: failedPostIds.length,
+      durationMs: Date.now() - startTime,
+      promptVersion: PROMPT_VERSION,
+    };
+    try {
+      res.setHeader('X-RDD-Metrics', JSON.stringify(metrics));
+    } catch (setErr) {
+      if (isDev) console.warn('Unable to set metrics header:', setErr.message);
+    }
+
     return withCORS(req, res, 'POST, OPTIONS').status(200).json({
       scores: allScores,
       metadata: allMetadata,
       model,
       promptVersion: PROMPT_VERSION,
       processed: processedCount,
+      metrics,
       ...(failedPostIds.length > 0 && { failedPostIds }),
     });
   } catch (error) {
+    const errorMetrics = {
+      batchCount: 0,
+      processedCount: 0,
+      failedCount: 0,
+      durationMs: Date.now() - startTime,
+      promptVersion: PROMPT_VERSION,
+      error: error.message,
+    };
+    try {
+      res.setHeader('X-RDD-Metrics', JSON.stringify(errorMetrics));
+    } catch (setErr) {
+      if (isDev) console.warn('Unable to set AI metrics header on error:', setErr.message);
+    }
     if (isDev) {
       console.error('AI ranking handler error:', error);
     } else {
@@ -374,3 +414,6 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
+module.exports.buildBatches = buildBatches;
+module.exports.callOpenRouter = callOpenRouter;
+module.exports.clampScore = clampScore;

@@ -4,8 +4,6 @@ A powerful, feature-rich Reddit dashboard for efficiently browsing multiple subr
 
 ## 🧭 Vision / North Star
 
-North Star: Decide what to do next on Reddit in minutes.
-
 Reddit has real signal, but it doesn’t scale across multiple subreddits—the cost is attention. Reddit Dashboard is a triage cockpit: it turns a noisy stream into a prioritized queue you can skim quickly, open what matters, and decide the next action (reply, save, research, share, ignore) — then move on.
 
 Definition: “What matters” = posts that match my intent and clear my action threshold (fresh enough + enough context + enough engagement).
@@ -74,13 +72,20 @@ reddit-dashboarder/
 ├── lib/
 │   ├── cookies.js            # Signed cookie helpers
 │   ├── cors.js               # CORS helpers
-│   └── pkce.js               # PKCE OAuth helpers
+│   ├── pkce.js               # PKCE OAuth helpers
+│   └── ui-helpers.js         # UI utility functions (keyword extraction, scoring, etc.)
+├── __tests__/                # Test suite (Jest)
+│   ├── api/                  # API endpoint tests
+│   ├── integration/          # Integration tests
+│   └── unit/                 # Unit tests
 ├── worker/
 │   ├── worker.js             # Cloudflare Worker (optional)
 │   └── wrangler.toml         # Worker config
+├── app.js                    # Express app factory (used by server.js and tests)
 ├── index.html                # React SPA (Tailwind, DOMPurify)
 ├── server.js                 # Express server (local)
 ├── package.json
+├── jest.config.js            # Jest test configuration
 ├── vercel.json               # Vercel serverless config
 ├── design-system.md          # UI tokens, components, patterns
 └── README.md
@@ -244,6 +249,38 @@ GET /api/reddit
 - `limit` (optional): Posts per page (default: `50`, max: `100`)
 - `max_pages` (optional): Maximum pages to fetch per subreddit (default: `10`)
 
+**Response:**
+```json
+{
+  "mode": "new",
+  "time": "day",
+  "days": 1,
+  "limit": 50,
+  "max_pages": 5,
+  "results": [
+    {
+      "subreddit": "programming",
+      "meta": { "subscribers": 1000, "title": "Programming" },
+      "posts": [...],
+      "partial": false
+    }
+  ],
+  "fetched_at": 1234567890,
+  "rate_limited": false,
+  "metrics": {
+    "subredditCount": 2,
+    "totalPosts": 50,
+    "rateLimitedCount": 0,
+    "durationMs": 1234
+  }
+}
+```
+
+**Response Headers:**
+- `X-RDD-Metrics`: JSON string containing performance metrics (same as `metrics` in response body)
+- `X-Rate-Limited`: Set to `"1"` if any subreddit was rate limited
+- `Cache-Control`: Caching directives
+
 **Example:**
 ```bash
 curl "http://localhost:3000/api/reddit?subs=programming,webdev&mode=new&days=1&limit=50&max_pages=5"
@@ -273,15 +310,32 @@ POST /api/reddit/ai-rank
 **Response:**
 ```json
 {
-  "rankedPosts": [
-    {
-      "id": "post_id",
-      "relevanceScore": 8.5,
-      "reasoning": "Highly relevant because..."
+  "scores": {
+    "post_id": 8.5,
+    "post_id_2": 7.2
+  },
+  "metadata": {
+    "post_id": {
+      "confidence": "high",
+      "reason": "Highly relevant because..."
     }
-  ]
+  },
+  "model": "meta-llama/llama-3.3-70b-instruct:free",
+  "promptVersion": 1,
+  "processed": 2,
+  "metrics": {
+    "batchCount": 1,
+    "processedCount": 2,
+    "failedCount": 0,
+    "durationMs": 1234,
+    "promptVersion": 1
+  },
+  "failedPostIds": []
 }
 ```
+
+**Response Headers:**
+- `X-RDD-Metrics`: JSON string containing performance metrics (same as `metrics` in response body)
 
 ### Authentication Endpoints
 
@@ -316,11 +370,36 @@ npm run local
 npm run dev
 ```
 
+### Testing
+
+The project includes a comprehensive test suite using Jest:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+Test structure:
+- **Unit tests** (`__tests__/unit/`): Test individual functions and modules
+- **API tests** (`__tests__/api/`): Test API endpoints
+- **Integration tests** (`__tests__/integration/`): Test complete workflows and error handling
+
+See `__tests__/README.md` for more details on the test suite.
+
 ### Project Scripts
 
 - `npm run local` - Start Express server for local development
 - `npm run dev` - Start Vercel dev server (requires Vercel CLI)
 - `npm run deploy` - Deploy to Vercel production
+- `npm test` - Run test suite (Jest)
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Generate test coverage report
 
 ### Environment Variables
 
