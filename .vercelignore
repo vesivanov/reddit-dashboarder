@@ -1,0 +1,4 @@
+# Prevent Vercel from treating these as root serverless entry points.
+# They are for local dev only (npm run local).
+server.js
+app.js
