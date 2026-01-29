@@ -83,6 +83,7 @@ describe('North Star: Complete User Journey', () => {
       limit: '25',
       max_pages: '2'
     };
+    mockReq.url = `/api/reddit?subs=${encodeURIComponent(mockReq.query.subs)}&mode=${mockReq.query.mode}&days=${mockReq.query.days}&limit=${mockReq.query.limit}&max_pages=${mockReq.query.max_pages}`;
 
     // Mock Reddit API responses
     const mockRedditResponse = {

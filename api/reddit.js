@@ -3,6 +3,7 @@
 //   GET /api/reddit?subs=programming,technology&mode=new&days=3&limit=100&max_pages=30
 
 const { readSignedCookie, makeSignedCookie, clearCookie } = require('../lib/cookies');
+const { parseRequest, getQueryValue } = require('../lib/request-utils');
 
 // More realistic User-Agent to avoid Reddit blocking
 const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -422,13 +423,14 @@ async function handler(req, res) {
   const fetchTimeoutMs = readNumber('REDDIT_FETCH_TIMEOUT_MS', DEFAULT_FETCH_TIMEOUT_MS);
   const fetchRetries = readNumber('REDDIT_FETCH_MAX_RETRIES', DEFAULT_FETCH_RETRIES);
   const tokenTimeoutMs = readNumber('REDDIT_TOKEN_TIMEOUT_MS', DEFAULT_TOKEN_TIMEOUT_MS);
+  const { url: absoluteUrl, query: querySnapshot } = parseRequest(req);
 
   // Only log in development, and sanitize sensitive data
   if (isDev) {
     console.log('=== API Request Started ===');
     console.log('Method:', req.method);
-    console.log('URL:', req.url);
-    console.log('Query:', req.query);
+    console.log('URL:', absoluteUrl.pathname + absoluteUrl.search);
+    console.log('Query snapshot:', querySnapshot);
     // Sanitize headers - remove sensitive data
     const { cookie, authorization, ...safeHeaders } = req.headers;
     console.log('Headers:', JSON.stringify(safeHeaders, null, 2));
@@ -447,12 +449,17 @@ async function handler(req, res) {
     return withCORS(req, res).status(405).json({ error: 'Method not allowed' });
   }
 
-  const { subs, mode = 'new', time = 'day', days = '1', limit = '100', max_pages = '5' } = req.query;
-  if (isDev) console.log('Parsed parameters:', { subs, mode, time, days, limit, max_pages });
+  const subsParam = getQueryValue(querySnapshot, 'subs', '');
+  const modeParam = getQueryValue(querySnapshot, 'mode', 'new');
+  const timeParam = getQueryValue(querySnapshot, 'time', 'day');
+  const daysParam = getQueryValue(querySnapshot, 'days', '1');
+  const limitParam = getQueryValue(querySnapshot, 'limit', '100');
+  const maxPagesParam = getQueryValue(querySnapshot, 'max_pages', '5');
+  if (isDev) console.log('Parsed parameters:', { subs: subsParam, mode: modeParam, time: timeParam, days: daysParam, limit: limitParam, max_pages: maxPagesParam });
 
   // Validate subreddit names: 2-21 alphanumeric chars or underscores
   const SUBREDDIT_REGEX = /^[A-Za-z0-9_]{2,21}$/;
-  const subsArray = (subs || '').split(',').map(s => s.trim()).filter(Boolean);
+  const subsArray = (subsParam || '').split(',').map(s => s.trim()).filter(Boolean);
 
   for (const sub of subsArray) {
     if (!SUBREDDIT_REGEX.test(sub)) {
@@ -463,10 +470,11 @@ async function handler(req, res) {
       });
     }
   }
-  const modeValue = mode.toLowerCase();
-  const daysValue = clampInt(days, 1, 7, 1);
-  const limitValue = clampInt(limit, 25, 100, 100);
-  const maxPagesValue = clampInt(max_pages, 1, 10, 5);
+  const modeValue = (modeParam || 'new').toLowerCase();
+  const daysValue = clampInt(daysParam, 1, 7, 1);
+  const limitValue = clampInt(limitParam, 25, 100, 100);
+  const maxPagesValue = clampInt(maxPagesParam, 1, 10, 5);
+  const timeValue = timeParam || 'day';
 
   if (isDev) {
     console.log('Processed parameters:', {
@@ -480,7 +488,7 @@ async function handler(req, res) {
 
   if (!subsArray.length) {
     if (isDev) console.log('Error: No subreddits provided');
-    return withCORS(req, res).status(400).json({ error: 'Missing subs param' });
+      return withCORS(req, res).status(400).json({ error: 'Missing subs param' });
   }
 
   const tokenManager = createTokenManager(req, res, { timeBudget, tokenTimeoutMs });
@@ -557,13 +565,13 @@ async function handler(req, res) {
         }
 
         if (modeValue === 'top') {
-          if (isDev) console.log(`Fetching top posts for r/${sub} with time=${time}, limit=${limitValue}`);
+          if (isDev) console.log(`Fetching top posts for r/${sub} with time=${timeValue}, limit=${limitValue}`);
           // Try multiple endpoints - some might be less blocked
           let posts = [];
           const endpoints = [
-            `https://www.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limitValue}&raw_json=1`,
-            `https://www.reddit.com/r/${encodeURIComponent(sub)}.json?sort=top&t=${encodeURIComponent(time)}&limit=${limitValue}`,
-            `https://old.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(time)}&limit=${limitValue}`
+            `https://www.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(timeValue)}&limit=${limitValue}&raw_json=1`,
+            `https://www.reddit.com/r/${encodeURIComponent(sub)}.json?sort=top&t=${encodeURIComponent(timeValue)}&limit=${limitValue}`,
+            `https://old.reddit.com/r/${encodeURIComponent(sub)}/top.json?t=${encodeURIComponent(timeValue)}&limit=${limitValue}`
           ];
 
           for (const endpoint of endpoints) {
@@ -689,7 +697,7 @@ async function handler(req, res) {
 
     const responseData = {
       mode: modeValue,
-      time,
+      time: timeValue,
       days: daysValue,
       limit: limitValue,
       max_pages: maxPagesValue,
