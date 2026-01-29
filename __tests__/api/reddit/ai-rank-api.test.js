@@ -56,6 +56,7 @@ describe('/api/reddit/ai-rank', () => {
       { id: 'p2', title: 'Rust release', subreddit: 'programming', selftext: '', score: 7, num_comments: 1, created_utc: Math.floor(Date.now() / 1000) }
     ],
     userGoals: 'Find frontend topics',
+    userContext: 'Prefer practical tutorials, avoid memes',
     openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free'
   };
 
@@ -79,7 +80,7 @@ describe('/api/reddit/ai-rank', () => {
         choices: [{
           message: {
             content: JSON.stringify([
-              { postId: 'p1', score: 9, confidence: 'high', reason: 'React' }
+              { postId: 'p1', score: 5, confidence: 'high', reason: 'React' }
             ])
           }
         }]
@@ -91,8 +92,9 @@ describe('/api/reddit/ai-rank', () => {
 
     expect(res.status).toBe(200);
     const parsedBody = typeof capturedBody === 'string' ? JSON.parse(capturedBody) : capturedBody;
+    expect(parsedBody.messages[0].content).toContain('Prefer practical tutorials');
     expect(parsedBody.messages[1].content).toContain('React news');
-    expect(res.body.scores).toMatchObject({ p1: 9, p2: null });
+    expect(res.body.scores).toMatchObject({ p1: 5, p2: null });
     expect(res.body.metadata.p1).toMatchObject({ confidence: 'high' });
     expect(res.headers['x-rdd-metrics']).toBeDefined();
   });
@@ -103,7 +105,7 @@ describe('/api/reddit/ai-rank', () => {
     nock('https://openrouter.ai')
       .post('/api/v1/chat/completions')
       .reply(200, {
-        choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 7 }]) } }]
+        choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 4 }]) } }]
       });
 
     const res = await request(app)
@@ -112,7 +114,7 @@ describe('/api/reddit/ai-rank', () => {
       .send(basePayload);
 
     expect(res.status).toBe(200);
-    expect(res.body.scores.p1).toBe(7);
+    expect(res.body.scores.p1).toBe(4);
   });
 
   test('marks failedPostIds when OpenRouter errors', async () => {

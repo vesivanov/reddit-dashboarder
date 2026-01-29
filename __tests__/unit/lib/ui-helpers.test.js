@@ -29,7 +29,7 @@ describe('UI Helpers', () => {
   test('calibrateScores normalizes distribution and handles single entry', () => {
     const single = new Map([['a', 5]]);
     const calibratedSingle = calibrateScores(single);
-    expect(calibratedSingle.get('a')).toBe(8);
+    expect(calibratedSingle.get('a')).toBe(5);
 
     const scores = new Map([
       ['a', 10],

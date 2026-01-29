@@ -213,11 +213,12 @@ The `server.js` file provides a full Express server that can be deployed to any 
 
 1. Enable AI ranking in the Settings panel
 2. Enter your goals/objectives (e.g., "I run an SEO agency and am looking for leads")
-3. **Option A**: Enter your own OpenRouter API key in the settings (get one free at [openrouter.ai/keys](https://openrouter.ai/keys)); it can be stored in an HttpOnly cookie for security
-4. **Option B**: Use server-side API key by configuring `OPENROUTER_API_KEY` environment variable
-5. Choose your preferred AI model (several free models available)
-6. Posts will be scored 0-10 based on relevance to your goals
-7. Sort by "AI Score" to see the most relevant posts first
+3. Optionally add quick clarifiers (e.g., "prefer launches, avoid memes")
+4. **Option A**: Enter your own OpenRouter API key in the settings (get one free at [openrouter.ai/keys](https://openrouter.ai/keys)); it can be stored in an HttpOnly cookie for security
+5. **Option B**: Use server-side API key by configuring `OPENROUTER_API_KEY` environment variable
+6. Choose your preferred AI model (several free models available)
+7. Posts will be scored 0-5 based on strict relevance to your goals (5s are rare and represent must-read posts)
+8. Sort by "AI Score" to see the most relevant posts first
 
 **Available Models:**
 - Free: Meta Llama 3.3 70B, Qwen 2.5 72B, Google Gemini 2.0 Flash
@@ -303,7 +304,8 @@ POST /api/reddit/ai-rank
       "subreddit": "programming"
     }
   ],
-  "userGoals": "Find posts about React and TypeScript best practices"
+  "userGoals": "Find posts about React and TypeScript best practices",
+  "userContext": "Prefer hands-on guides, avoid memes"
 }
 ```
 
@@ -311,8 +313,8 @@ POST /api/reddit/ai-rank
 ```json
 {
   "scores": {
-    "post_id": 8.5,
-    "post_id_2": 7.2
+    "post_id": 5,
+    "post_id_2": 4
   },
   "metadata": {
     "post_id": {
@@ -321,14 +323,14 @@ POST /api/reddit/ai-rank
     }
   },
   "model": "meta-llama/llama-3.3-70b-instruct:free",
-  "promptVersion": 1,
+  "promptVersion": "v3.0",
   "processed": 2,
   "metrics": {
     "batchCount": 1,
     "processedCount": 2,
     "failedCount": 0,
     "durationMs": 1234,
-    "promptVersion": 1
+    "promptVersion": "v3.0"
   },
   "failedPostIds": []
 }
