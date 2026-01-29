@@ -1,45 +1,38 @@
-const request = require('supertest');
 const nock = require('nock');
 
-const createApp = require('../../../app');
+const { runHandler } = require('../../helpers/run-handler');
+const authStartHandler = require('../../../api/auth/start');
+const authCallbackHandler = require('../../../api/auth/callback');
+const authStatusHandler = require('../../../api/auth/status');
+const authLogoutHandler = require('../../../api/auth/logout');
 const { makeSignedCookie } = require('../../../lib/cookies');
 
-function extractCookieValue(cookies, name) {
-  const target = (cookies || []).find((cookie) => cookie.startsWith(`rdd_${name}=`));
-  if (!target) return null;
-  const raw = target.split(';')[0].split('=')[1];
-  const decoded = decodeURIComponent(raw || '');
-  const [value] = decoded.split('.');
-  return value;
+function updateCookieJar(jar, res) {
+  const setCookie = res.headers['set-cookie'];
+  if (!setCookie) return jar;
+  const entries = Array.isArray(setCookie) ? setCookie : [setCookie];
+  entries.forEach(raw => {
+    const [pair, ...attrs] = raw.split(';');
+    const eqIndex = pair.indexOf('=');
+    const name = pair.slice(0, eqIndex).trim();
+    const value = pair.slice(eqIndex + 1);
+    const maxAgeAttr = attrs.find(attr => attr.trim().toLowerCase().startsWith('max-age'));
+    const isDeletion = maxAgeAttr && maxAgeAttr.trim().toLowerCase().startsWith('max-age=0');
+    if (isDeletion) {
+      jar.delete(name.trim());
+    } else {
+      jar.set(name.trim(), value);
+    }
+  });
+  return jar;
 }
 
-// Mock server for supertest - always use mock to avoid port binding issues
-function createMockServer() {
-  const server = {
-    address: () => ({ port: 0, family: 'IPv4', address: '127.0.0.1' }),
-    close: (callback) => { 
-      if (callback) setTimeout(callback, 0); 
-    },
-    listen: () => server,
-    on: () => server,
-    once: () => server,
-    removeListener: () => server,
-  };
-  return server;
-}
-
-function setupAppWithMockListen() {
-  const app = createApp();
-  // Always return mock server - supertest doesn't need a real listening server
-  app.listen = function(...args) {
-    return createMockServer();
-  };
-  return app;
+function cookieHeaderFromJar(jar) {
+  if (!jar || jar.size === 0) return undefined;
+  return Array.from(jar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
 describe('OAuth PKCE flow', () => {
-  let app;
-
   beforeAll(() => {
     process.env.REDDIT_CLIENT_ID = 'client-id';
     process.env.REDDIT_CLIENT_SECRET = 'client-secret';
@@ -47,15 +40,10 @@ describe('OAuth PKCE flow', () => {
     process.env.APP_BASE_URL = 'http://localhost:3000';
     process.env.SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || 'test_secret_32_bytes_long_hex_string_123456';
     nock.disableNetConnect();
-    nock.enableNetConnect('127.0.0.1');
   });
 
   afterAll(() => {
     nock.enableNetConnect();
-  });
-
-  beforeEach(() => {
-    app = setupAppWithMockListen();
   });
 
   afterEach(() => {
@@ -63,16 +51,21 @@ describe('OAuth PKCE flow', () => {
   });
 
   test('start endpoint sets PKCE cookies and redirects with challenge', async () => {
-    const res = await request(app)
-      .get('/api/auth/start')
-      .set('Host', 'localhost:3000');
+    const jar = new Map();
+    const res = await runHandler(authStartHandler, {
+      method: 'GET',
+      url: '/api/auth/start',
+      headers: { host: 'localhost:3000', 'x-forwarded-proto': 'http' }
+    });
 
     expect(res.status).toBe(302);
     const cookies = res.headers['set-cookie'];
+    expect(Array.isArray(cookies)).toBe(true);
     expect(cookies.some((c) => c.startsWith('rdd_pkce_verifier='))).toBe(true);
     expect(cookies.some((c) => c.startsWith('rdd_oauth_state='))).toBe(true);
     expect(cookies.every((c) => c.includes('HttpOnly'))).toBe(true);
 
+    updateCookieJar(jar, res);
     const location = res.headers.location;
     expect(location).toContain('https://www.reddit.com/api/v1/authorize');
     const redirectUrl = new URL(location);
@@ -82,17 +75,31 @@ describe('OAuth PKCE flow', () => {
   });
 
   test('callback rejects invalid or missing state', async () => {
-    const agent = request.agent(app);
-    await agent.get('/api/auth/start');
+    const jar = new Map();
+    const startRes = await runHandler(authStartHandler, {
+      method: 'GET',
+      url: '/api/auth/start',
+      headers: { host: 'localhost:3000' }
+    });
+    updateCookieJar(jar, startRes);
 
-    const res = await agent.get('/api/auth/callback?code=test&state=wrong');
+    const res = await runHandler(authCallbackHandler, {
+      method: 'GET',
+      url: '/api/auth/callback?code=test&state=wrong',
+      headers: { cookie: cookieHeaderFromJar(jar) }
+    });
     expect(res.status).toBe(400);
-    expect(res.text).toContain('Invalid OAuth state');
+    expect(res.body).toContain('Invalid OAuth state');
   });
 
   test('callback exchanges code for tokens and sets session cookies', async () => {
-    const agent = request.agent(app);
-    const startRes = await agent.get('/api/auth/start');
+    const jar = new Map();
+    const startRes = await runHandler(authStartHandler, {
+      method: 'GET',
+      url: '/api/auth/start',
+      headers: { host: 'localhost:3000' }
+    });
+    updateCookieJar(jar, startRes);
     const location = new URL(startRes.headers.location);
     const state = location.searchParams.get('state');
 
@@ -104,7 +111,11 @@ describe('OAuth PKCE flow', () => {
         expires_in: 3600,
       });
 
-    const res = await agent.get(`/api/auth/callback?code=abc123&state=${state}`);
+    const res = await runHandler(authCallbackHandler, {
+      method: 'GET',
+      url: `/api/auth/callback?code=abc123&state=${state}`,
+      headers: { cookie: cookieHeaderFromJar(jar), host: 'localhost:3000' }
+    });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/');
 
@@ -116,8 +127,13 @@ describe('OAuth PKCE flow', () => {
   });
 
   test('callback surfaces token exchange failures', async () => {
-    const agent = request.agent(app);
-    const startRes = await agent.get('/api/auth/start');
+    const jar = new Map();
+    const startRes = await runHandler(authStartHandler, {
+      method: 'GET',
+      url: '/api/auth/start',
+      headers: { host: 'localhost:3000' }
+    });
+    updateCookieJar(jar, startRes);
     const location = new URL(startRes.headers.location);
     const state = location.searchParams.get('state');
 
@@ -125,9 +141,13 @@ describe('OAuth PKCE flow', () => {
       .post('/api/v1/access_token')
       .reply(400, 'invalid_grant');
 
-    const res = await agent.get(`/api/auth/callback?code=abc123&state=${state}`);
+    const res = await runHandler(authCallbackHandler, {
+      method: 'GET',
+      url: `/api/auth/callback?code=abc123&state=${state}`,
+      headers: { cookie: cookieHeaderFromJar(jar), host: 'localhost:3000' }
+    });
     expect(res.status).toBe(500);
-    expect(res.text).toContain('Token exchange failed');
+    expect(res.body).toContain('Token exchange failed');
   });
 
   test('status reflects tokens and logout clears them', async () => {
@@ -135,9 +155,11 @@ describe('OAuth PKCE flow', () => {
     const refreshCookie = makeSignedCookie('refresh', 'refresh');
     const cookieHeader = [accessCookie.split(';')[0], refreshCookie.split(';')[0]].join('; ');
 
-    const statusRes = await request(app)
-      .get('/api/auth/status')
-      .set('Cookie', cookieHeader);
+    const statusRes = await runHandler(authStatusHandler, {
+      method: 'GET',
+      url: '/api/auth/status',
+      headers: { cookie: cookieHeader }
+    });
 
     expect(statusRes.status).toBe(200);
     expect(statusRes.body).toEqual({
@@ -146,9 +168,11 @@ describe('OAuth PKCE flow', () => {
       hasRefreshToken: true,
     });
 
-    const logoutRes = await request(app)
-      .get('/api/auth/logout')
-      .set('Cookie', cookieHeader);
+    const logoutRes = await runHandler(authLogoutHandler, {
+      method: 'GET',
+      url: '/api/auth/logout',
+      headers: { cookie: cookieHeader }
+    });
 
     expect(logoutRes.status).toBe(302);
     expect(logoutRes.headers['set-cookie']).toEqual(

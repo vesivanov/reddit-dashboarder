@@ -1,18 +1,14 @@
 {
   "rewrites": [
     {
-      "source": "/:path+",
-      "destination": "/index.html",
-      "has": [
-        {
-          "type": "header",
-          "key": "accept",
-          "value": "text/html"
-        }
-      ]
+      "source": "/((?!api/|lib/|.*\\.[a-z]+$|^$).+)",
+      "destination": "/api/index.js"
     }
   ],
   "functions": {
+    "api/index.js": {
+      "maxDuration": 10
+    },
     "api/reddit.js": {
       "maxDuration": 30
     },

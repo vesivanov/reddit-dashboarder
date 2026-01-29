@@ -1,13 +1,13 @@
 const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals');
-const request = require('supertest');
-const net = require('net');
 
 process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
 process.env.REDDIT_CLIENT_ID = 'client-id';
 process.env.REDDIT_CLIENT_SECRET = 'client-secret';
 process.env.REDDIT_USER_AGENT = 'reddit-dashboarder-test/1.0';
 
-const createApp = require('../../app');
+const { runHandler } = require('../helpers/run-handler');
+const redditHandler = require('../../api/reddit');
+const aiRankHandler = require('../../api/reddit/ai-rank');
 const { makeSignedCookie } = require('../../lib/cookies');
 
 function mockJsonResponse(body, status = 200) {
@@ -21,44 +21,9 @@ function mockJsonResponse(body, status = 200) {
   };
 }
 
-async function canBindToPort() {
-  return await new Promise(resolve => {
-    const server = net.createServer();
-    const done = result => {
-      server.removeAllListeners('error');
-      resolve(result);
-    };
-    server.once('error', () => done(false));
-    server.listen(0, () => {
-      server.close(() => done(true));
-    });
-  });
-}
-
-describe('Express contract tests', () => {
-  let app;
-  let canBind;
-
-  beforeAll(async () => {
-    canBind = await canBindToPort();
-  });
-
+describe('Express contract tests (handler-level)', () => {
   beforeEach(() => {
-    app = createApp();
     global.fetch = jest.fn();
-    // Mock app.listen when port binding isn't available
-    if (!canBind) {
-      app.listen = function(...args) {
-        return {
-          address: () => ({ port: 0, family: 'IPv4', address: '127.0.0.1' }),
-          close: (callback) => { if (callback) callback(); },
-          listen: () => {},
-          on: () => {},
-          once: () => {},
-          removeListener: () => {},
-        };
-      };
-    }
   });
 
   afterEach(() => {
@@ -66,10 +31,6 @@ describe('Express contract tests', () => {
   });
 
   test('GET /api/reddit returns normalized payload and metrics header', async () => {
-    if (!canBind) {
-      console.warn('Skipping /api/reddit contract test: environment does not allow binding to a local port.');
-      return;
-    }
     const accessCookie = makeSignedCookie('access', 'token123');
     const cookieHeader = accessCookie.split(';')[0];
 
@@ -108,10 +69,14 @@ describe('Express contract tests', () => {
       return responses.shift();
     });
 
-    const res = await request(app)
-      .get('/api/reddit?subs=programming&mode=top&limit=25')
-      .set('Cookie', cookieHeader)
-      .set('Origin', 'http://localhost:3000');
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming&mode=top&limit=25',
+      headers: {
+        cookie: cookieHeader,
+        origin: 'http://localhost:3000',
+      },
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.results).toHaveLength(1);
@@ -122,33 +87,32 @@ describe('Express contract tests', () => {
   });
 
   test('POST /api/reddit/ai-rank returns scores and metrics header', async () => {
-    if (!canBind) {
-      console.warn('Skipping /api/reddit/ai-rank contract test: environment does not allow binding to a local port.');
-      return;
-    }
     const posts = [
       { id: 'p1', title: 'React news', subreddit: 'reactjs', selftext: '', score: 10, num_comments: 2, created_utc: Math.floor(Date.now() / 1000) },
       { id: 'p2', title: 'Other', subreddit: 'random', selftext: '', score: 5, num_comments: 1, created_utc: Math.floor(Date.now() / 1000) },
     ];
 
     const openRouterPayload = {
-      choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 9, confidence: 'high', reason: 'Relevant' }]) } }],
+      choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 5, confidence: 'high', reason: 'Relevant' }]) } }],
     };
 
     global.fetch.mockResolvedValue(mockJsonResponse(openRouterPayload));
 
-    const res = await request(app)
-      .post('/api/reddit/ai-rank')
-      .set('Origin', 'http://localhost:3000')
-      .send({
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
         posts,
         userGoals: 'Find React news',
+        userContext: 'Prefer breaking launches',
         openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
         openRouterApiKey: 'test-key',
-      });
+      },
+    });
 
     expect(res.status).toBe(200);
-    expect(res.body.scores.p1).toBe(9);
+    expect(res.body.scores.p1).toBe(5);
     expect(res.body.scores.p2).toBeNull();
     expect(res.body.metrics).toMatchObject({ batchCount: 1, processedCount: 2 });
     expect(res.headers['x-rdd-metrics']).toBeDefined();

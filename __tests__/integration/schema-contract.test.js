@@ -1,7 +1,8 @@
-const request = require('supertest');
 const nock = require('nock');
 
-const createApp = require('../../app');
+const { runHandler } = require('../helpers/run-handler');
+const redditHandler = require('../../api/reddit');
+const aiRankHandler = require('../../api/reddit/ai-rank');
 const { makeSignedCookie } = require('../../lib/cookies');
 
 function expectRedditResponseSchema(body) {
@@ -59,51 +60,21 @@ function expectAiRankResponseSchema(body) {
   }
 }
 
-// Mock server for supertest - always use mock to avoid port binding issues
-function createMockServer() {
-  const server = {
-    address: () => ({ port: 0, family: 'IPv4', address: '127.0.0.1' }),
-    close: (callback) => { 
-      if (callback) setTimeout(callback, 0); 
-    },
-    listen: () => server,
-    on: () => server,
-    once: () => server,
-    removeListener: () => server,
-  };
-  return server;
-}
+beforeAll(() => {
+  process.env.SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || 'test_secret_32_bytes_long_hex_string_123456';
+  nock.disableNetConnect();
+  nock.enableNetConnect('127.0.0.1');
+});
 
-function setupAppWithMockListen() {
-  const app = createApp();
-  // Always return mock server - supertest doesn't need a real listening server
-  app.listen = function(...args) {
-    return createMockServer();
-  };
-  return app;
-}
+afterAll(() => {
+  nock.enableNetConnect();
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 describe('API schema contracts', () => {
-  let app;
-
-  beforeAll(() => {
-    process.env.SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || 'test_secret_32_bytes_long_hex_string_123456';
-    nock.disableNetConnect();
-    nock.enableNetConnect('127.0.0.1');
-  });
-
-  afterAll(() => {
-    nock.enableNetConnect();
-  });
-
-  beforeEach(() => {
-    app = setupAppWithMockListen();
-  });
-
-  afterEach(() => {
-    nock.cleanAll();
-  });
-
   test('GET /api/reddit response schema stays stable', async () => {
     const oauth = nock('https://oauth.reddit.com');
     oauth
@@ -136,9 +107,11 @@ describe('API schema contracts', () => {
         },
       });
 
-    const res = await request(app)
-      .get('/api/reddit?subs=programming&mode=top')
-      .set('Cookie', makeSignedCookie('access', 'token').split(';')[0]);
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming&mode=top',
+      headers: { cookie: makeSignedCookie('access', 'token').split(';')[0] }
+    });
 
     expect(res.status).toBe(200);
     expectRedditResponseSchema(res.body);
@@ -151,16 +124,18 @@ describe('API schema contracts', () => {
         choices: [{
           message: {
             content: JSON.stringify([
-              { postId: 'p1', score: 8, confidence: 'high', reason: 'Matches goal' },
-              { postId: 'p2', score: 5, confidence: 'medium', reason: 'Somewhat relevant' },
+              { postId: 'p1', score: 5, confidence: 'high', reason: 'Matches goal' },
+              { postId: 'p2', score: 3, confidence: 'medium', reason: 'Somewhat relevant' },
             ]),
           },
         }],
       });
 
-    const res = await request(app)
-      .post('/api/reddit/ai-rank')
-      .send({
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
         posts: [
           { id: 'p1', title: 'A', subreddit: 'x', selftext: '', score: 1, num_comments: 0, created_utc: Math.floor(Date.now() / 1000) },
           { id: 'p2', title: 'B', subreddit: 'y', selftext: '', score: 1, num_comments: 0, created_utc: Math.floor(Date.now() / 1000) },
@@ -168,7 +143,8 @@ describe('API schema contracts', () => {
         userGoals: 'Find A and B',
         openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
         openRouterApiKey: 'test-key',
-      });
+      },
+    });
 
     expect(res.status).toBe(200);
     expectAiRankResponseSchema(res.body);

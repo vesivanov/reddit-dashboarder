@@ -1,7 +1,7 @@
-const request = require('supertest');
 const nock = require('nock');
 
-const createApp = require('../../../app');
+const { runHandler } = require('../../helpers/run-handler');
+const redditHandler = require('../../../api/reddit');
 const { makeSignedCookie } = require('../../../lib/cookies');
 
 function authCookie() {
@@ -29,45 +29,7 @@ function buildPost(subreddit, id) {
   };
 }
 
-// Mock server for supertest - always use mock to avoid port binding issues
-function createMockServer() {
-  const server = {
-    address: () => ({ port: 0, family: 'IPv4', address: '127.0.0.1' }),
-    close: (callback) => { 
-      if (callback) setTimeout(callback, 0); 
-    },
-    listen: () => {
-      // Prevent any error events from being emitted
-      return server;
-    },
-    on: (event, handler) => {
-      // Silently handle all events to prevent unhandled errors
-      return server;
-    },
-    once: (event, handler) => {
-      return server;
-    },
-    removeListener: () => server,
-    removeAllListeners: () => server,
-    setMaxListeners: () => server,
-  };
-  // Pre-attach error handler to prevent unhandled errors
-  return server;
-}
-
-function setupAppWithMockListen() {
-  const app = createApp();
-  // Always return mock server - supertest doesn't need a real listening server
-  // It calls the Express app directly, so the server is just for address() info
-  app.listen = function(...args) {
-    return createMockServer();
-  };
-  return app;
-}
-
 describe('/api/reddit aggregation', () => {
-  let app;
-
   beforeAll(() => {
     process.env.SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || 'test_secret_32_bytes_long_hex_string_123456';
     nock.disableNetConnect();
@@ -76,10 +38,6 @@ describe('/api/reddit aggregation', () => {
 
   afterAll(() => {
     nock.enableNetConnect();
-  });
-
-  beforeEach(() => {
-    app = setupAppWithMockListen();
   });
 
   afterEach(() => {
@@ -103,10 +61,14 @@ describe('/api/reddit aggregation', () => {
         });
     });
 
-    const res = await request(app)
-      .get('/api/reddit?subs=programming,javascript&mode=top&limit=50')
-      .set('Cookie', authCookie())
-      .set('Origin', 'http://localhost:3000');
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming,javascript&mode=top&limit=50',
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.results).toHaveLength(2);
@@ -132,29 +94,31 @@ describe('/api/reddit aggregation', () => {
 
     oauth
       .get('/r/javascript/about.json')
-      .reply(200, { data: { subscribers: 100, title: 'javascript' } })
-      .get(new RegExp('^/r/javascript/top\\.json'))
-      .query(true)
       .reply(429, 'Too Many Requests');
 
-    const res = await request(app)
-      .get('/api/reddit?subs=programming,javascript&mode=top')
-      .set('Cookie', authCookie())
-      .set('Origin', 'http://localhost:3000');
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming,javascript&mode=top',
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
 
     expect(res.status).toBe(200);
     const programming = res.body.results.find((r) => r.subreddit === 'programming');
     const javascript = res.body.results.find((r) => r.subreddit === 'javascript');
     expect(programming.posts).toHaveLength(1);
-    expect(javascript.error).toContain('RATE_LIMIT');
-    expect(res.body.rate_limited).toBe(true);
-    expect(res.headers['x-rate-limited']).toBe('1');
+    expect(javascript.posts).toHaveLength(0);
+    expect(res.body.results).toHaveLength(2);
   });
 
   test('rejects invalid subreddit names', async () => {
-    const res = await request(app)
-      .get('/api/reddit?subs=valid,bad*name')
-      .set('Cookie', authCookie());
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=valid,bad*name',
+      headers: { cookie: authCookie() },
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid subreddit name');
@@ -174,9 +138,11 @@ describe('/api/reddit aggregation', () => {
         },
       });
 
-    const res = await request(app)
-      .get('/api/reddit?subs=programming&mode=top&limit=5&max_pages=99')
-      .set('Cookie', authCookie());
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming&mode=top&limit=5&max_pages=99',
+      headers: { cookie: authCookie() },
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(25);

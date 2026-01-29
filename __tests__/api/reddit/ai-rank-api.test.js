@@ -1,36 +1,10 @@
-const request = require('supertest');
 const nock = require('nock');
 
-const createApp = require('../../../app');
+const { runHandler } = require('../../helpers/run-handler');
 const { makeSignedCookie } = require('../../../lib/cookies');
-
-// Mock server for supertest - always use mock to avoid port binding issues
-function createMockServer() {
-  const server = {
-    address: () => ({ port: 0, family: 'IPv4', address: '127.0.0.1' }),
-    close: (callback) => { 
-      if (callback) setTimeout(callback, 0); 
-    },
-    listen: () => server,
-    on: () => server,
-    once: () => server,
-    removeListener: () => server,
-  };
-  return server;
-}
-
-function setupAppWithMockListen() {
-  const app = createApp();
-  // Always return mock server - supertest doesn't need a real listening server
-  app.listen = function(...args) {
-    return createMockServer();
-  };
-  return app;
-}
+const aiRankHandler = require('../../../api/reddit/ai-rank');
 
 describe('/api/reddit/ai-rank', () => {
-  let app;
-
   beforeAll(() => {
     process.env.SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || 'test_secret_32_bytes_long_hex_string_123456';
     nock.disableNetConnect();
@@ -41,13 +15,9 @@ describe('/api/reddit/ai-rank', () => {
     nock.enableNetConnect();
   });
 
-  beforeEach(() => {
-    app = setupAppWithMockListen();
-    delete process.env.OPENROUTER_API_KEY;
-  });
-
   afterEach(() => {
     nock.cleanAll();
+    delete process.env.OPENROUTER_API_KEY;
   });
 
   const basePayload = {
@@ -61,9 +31,12 @@ describe('/api/reddit/ai-rank', () => {
   };
 
   test('requires API key from body, cookie, or env', async () => {
-    const res = await request(app)
-      .post('/api/reddit/ai-rank')
-      .send(basePayload);
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: basePayload,
+      headers: { origin: 'http://localhost:3000' }
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('OpenRouter API key required');
@@ -86,9 +59,12 @@ describe('/api/reddit/ai-rank', () => {
         }]
       });
 
-    const res = await request(app)
-      .post('/api/reddit/ai-rank')
-      .send({ ...basePayload, openRouterApiKey: 'test-key' });
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: { ...basePayload, openRouterApiKey: 'test-key' },
+      headers: { origin: 'http://localhost:3000' }
+    });
 
     expect(res.status).toBe(200);
     const parsedBody = typeof capturedBody === 'string' ? JSON.parse(capturedBody) : capturedBody;
@@ -108,10 +84,12 @@ describe('/api/reddit/ai-rank', () => {
         choices: [{ message: { content: JSON.stringify([{ postId: 'p1', score: 4 }]) } }]
       });
 
-    const res = await request(app)
-      .post('/api/reddit/ai-rank')
-      .set('Cookie', cookie)
-      .send(basePayload);
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: basePayload,
+      headers: { cookie, origin: 'http://localhost:3000' }
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.scores.p1).toBe(4);
@@ -122,9 +100,12 @@ describe('/api/reddit/ai-rank', () => {
       .post('/api/v1/chat/completions')
       .reply(500, { error: 'rate limit' });
 
-    const res = await request(app)
-      .post('/api/reddit/ai-rank')
-      .send({ ...basePayload, openRouterApiKey: 'test-key' });
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: { ...basePayload, openRouterApiKey: 'test-key' },
+      headers: { origin: 'http://localhost:3000' }
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.failedPostIds).toEqual(expect.arrayContaining(['p1', 'p2']));
