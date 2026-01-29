@@ -13,6 +13,7 @@ const DEFAULT_FETCH_TIMEOUT_MS = 7000;
 const DEFAULT_FETCH_RETRIES = 2;
 const DEFAULT_FUNCTION_TIMEOUT_MS = 30000;
 const DEFAULT_TIMEOUT_BUFFER_MS = 3000;
+const DEFAULT_TOKEN_TIMEOUT_MS = 10000;
 const MIN_TIME_BUDGET_MS = 1000;
 const MIN_PER_REQUEST_TIMEOUT_MS = 1000;
 
@@ -76,13 +77,23 @@ function appendSetCookie(res, cookie) {
   }
 }
 
-async function requestTokenRefresh(refreshTokenValue) {
+async function requestTokenRefresh(refreshTokenValue, { timeoutMs = DEFAULT_TOKEN_TIMEOUT_MS, timeBudget } = {}) {
   const clientId = process.env.REDDIT_CLIENT_ID;
   const clientSecret = process.env.REDDIT_CLIENT_SECRET;
   const userAgent = process.env.REDDIT_USER_AGENT || USER_AGENT;
 
   if (!clientId || !clientSecret) {
     throw new Error('Missing Reddit OAuth client credentials');
+  }
+
+  let effectiveTimeout = Math.max(MIN_PER_REQUEST_TIMEOUT_MS, Number(timeoutMs) || DEFAULT_TOKEN_TIMEOUT_MS);
+  if (timeBudget) {
+    try {
+      effectiveTimeout = Math.min(effectiveTimeout, timeBudget.safeTimeout(effectiveTimeout));
+    } catch (err) {
+      err.message = 'Processing time limit exceeded before refreshing access token';
+      throw err;
+    }
   }
 
   const form = new URLSearchParams({
@@ -92,15 +103,31 @@ async function requestTokenRefresh(refreshTokenValue) {
 
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-  const response = await fetch(TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basic}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': userAgent,
-    },
-    body: form.toString(),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
+
+  let response;
+  try {
+    response = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': userAgent,
+      },
+      body: form.toString(),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error('Token refresh timeout');
+      timeoutErr.code = 'TOKEN_REFRESH_TIMEOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -112,7 +139,8 @@ async function requestTokenRefresh(refreshTokenValue) {
   return response.json();
 }
 
-function createTokenManager(req, res) {
+function createTokenManager(req, res, options = {}) {
+  const { timeBudget = null, tokenTimeoutMs = DEFAULT_TOKEN_TIMEOUT_MS } = options || {};
   let access = readSignedCookie(req, 'access');
   let refresh = readSignedCookie(req, 'refresh');
   let refreshingPromise = null;
@@ -122,7 +150,7 @@ function createTokenManager(req, res) {
     if (!refreshingPromise) {
       refreshingPromise = (async () => {
         console.log('Token manager: refreshing Reddit access token');
-        const data = await requestTokenRefresh(refresh);
+        const data = await requestTokenRefresh(refresh, { timeoutMs: tokenTimeoutMs, timeBudget });
         access = data.access_token;
         const accessMaxAge = Math.max(0, (data.expires_in || 3600) - 10);
         appendSetCookie(res, makeSignedCookie('access', access, { maxAge: accessMaxAge }));
@@ -393,6 +421,7 @@ async function handler(req, res) {
   const timeBudget = createTimeBudget(requestStart);
   const fetchTimeoutMs = readNumber('REDDIT_FETCH_TIMEOUT_MS', DEFAULT_FETCH_TIMEOUT_MS);
   const fetchRetries = readNumber('REDDIT_FETCH_MAX_RETRIES', DEFAULT_FETCH_RETRIES);
+  const tokenTimeoutMs = readNumber('REDDIT_TOKEN_TIMEOUT_MS', DEFAULT_TOKEN_TIMEOUT_MS);
 
   // Only log in development, and sanitize sensitive data
   if (isDev) {
@@ -454,7 +483,7 @@ async function handler(req, res) {
     return withCORS(req, res).status(400).json({ error: 'Missing subs param' });
   }
 
-  const tokenManager = createTokenManager(req, res);
+  const tokenManager = createTokenManager(req, res, { timeBudget, tokenTimeoutMs });
   let fetchJSON;
   try {
     const token = await tokenManager.ensureToken();
