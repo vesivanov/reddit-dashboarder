@@ -1,24 +1,20 @@
-// Serve index.html for SPA routing
+// Serve index.html for SPA routes
 const fs = require('fs');
 const path = require('path');
 
-module.exports = async function handler(req, res) {
-  // Only handle GET requests
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.status(405).send('Method not allowed');
-    return;
-  }
-
-  // Serve index.html
-  const indexPath = path.join(__dirname, '..', 'index.html');
-  
+module.exports = function handler(req, res) {
   try {
+    const indexPath = path.join(__dirname, '..', 'index.html');
+    
+    if (!fs.existsSync(indexPath)) {
+      return res.status(404).send('Not found');
+    }
+    
     const html = fs.readFileSync(indexPath, 'utf8');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
     res.status(200).send(html);
   } catch (error) {
-    console.error('Error serving index.html:', error);
+    console.error('Error in index handler:', error);
     res.status(500).send('Internal server error');
   }
 };
