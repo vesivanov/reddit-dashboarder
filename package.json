@@ -6,7 +6,7 @@
     "dev": "node server.js",
     "local": "node server.js",
     "build": "echo 'Static site - no build needed'",
-    "deploy": "vercel --prod",
+    "deploy": "vercel --prod --yes",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
