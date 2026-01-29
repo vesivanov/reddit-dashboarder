@@ -5,3 +5,6 @@ app.js
 
 # Exclude tests from deploy (not needed in production).
 __tests__
+
+# Never deploy api/index.js (root/SPA handler); root is static index.html.
+api/index.js

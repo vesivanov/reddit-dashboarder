@@ -44,6 +44,7 @@ function createApp() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
+  app.get('/api/root-info', require('./api/root-info'));
 
   // Auth routes
   app.get('/api/auth/start', authStartHandler);
