@@ -9,6 +9,59 @@ const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const USER_AGENT = process.env.REDDIT_USER_AGENT || DEFAULT_UA;
 const TOKEN_ENDPOINT = 'https://www.reddit.com/api/v1/access_token';
 
+const DEFAULT_FETCH_TIMEOUT_MS = 7000;
+const DEFAULT_FETCH_RETRIES = 2;
+const DEFAULT_FUNCTION_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_BUFFER_MS = 3000;
+const MIN_TIME_BUDGET_MS = 1000;
+const MIN_PER_REQUEST_TIMEOUT_MS = 1000;
+
+function readNumber(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function createTimeBudget(requestStartMs) {
+  const totalMs = readNumber('API_MAX_RUNTIME_MS', readNumber('VERCEL_TIMEOUT_MS', DEFAULT_FUNCTION_TIMEOUT_MS));
+  const bufferMs = readNumber('API_TIMEOUT_BUFFER_MS', DEFAULT_TIMEOUT_BUFFER_MS);
+  const budgetMs = Math.max(MIN_TIME_BUDGET_MS, totalMs - bufferMs);
+  const deadline = requestStartMs + budgetMs;
+
+  function msRemaining() {
+    return deadline - Date.now();
+  }
+
+  function ensure(message) {
+    if (msRemaining() <= 0) {
+      const err = new Error(message || 'Processing time limit exceeded');
+      err.code = 'TIME_BUDGET_EXCEEDED';
+      throw err;
+    }
+  }
+
+  function safeTimeout(desiredTimeoutMs) {
+    const fallback = Number.isFinite(desiredTimeoutMs) ? desiredTimeoutMs : DEFAULT_FETCH_TIMEOUT_MS;
+    const remaining = msRemaining();
+    if (remaining <= MIN_PER_REQUEST_TIMEOUT_MS + 250) {
+      const err = new Error('Processing time limit exceeded');
+      err.code = 'TIME_BUDGET_EXCEEDED';
+      throw err;
+    }
+    const safeWindow = Math.min(fallback, remaining - 250);
+    return Math.max(MIN_PER_REQUEST_TIMEOUT_MS, safeWindow);
+  }
+
+  return {
+    budgetMs,
+    deadline,
+    ensure,
+    msRemaining,
+    safeTimeout,
+  };
+}
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function appendSetCookie(res, cookie) {
@@ -117,8 +170,8 @@ function toOAuthUrl(inputUrl) {
   }
 }
 
-function createFetchJSON(tokenManager) {
-  return async function fetchJSON(url, { tries = 3, baseDelay = 400 } = {}) {
+function createFetchJSON(tokenManager, { requestTimeoutMs = 10000, defaultTries = 3 } = {}) {
+  return async function fetchJSON(url, { tries = defaultTries, baseDelay = 400, timeoutMs } = {}) {
     let attempt = 0;
     let lastErr;
     console.log(`fetchJSON: Starting request to ${url} (max ${tries} tries)`);
@@ -143,8 +196,10 @@ function createFetchJSON(tokenManager) {
         const targetUrl = toOAuthUrl(url);
         console.log(`fetchJSON: Attempt ${attempt + 1}/${tries} for ${targetUrl}`);
 
+        const requestedTimeout = Number.isFinite(timeoutMs) ? Number(timeoutMs) : requestTimeoutMs;
+        const effectiveTimeout = Math.max(MIN_PER_REQUEST_TIMEOUT_MS, requestedTimeout);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
         try {
           const res = await fetch(targetUrl, {
@@ -335,6 +390,9 @@ const { withCORS } = require('../lib/cors');
 async function handler(req, res) {
   const isDev = process.env.NODE_ENV !== 'production';
   const requestStart = Date.now();
+  const timeBudget = createTimeBudget(requestStart);
+  const fetchTimeoutMs = readNumber('REDDIT_FETCH_TIMEOUT_MS', DEFAULT_FETCH_TIMEOUT_MS);
+  const fetchRetries = readNumber('REDDIT_FETCH_MAX_RETRIES', DEFAULT_FETCH_RETRIES);
 
   // Only log in development, and sanitize sensitive data
   if (isDev) {
@@ -346,6 +404,7 @@ async function handler(req, res) {
     const { cookie, authorization, ...safeHeaders } = req.headers;
     console.log('Headers:', JSON.stringify(safeHeaders, null, 2));
     console.log('Timestamp:', new Date().toISOString());
+    console.log('Time budget (ms):', timeBudget.budgetMs, 'Fetch timeout (ms):', fetchTimeoutMs, 'Retries:', fetchRetries);
   }
 
   // Handle CORS preflight
@@ -403,7 +462,10 @@ async function handler(req, res) {
       if (isDev) console.log('No Reddit access token found; user must authenticate');
       return withCORS(req, res).status(401).json({ error: 'Not authenticated' });
     }
-    fetchJSON = createFetchJSON(tokenManager);
+    fetchJSON = createFetchJSON(tokenManager, {
+      requestTimeoutMs: fetchTimeoutMs,
+      defaultTries: fetchRetries,
+    });
   } catch (error) {
     if (isDev) console.error('Error establishing Reddit token manager:', error.message);
     return withCORS(req, res).status(500).json({ error: 'OAuth configuration error', message: error.message });
@@ -413,10 +475,28 @@ async function handler(req, res) {
     const cutoff = Math.floor(Date.now() / 1000) - daysValue * 86400;
     if (isDev) console.log('Starting data fetch with cutoff timestamp:', cutoff, 'for', subsArray.length, 'subreddits');
 
+    const fetchWithBudget = (url, options = {}) => {
+      try {
+        const desiredTimeout = options.timeoutMs ?? fetchTimeoutMs;
+        const timeoutMs = timeBudget.safeTimeout(desiredTimeout);
+        return fetchJSON(url, { ...options, timeoutMs });
+      } catch (err) {
+        if (err.code === 'TIME_BUDGET_EXCEEDED') {
+          err.message = `Processing time limit exceeded before requesting ${url}`;
+        }
+        throw err;
+      }
+    };
+
+    const ensureTime = (contextMessage) => {
+      timeBudget.ensure(contextMessage);
+    };
+
     // Create tasks for each subreddit with concurrency control
     const tasks = subsArray.map(sub => async () => {
       if (isDev) console.log(`Starting fetch for subreddit: r/${sub}`);
       try {
+        ensureTime(`Time limit reached before processing r/${sub}`);
         // Try to fetch subreddit metadata, but fallback to basic info if it fails
         let meta = {
           subscribers: null,
@@ -430,7 +510,7 @@ async function handler(req, res) {
         try {
           if (isDev) console.log(`Attempting to fetch metadata for r/${sub}`);
           const subInfoUrl = `https://oauth.reddit.com/r/${encodeURIComponent(sub)}/about.json`;
-          const subInfo = await fetchJSON(subInfoUrl);
+          const subInfo = await fetchWithBudget(subInfoUrl);
           if (subInfo?.data) {
             meta = {
               subscribers: subInfo.data.subscribers,
@@ -442,6 +522,7 @@ async function handler(req, res) {
             if (isDev) console.log(`Got metadata for r/${sub}: ${meta.subscribers} subscribers`);
           }
         } catch (metaError) {
+          if (metaError.code === 'TIME_BUDGET_EXCEEDED') throw metaError;
           if (isDev) console.log(`Could not fetch metadata for r/${sub}: ${metaError.message}`);
           // Keep the default meta object with null values
         }
@@ -459,7 +540,8 @@ async function handler(req, res) {
           for (const endpoint of endpoints) {
             try {
               if (isDev) console.log(`Trying endpoint: ${endpoint}`);
-              const top = await fetchJSON(endpoint);
+              ensureTime(`Time limit reached before fetching top posts for r/${sub}`);
+              const top = await fetchWithBudget(endpoint);
               posts = normalize(top);
               if (posts.length > 0) {
                 if (isDev) console.log(`Got ${posts.length} top posts for r/${sub} from ${endpoint}`);
@@ -467,6 +549,7 @@ async function handler(req, res) {
               }
             } catch (e) {
               if (isDev) console.log(`Endpoint failed: ${endpoint} - ${e.message}`);
+              if (e.code === 'TIME_BUDGET_EXCEEDED') throw e;
               continue;
             }
           }
@@ -491,12 +574,14 @@ async function handler(req, res) {
           try {
             const testEp = `${baseEp}?limit=1&raw_json=1`;
             if (isDev) console.log(`Testing endpoint: ${testEp}`);
-            await fetchJSON(testEp);
+            ensureTime(`Time limit reached before endpoint test for r/${sub}`);
+            await fetchWithBudget(testEp, { tries: 1 });
             workingEndpoint = baseEp;
             if (isDev) console.log(`Found working endpoint: ${baseEp}`);
             break;
           } catch (e) {
             if (isDev) console.log(`Endpoint failed: ${baseEp} - ${e.message}`);
+            if (e.code === 'TIME_BUDGET_EXCEEDED') throw e;
             continue;
           }
         }
@@ -508,7 +593,8 @@ async function handler(req, res) {
         while (page < maxPagesValue) {
           const ep = `${workingEndpoint}?limit=${limitValue}${after ? `&after=${after}` : ''}&raw_json=1`;
           if (isDev) console.log(`Page ${page + 1} for r/${sub}: ${ep}`);
-          const json = await fetchJSON(ep);
+          ensureTime(`Time limit reached before page fetch for r/${sub}`);
+          const json = await fetchWithBudget(ep);
           const posts = normalize(json);
           if (isDev) console.log(`Page ${page + 1} returned ${posts.length} posts for r/${sub}`);
           if (!posts.length) break;
@@ -534,6 +620,16 @@ async function handler(req, res) {
         if (isDev) console.log(`Finished processing r/${sub}: ${collected.length} posts, partial=${partial}`);
         return { subreddit: sub, meta, posts: collected, partial };
       } catch (e) {
+        if (e.code === 'TIME_BUDGET_EXCEEDED') {
+          if (isDev) console.warn(`Time budget exceeded while processing r/${sub}`);
+          return {
+            subreddit: sub,
+            error: 'Processing time limit exceeded before this subreddit completed',
+            posts: [],
+            partial: false,
+            timed_out: true,
+          };
+        }
         if (isDev) console.error(`Error processing r/${sub}:`, e.message);
         return { subreddit: sub, error: e.message, posts: [], partial: false };
       }
@@ -551,6 +647,7 @@ async function handler(req, res) {
     }
 
     const rateLimited = results.some(r => (r?.error || '').includes('[RATE_LIMIT]'));
+    const timedOutSubs = results.filter(r => r?.timed_out).map(r => r.subreddit);
     const totalPosts = results.reduce((sum, r) => sum + (r.posts?.length || 0), 0);
     const rateLimitedCount = results.filter(r => (r?.error || '').includes('[RATE_LIMIT]')).length;
     const metrics = {
@@ -558,6 +655,7 @@ async function handler(req, res) {
       totalPosts,
       rateLimitedCount,
       durationMs: Date.now() - requestStart,
+      timedOutCount: timedOutSubs.length,
     };
 
     const responseData = {
@@ -569,6 +667,8 @@ async function handler(req, res) {
       results,
       fetched_at: Date.now(),
       rate_limited: rateLimited,
+      timed_out: timedOutSubs.length > 0,
+      ...(timedOutSubs.length > 0 && { timed_out_subreddits: timedOutSubs }),
       metrics,
     };
 
@@ -576,6 +676,9 @@ async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=600');
     if (rateLimited) {
       res.setHeader('X-Rate-Limited', '1');
+    }
+    if (timedOutSubs.length > 0) {
+      res.setHeader('X-RDD-Timed-Out', String(timedOutSubs.length));
     }
     try {
       res.setHeader('X-RDD-Metrics', JSON.stringify(metrics));
