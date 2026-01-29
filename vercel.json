@@ -1,14 +1,5 @@
 {
-  "rewrites": [
-    {
-      "source": "/((?!api/|lib/|.*\\.[a-z0-9]+$|^$).+)",
-      "destination": "/api/index.js"
-    }
-  ],
   "functions": {
-    "api/index.js": {
-      "maxDuration": 5
-    },
     "api/reddit.js": {
       "maxDuration": 30
     },
