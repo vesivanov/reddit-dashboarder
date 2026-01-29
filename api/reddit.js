@@ -334,6 +334,7 @@ const { withCORS } = require('../lib/cors');
 
 async function handler(req, res) {
   const isDev = process.env.NODE_ENV !== 'production';
+  const requestStart = Date.now();
 
   // Only log in development, and sanitize sensitive data
   if (isDev) {
@@ -550,6 +551,15 @@ async function handler(req, res) {
     }
 
     const rateLimited = results.some(r => (r?.error || '').includes('[RATE_LIMIT]'));
+    const totalPosts = results.reduce((sum, r) => sum + (r.posts?.length || 0), 0);
+    const rateLimitedCount = results.filter(r => (r?.error || '').includes('[RATE_LIMIT]')).length;
+    const metrics = {
+      subredditCount: results.length,
+      totalPosts,
+      rateLimitedCount,
+      durationMs: Date.now() - requestStart,
+    };
+
     const responseData = {
       mode: modeValue,
       time,
@@ -559,12 +569,18 @@ async function handler(req, res) {
       results,
       fetched_at: Date.now(),
       rate_limited: rateLimited,
+      metrics,
     };
 
     // Set cache headers
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=600');
     if (rateLimited) {
       res.setHeader('X-Rate-Limited', '1');
+    }
+    try {
+      res.setHeader('X-RDD-Metrics', JSON.stringify(metrics));
+    } catch (setErr) {
+      if (isDev) console.warn('Unable to set metrics header:', setErr.message);
     }
 
     if (isDev) {
@@ -594,6 +610,19 @@ async function handler(req, res) {
       return withCORS(req, res).status(401).json({ error: 'Not authenticated' });
     }
 
+    const errorMetrics = {
+      subredditCount: 0,
+      totalPosts: 0,
+      rateLimitedCount: 0,
+      durationMs: Date.now() - requestStart,
+      error: error.code || error.status || 'ERROR',
+    };
+    try {
+      res.setHeader('X-RDD-Metrics', JSON.stringify(errorMetrics));
+    } catch (setErr) {
+      if (isDev) console.warn('Unable to set metrics header on error:', setErr.message);
+    }
+
     return withCORS(req, res).status(500).json({
       error: 'Internal server error',
       message: error.message,
@@ -602,5 +631,9 @@ async function handler(req, res) {
   }
 }
 
-// Export for both Vercel and Express
+// Export for both Vercel and Express, and expose helpers for testing
 module.exports = handler;
+module.exports.createTokenManager = createTokenManager;
+module.exports.createFetchJSON = createFetchJSON;
+module.exports.runWithConcurrency = runWithConcurrency;
+module.exports.normalize = normalize;
