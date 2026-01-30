@@ -326,23 +326,23 @@ Use skeletons for lists + detail, not just spinners.
 
 5) Domain-specific: AI scoring
 
-AI relevance badge tiers
+AI relevance badge tiers (0–5 scale)
 
-High (≥8): bg-emerald-600 text-white (ring-2 ring-emerald-300 dark:ring-emerald-400/30 for emphasis)
+High (≥5): bg-emerald-600 text-white (ring-2 ring-emerald-300 dark:ring-emerald-400/30 for emphasis)
 
-Likely (≥7): bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200
+Likely (≥4): bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200
 
-Maybe (≥5): bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200
+Maybe (≥3): bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200
 
 Low: use neutral badge (bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400)
 
 AI progress indicator bars (visual score representation)
 
-High (≥8): bg-emerald-600 (solid, no dark variant)
+High (≥5): bg-emerald-600 (solid, no dark variant)
 
-Likely (≥7): bg-emerald-500 dark:bg-emerald-400
+Likely (≥4): bg-emerald-500 dark:bg-emerald-400
 
-Maybe (≥5): bg-amber-500 dark:bg-amber-400
+Maybe (≥3): bg-amber-500 dark:bg-amber-400
 
 Low: bg-zinc-400 dark:bg-zinc-500
 

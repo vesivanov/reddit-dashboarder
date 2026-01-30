@@ -25,6 +25,7 @@ Trust the ordering enough to use it daily
 - **🌙 Dark Mode**: Dark/light theme with system preference detection
 - **⚡ Auto-Refresh**: Configurable intervals (5–60 minutes)
 - **🔍 Filtering**: Keywords, min upvotes/comments, time range, days
+- **⚡ Velocity Signal**: Upvotes/comments per hour with "spiking" badge + velocity sorting
 - **💾 Persistent Settings**: Subreddits and preferences in `localStorage` with backup/restore
 - **📱 Responsive Design**: Works on desktop and mobile
 - **🚀 Deploy Anywhere**: Vercel, Cloudflare Workers, or local Express
@@ -133,7 +134,7 @@ SESSION_COOKIE_SECRET=your_random_secret_key_here
 
 # OpenRouter AI Configuration (Optional - for AI ranking)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
 
 # Optional Configuration
 REDDIT_USER_AGENT=YourApp/1.0.0
@@ -221,8 +222,8 @@ The `server.js` file provides a full Express server that can be deployed to any 
 8. Sort by "AI Score" to see the most relevant posts first
 
 **Available Models:**
-- Free: Meta Llama 3.3 70B, Qwen 2.5 72B, Google Gemini 2.0 Flash
-- Paid: Claude 3.5 Sonnet, GPT-4o, GPT-4o Mini, Gemini Pro 1.5
+- Models are loaded dynamically from OpenRouter in the Settings panel (recommended)
+- Default: Google Gemini 2.0 Flash (fast + strong for monitoring)
 
 ### Features
 
@@ -322,7 +323,7 @@ POST /api/reddit/ai-rank
       "reason": "Highly relevant because..."
     }
   },
-  "model": "meta-llama/llama-3.3-70b-instruct:free",
+  "model": "google/gemini-2.0-flash-exp:free",
   "promptVersion": "v3.0",
   "processed": 2,
   "metrics": {
@@ -412,7 +413,7 @@ See `__tests__/README.md` for more details on the test suite.
 | `REDDIT_REDIRECT_URI` | Yes | OAuth redirect URI (must match Reddit app settings) |
 | `SESSION_COOKIE_SECRET` | Yes | Secret for signing cookies (32+ random bytes hex) |
 | `OPENROUTER_API_KEY` | No | OpenRouter key for AI ranking (users can also store their own via Settings/HttpOnly cookie) |
-| `OPENROUTER_MODEL` | No | Default model (e.g. `meta-llama/llama-3.3-70b-instruct:free`) |
+| `OPENROUTER_MODEL` | No | Default model (e.g. `google/gemini-2.0-flash-exp:free`) |
 | `OPENROUTER_REFERER` | No | HTTP-Referer sent to OpenRouter (default varies by deployment) |
 | `REDDIT_USER_AGENT` | No | User-Agent for Reddit API |
 | `APP_BASE_URL` | No | Base URL (used when `REDDIT_REDIRECT_URI` is not set; auth derives redirect from host otherwise) |
@@ -430,9 +431,9 @@ The dashboard uses Tailwind CSS with dark mode. See `design-system.md` for seman
 Choose your AI model in the Settings panel under "AI Relevance Ranking", or set a default via `OPENROUTER_MODEL` environment variable. 
 
 Popular free options:
-- `meta-llama/llama-3.3-70b-instruct:free` (default)
+- `google/gemini-2.0-flash-exp:free` (default)
+- `meta-llama/llama-3.3-70b-instruct:free`
 - `qwen/qwen-2.5-72b-instruct:free`
-- `google/gemini-2.0-flash-exp:free`
 
 Paid options (requires credits):
 - `anthropic/claude-3.5-sonnet`

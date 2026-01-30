@@ -9,7 +9,7 @@
  * 
  * Success criteria:
  * - Complete workflow in < 2 minutes (target: < 1 minute)
- * - Surface at least 3-5 highly relevant posts (score ≥ 7)
+ * - Surface at least 3-5 highly relevant posts (score ≥ 4)
  * - Handle errors gracefully
  */
 
