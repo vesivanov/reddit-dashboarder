@@ -51,6 +51,8 @@ module.exports = async function handler(req, res) {
         pricing: model.pricing || null,
         top_provider: model.top_provider || null,
         architecture: model.architecture || null,
+        created: model.created || model.created_at || model.createdAt || null,
+        updated: model.updated || model.updated_at || model.updatedAt || model.last_updated || model.last_updated_at || null,
       }))
       .filter((model) => model.id);
 
