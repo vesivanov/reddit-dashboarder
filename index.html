@@ -134,6 +134,7 @@
     const DEFAULT_LLM_POST_LIMIT = 60;
     const LLM_SCORE_MORE_STEP = 40;
     const MAX_LLM_POST_LIMIT = 200;
+    const LATEST_MODEL_COUNT = 10;
     const FALLBACK_MODELS = [
       { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', tier: 'free', speed: 'fast' },
       { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Meta Llama 3.3 70B (Free)', tier: 'free', speed: 'balanced' },
@@ -299,6 +300,7 @@
       const [availableModels, setAvailableModels] = useState([]);
       const [modelsLoading, setModelsLoading] = useState(false);
       const [modelsError, setModelsError] = useState('');
+      const [showAllModels, setShowAllModels] = useState(false);
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
 
@@ -418,6 +420,19 @@
               const cache = JSON.parse(cacheStr);
               const now = Date.now();
               const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+              const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
+              const MODEL_KEY = 'dashboard_ai_model';
+              const PROMPT_VERSION_KEY = 'dashboard_ai_prompt_version';
+              const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
+              const currentGoalsHash = hashGoals(combinedGoals);
+              const savedModel = localStorage.getItem(MODEL_KEY) || 'unknown';
+              const savedPromptVersion = localStorage.getItem(PROMPT_VERSION_KEY) || 'unknown';
+              const currentCacheVersion = `${currentGoalsHash}_${savedPromptVersion}_${savedModel}`;
+              const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
+              if (savedCacheVersion && savedCacheVersion !== currentCacheVersion) {
+                console.log('AI Ranking: Cached scores do not match current goals/model/prompt, skipping restore');
+                return;
+              }
               const rawScores = new Map();
               const metadata = new Map();
               
@@ -426,17 +441,16 @@
               
               // Load cached scores for posts that exist in cache
               allPosts.forEach(post => {
-                const postId = post.id || post.data?.id;
-                if (postId && cache[postId]) {
-                  const cachedData = cache[postId];
-                  if (cachedData.timestamp && (now - cachedData.timestamp) < CACHE_EXPIRY && cachedData.score > 0) {
-                    rawScores.set(postId, cachedData.score);
-                    metadata.set(postId, {
-                      confidence: cachedData.confidence || 'medium',
-                      reason: cachedData.reason || '',
-                      source: 'cache-restored'
-                    });
-                  }
+                const postId = String(post.id || post.data?.id || '');
+                if (!postId || !cache[postId]) return;
+                const cachedData = cache[postId];
+                if (cachedData.timestamp && (now - cachedData.timestamp) < CACHE_EXPIRY && cachedData.score !== null && cachedData.score !== undefined) {
+                  rawScores.set(postId, cachedData.score);
+                  metadata.set(postId, {
+                    confidence: cachedData.confidence || 'medium',
+                    reason: cachedData.reason || '',
+                    source: cachedData.source || 'cache-restored'
+                  });
                 }
               });
               
@@ -454,7 +468,7 @@
             console.warn('Failed to restore AI scores on load:', error);
           }
         }
-      }, [data, aiEnabled, aiGoals, postRelevanceScores.size]); // Run when data or AI settings change
+      }, [data, aiEnabled, aiGoals, aiContext, postRelevanceScores.size]); // Run when data or AI settings change
 
       // Touch/swipe gesture handlers
       const handleTouchStart = useCallback((e) => {
@@ -624,6 +638,9 @@
           return true;
         });
 
+        const shouldSort = sortBy !== 'date' || sortOrder !== 'desc';
+        if (!shouldSort) return filtered;
+
         const multiplier = sortOrder === 'asc' ? 1 : -1;
         const nowSeconds = Date.now() / 1000;
         const sorted = [...filtered].sort((a, b) => {
@@ -767,16 +784,6 @@
         const effectiveLlmLimit = Math.max(10, Math.min(MAX_LLM_POST_LIMIT, Number(llmPostLimit) || DEFAULT_LLM_POST_LIMIT));
 
         try {
-          // Simple hash function for goals comparison
-          const hashGoals = (str) => {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-              hash = ((hash << 5) - hash) + str.charCodeAt(i);
-              hash = hash & hash;
-            }
-            return hash.toString(36);
-          };
-
           // Cache versioning: invalidate if goals, model, or prompt version changed
           const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
           const currentGoalsHash = hashGoals(combinedGoals);
@@ -786,6 +793,8 @@
           const PROMPT_VERSION_KEY = 'dashboard_ai_prompt_version';
           const savedPromptVersion = localStorage.getItem(PROMPT_VERSION_KEY) || 'unknown';
           const currentCacheVersion = `${currentGoalsHash}_${savedPromptVersion}_${savedModel}`;
+          let latestPromptVersion = savedPromptVersion;
+          let latestModel = savedModel;
           
           try {
             const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
@@ -923,6 +932,8 @@
                     const result = await response.json();
                     const resultPromptVersion = result.promptVersion || savedPromptVersion;
                     const resultModel = result.model || savedModel;
+                    latestPromptVersion = resultPromptVersion;
+                    latestModel = resultModel;
                     if (result.model) localStorage.setItem(MODEL_KEY, result.model);
                     if (result.promptVersion) localStorage.setItem(PROMPT_VERSION_KEY, result.promptVersion);
                     const updatedCacheVersion = `${currentGoalsHash}_${resultPromptVersion}_${resultModel}`;
@@ -1047,6 +1058,15 @@
                   const normalizedScore = Math.min(5, Math.round(heuristicScore * 0.3));
                   allScores.set(postId, normalizedScore);
                   allMetadata.set(postId, { source: 'heuristic', confidence: 'low', reason: 'Keyword-based relevance' });
+                  cache[postId] = {
+                    score: normalizedScore,
+                    timestamp: Date.now(),
+                    version: latestPromptVersion || savedPromptVersion || 'v3.1',
+                    model: latestModel || savedModel || 'unknown',
+                    confidence: 'low',
+                    reason: 'Keyword-based relevance',
+                    source: 'heuristic'
+                  };
                 }
               });
               
@@ -1452,21 +1472,78 @@
           const contextHint = model.context_length ? `${formatNumber(model.context_length)} ctx` : '';
           const tierHint = tier === 'free' ? 'free' : (pricing ? costHint : 'paid');
           const hintParts = [tierHint, speed, contextHint].filter(Boolean);
+          const provider = model.top_provider?.name || model.top_provider?.id || model.top_provider || '';
+          const architecture = typeof model.architecture === 'string'
+            ? model.architecture
+            : (model.architecture?.modality || model.architecture?.name || '');
+          const updatedAt = getModelTimestamp(model);
           return {
             id,
             name,
             tier,
             speed,
             hint: hintParts.join(' • '),
+            pricing,
+            context_length: model.context_length || null,
+            description: (model.description || '').trim(),
+            provider,
+            architecture,
+            updatedAt,
           };
         }).filter(model => model.id);
 
         const recommended = normalized.filter(m => m.id === DEFAULT_OPENROUTER_MODEL);
         const free = normalized.filter(m => m.tier === 'free' && m.id !== DEFAULT_OPENROUTER_MODEL);
         const paid = normalized.filter(m => m.tier === 'paid');
+        const sortLatest = (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0) || a.name.localeCompare(b.name);
+        const latestFree = [...free].sort(sortLatest).slice(0, LATEST_MODEL_COUNT);
+        const latestPaid = [...paid].sort(sortLatest).slice(0, LATEST_MODEL_COUNT);
+        const all = [...normalized].sort(sortLatest);
 
-        return { recommended, free, paid };
+        return { recommended, free, paid, latestFree, latestPaid, all };
       }, [availableModels]);
+
+      const renderModelCard = (model, options = {}) => {
+        if (!model) return null;
+        const { compact = false, emphasize = false } = options;
+        const selected = model.id === openRouterModel;
+        const detailBits = [];
+        const pricingHint = model.tier === 'free' ? 'Free' : formatCostHint(model.pricing);
+        if (pricingHint) detailBits.push(pricingHint);
+        if (model.speed) detailBits.push(`Speed: ${model.speed}`);
+        if (model.context_length) detailBits.push(`${formatNumber(model.context_length)} ctx`);
+        if (model.provider) detailBits.push(`Provider: ${model.provider}`);
+        if (model.architecture) detailBits.push(`Arch: ${model.architecture}`);
+        if (model.updatedAt) detailBits.push(`Updated ${formatModelDate(model.updatedAt)}`);
+
+        const containerClass = [
+          'p-3 rounded-lg border transition-colors',
+          selected
+            ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-500/80 dark:bg-indigo-900/30'
+            : 'border-zinc-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-800/60',
+          emphasize ? 'shadow-sm' : '',
+        ].join(' ');
+
+        return h('div', { key: model.id, className: containerClass },
+          h('div', { className: 'flex items-start justify-between gap-2' },
+            h('div', { className: 'min-w-0' },
+              h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white truncate' }, model.name),
+              h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' }, model.id)
+            ),
+            h('div', { className: 'flex items-center gap-2 shrink-0' },
+              selected && h('span', { className: 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-600 text-white' }, 'Selected'),
+              h('button', {
+                type: 'button',
+                onClick: () => setOpenRouterModel(model.id),
+                disabled: !aiEnabled,
+                className: 'px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed'
+              }, selected ? 'Using' : 'Select')
+            )
+          ),
+          !compact && model.description && h('p', { className: 'mt-2 text-xs text-zinc-600 dark:text-zinc-300' }, truncateText(model.description, 140)),
+          detailBits.length > 0 && h('p', { className: 'mt-2 text-[11px] text-zinc-500 dark:text-zinc-400' }, detailBits.join(' • '))
+        );
+      };
 
       const filtersActive = minUpvoteFilter || minCommentFilter || minAiRelevance || keyword;
 
@@ -2371,31 +2448,59 @@
                       '⚠️ Click "Save securely" to protect your key from XSS attacks'
                     )
                   ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'AI Model'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Choose the AI model for ranking posts (dynamic list from OpenRouter)'),
-                    h('select', {
-                      value: openRouterModel,
-                      onChange: (e) => setOpenRouterModel(e.target.value),
-                      disabled: !aiEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    },
-                      modelGroups.recommended.length > 0 && h('optgroup', { label: 'Recommended' },
-                        modelGroups.recommended.map(model =>
-                          h('option', { key: `rec-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
-                        )
+                  h('div', { className: 'block' },
+                    h('div', { className: 'flex items-start justify-between gap-3' },
+                      h('div', null,
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'AI Model'),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Latest free + paid picks with details. Choose any model to rank posts.')
                       ),
-                      modelGroups.free.length > 0 && h('optgroup', { label: 'Free Models' },
-                        modelGroups.free.map(model =>
-                          h('option', { key: `free-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
-                        )
+                      h('button', {
+                        type: 'button',
+                        onClick: () => setShowAllModels(!showAllModels),
+                        className: 'px-2.5 py-1.5 rounded-lg text-xs font-medium border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed',
+                        disabled: !aiEnabled
+                      }, showAllModels ? 'Hide all' : 'Show all')
+                    ),
+                    modelGroups.recommended.length > 0 && h('div', { className: 'mt-3 p-3 rounded-xl border border-indigo-200 dark:border-indigo-700/60 bg-indigo-50/60 dark:bg-indigo-900/20' },
+                      h('p', { className: 'text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wide' }, 'Recommended'),
+                      h('div', { className: 'mt-2' }, renderModelCard(modelGroups.recommended[0], { emphasize: true }))
+                    ),
+                    h('div', { className: 'mt-3' },
+                      h('div', { className: 'flex items-center justify-between mb-2' },
+                        h('p', { className: 'text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide' }, `Latest Free (${modelGroups.latestFree.length})`),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, `${LATEST_MODEL_COUNT} newest`)
                       ),
-                      modelGroups.paid.length > 0 && h('optgroup', { label: 'Paid Models' },
-                        modelGroups.paid.map(model =>
-                          h('option', { key: `paid-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
+                      h('div', { className: 'grid gap-2 sm:grid-cols-2' },
+                        modelGroups.latestFree.length > 0
+                          ? modelGroups.latestFree.map(model => renderModelCard(model, { compact: true }))
+                          : h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'No free models found.')
+                      )
+                    ),
+                    h('div', { className: 'mt-4' },
+                      h('div', { className: 'flex items-center justify-between mb-2' },
+                        h('p', { className: 'text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide' }, `Latest Paid (${modelGroups.latestPaid.length})`),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, `${LATEST_MODEL_COUNT} newest`)
+                      ),
+                      h('div', { className: 'grid gap-2 sm:grid-cols-2' },
+                        modelGroups.latestPaid.length > 0
+                          ? modelGroups.latestPaid.map(model => renderModelCard(model, { compact: true }))
+                          : h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'No paid models found.')
+                      )
+                    ),
+                    showAllModels && h('div', { className: 'mt-4' },
+                      h('p', { className: 'text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-2' }, `All models (${modelGroups.all.length})`),
+                      h('select', {
+                        value: openRouterModel,
+                        onChange: (e) => setOpenRouterModel(e.target.value),
+                        disabled: !aiEnabled,
+                        className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                      },
+                        modelGroups.all.map(model =>
+                          h('option', { key: `all-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
                         )
                       )
-                    )
+                    ),
+                    h('p', { className: 'mt-2 text-xs text-zinc-500 dark:text-zinc-400' }, `Current model: ${openRouterModel}`)
                   ),
                   modelsLoading && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Loading models...'),
                   modelsError && h('p', { className: 'text-xs text-rose-600 dark:text-rose-400' }, modelsError),
@@ -2507,6 +2612,46 @@
       const num = Number(value);
       if (!Number.isFinite(num)) return '';
       return num.toLocaleString('en-US');
+    }
+
+    function truncateText(text, maxLen = 120) {
+      const value = String(text || '').trim();
+      if (!value) return '';
+      if (value.length <= maxLen) return value;
+      return `${value.slice(0, Math.max(0, maxLen - 1))}…`;
+    }
+
+    function formatModelDate(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return '';
+      const now = new Date();
+      const sameYear = date.getFullYear() === now.getFullYear();
+      const options = sameYear
+        ? { month: 'short', day: 'numeric' }
+        : { month: 'short', day: 'numeric', year: 'numeric' };
+      return date.toLocaleDateString('en-US', options);
+    }
+
+    function getModelTimestamp(model) {
+      const raw = model?.updated || model?.updated_at || model?.updatedAt || model?.last_updated || model?.last_updated_at ||
+        model?.created || model?.created_at || model?.createdAt;
+      if (!raw) return 0;
+      if (typeof raw === 'number') {
+        return raw > 1e12 ? raw : raw * 1000;
+      }
+      const parsed = Date.parse(raw);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    function hashGoals(str) {
+      let hash = 0;
+      const input = String(str || '');
+      for (let i = 0; i < input.length; i++) {
+        hash = ((hash << 5) - hash) + input.charCodeAt(i);
+        hash = hash & hash;
+      }
+      return hash.toString(36);
     }
 
     function getPostAgeHours(post, nowSeconds = Date.now() / 1000) {
