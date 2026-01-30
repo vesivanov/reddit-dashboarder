@@ -783,7 +783,9 @@
           const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
           const MODEL_KEY = 'dashboard_ai_model';
           const savedModel = localStorage.getItem(MODEL_KEY) || 'unknown';
-          const currentCacheVersion = `${currentGoalsHash}_v4.0_${savedModel}`; // v4.0 includes context + tighter rubric
+          const PROMPT_VERSION_KEY = 'dashboard_ai_prompt_version';
+          const savedPromptVersion = localStorage.getItem(PROMPT_VERSION_KEY) || 'unknown';
+          const currentCacheVersion = `${currentGoalsHash}_${savedPromptVersion}_${savedModel}`;
           
           try {
             const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
@@ -794,25 +796,6 @@
             localStorage.setItem(CACHE_VERSION_KEY, currentCacheVersion);
           } catch {}
 
-          // Clear any cached 0 scores (they were from errors) - one-time cleanup
-          try {
-            const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-            if (cacheStr) {
-              const cache = JSON.parse(cacheStr);
-              let hasZeros = false;
-              Object.keys(cache).forEach(postId => {
-                if (cache[postId].score === 0) {
-                  delete cache[postId];
-                  hasZeros = true;
-                }
-              });
-              if (hasZeros) {
-                localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
-                console.log('AI Ranking: Cleared cached 0 scores (from previous errors)');
-              }
-            }
-          } catch {}
-          
           // Load cached scores and metadata with version check
           // NOTE: We cache raw LLM scores (0-5) and always recalibrate on load
           // This ensures scores are relative to the current visible feed
@@ -826,9 +809,7 @@
               const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
               Object.entries(cache).forEach(([postId, data]) => {
                 if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY) {
-                  // Filter out 0 scores - they were likely assigned on error
-                  // Only cache scores > 0 (legitimate scores are 1-5)
-                  if (data.score > 0) {
+                  if (data.score !== null && data.score !== undefined) {
                     cachedScores.set(postId, data.score);
                     // Load metadata if available
                     if (data.source || data.confidence || data.reason) {
@@ -844,7 +825,7 @@
               
               // Clean up expired entries
               const validEntries = Object.entries(cache).filter(([_, data]) => 
-                data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0
+                data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score !== null && data.score !== undefined
               );
               if (validEntries.length < Object.keys(cache).length) {
                 localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(Object.fromEntries(validEntries)));
@@ -940,14 +921,15 @@
 
                   if (response.ok) {
                     const result = await response.json();
-                    if (result.model) {
-                      localStorage.setItem(MODEL_KEY, result.model);
-                      const updatedCacheVersion = `${currentGoalsHash}_v4.0_${result.model}`;
-                      if (updatedCacheVersion !== currentCacheVersion) {
-                        console.log('AI Ranking: Model changed, clearing cached scores');
-                        localStorage.removeItem('dashboard_ai_scores_cache');
-                        localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
-                      }
+                    const resultPromptVersion = result.promptVersion || savedPromptVersion;
+                    const resultModel = result.model || savedModel;
+                    if (result.model) localStorage.setItem(MODEL_KEY, result.model);
+                    if (result.promptVersion) localStorage.setItem(PROMPT_VERSION_KEY, result.promptVersion);
+                    const updatedCacheVersion = `${currentGoalsHash}_${resultPromptVersion}_${resultModel}`;
+                    if (updatedCacheVersion !== currentCacheVersion) {
+                      console.log('AI Ranking: Model or prompt changed, clearing cached scores');
+                      localStorage.removeItem('dashboard_ai_scores_cache');
+                      localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
                     }
                     // New format: scores is an object map {postId: score}
                     // Old format: scores is an array [{postId, relevanceScore}]
@@ -977,7 +959,7 @@
                           cache[postIdStr] = { 
                             score: relevanceScore, 
                             timestamp: Date.now(),
-                            version: result.promptVersion || 'v3.0',
+                            version: result.promptVersion || 'v3.1',
                             model: result.model || 'unknown',
                             confidence: meta.confidence || 'medium',
                             reason: meta.reason || 'LLM-scored relevance',
@@ -1002,7 +984,7 @@
                           cache[postIdStr] = { 
                             score: relevanceScore, 
                             timestamp: Date.now(),
-                            version: result.promptVersion || 'v3.0',
+                            version: result.promptVersion || 'v3.1',
                             model: result.model || 'unknown',
                             confidence: 'medium',
                             reason: 'LLM-scored relevance',
@@ -1073,19 +1055,6 @@
               
               const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
               console.log(`AI Ranking: Complete! ${calibratedScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4 after calibration`);
-              
-              // Update cache with calibrated scores
-              try {
-                calibratedScores.forEach((calibratedScore, postId) => {
-                  if (cache[postId] && calibratedScore !== null && calibratedScore !== undefined) {
-                    cache[postId].score = calibratedScore;
-                  }
-                });
-                localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
-                console.log('AI Ranking: Saved calibrated scores to cache');
-              } catch (cacheError) {
-                console.warn('Error saving calibrated scores:', cacheError);
-              }
               
               setPostRelevanceScores(calibratedScores);
               setPostRelevanceMetadata(allMetadata);

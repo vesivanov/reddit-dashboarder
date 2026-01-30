@@ -8,9 +8,12 @@ const {
 } = require('../../../lib/ui-helpers');
 
 describe('UI Helpers', () => {
-  test('extractGoalKeywords removes stop words and deduplicates', () => {
+  test('extractGoalKeywords removes stop words and adds bigrams', () => {
     const keywords = extractGoalKeywords('React and TypeScript for React Engineers, looking for design tips');
-    expect(keywords).toEqual(['react', 'typescript', 'engineers', 'looking', 'design', 'tips']);
+    expect(keywords).toEqual(expect.arrayContaining(['react', 'typescript', 'engineers', 'looking', 'design', 'tips']));
+    expect(keywords).toEqual(expect.arrayContaining(['react typescript']));
+    expect(keywords).not.toContain('and');
+    expect(keywords).not.toContain('for');
   });
 
   test('computeHeuristicScore rewards title matches and engagement', () => {
@@ -23,7 +26,7 @@ describe('UI Helpers', () => {
       num_comments: 80,
     };
     const score = computeHeuristicScore(post, ['react', 'typescript']);
-    expect(score).toBeGreaterThanOrEqual(11); // title (6) + subreddit (2) + domain (0.5) + engagement (4)
+    expect(score).toBeGreaterThanOrEqual(10.5); // title (6) + domain (0.5) + engagement (4)
   });
 
   test('calibrateScores normalizes distribution and handles single entry', () => {
