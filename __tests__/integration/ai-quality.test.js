@@ -172,6 +172,85 @@ describe('AI Ranking Quality', () => {
     console.log(`\n✅ Batched 100 posts into ${batchCount} requests`);
   });
 
+  test('Includes velocity metrics in LLM payload', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const posts = [
+      {
+        id: 'post1',
+        title: 'Velocity test',
+        selftext: 'Testing velocity fields',
+        subreddit: 'test',
+        score: 100,
+        num_comments: 20,
+        created_utc: now - 3600
+      }
+    ];
+
+    mockReq.body = {
+      posts,
+      userGoals: 'Test goals',
+      openRouterModel: 'test-model',
+      openRouterApiKey: 'test_key'
+    };
+
+    global.fetch.mockImplementationOnce(async (_url, options) => {
+      const payload = JSON.parse(options.body);
+      const userMessage = payload.messages.find(m => m.role === 'user')?.content || '';
+      expect(userMessage).toContain('score_per_hour');
+      expect(userMessage).toContain('comments_per_hour');
+      const match = userMessage.match(/(\[[\s\S]*\])\s*$/);
+      const parsedPosts = match ? JSON.parse(match[1]) : [];
+      expect(parsedPosts[0].score_per_hour).toBe(100);
+      expect(parsedPosts[0].comments_per_hour).toBe(20);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify([{ postId: 'post1', score: 3, confidence: 'medium', reason: 'Test' }])
+            }
+          }]
+        })
+      };
+    });
+
+    await aiRankHandler(mockReq, mockRes);
+    expect(mockRes.status).toHaveBeenCalledWith(200);
+  });
+
+  test('Sets prompt version in metrics and response', async () => {
+    const posts = [
+      { id: 'post1', title: 'Test', subreddit: 'test', selftext: '', score: 10, num_comments: 5, created_utc: Date.now() / 1000 }
+    ];
+
+    mockReq.body = {
+      posts,
+      userGoals: 'Test goals',
+      openRouterModel: 'test-model',
+      openRouterApiKey: 'test_key'
+    };
+
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: JSON.stringify([{ postId: 'post1', score: 5, confidence: 'medium', reason: 'Test' }])
+          }
+        }]
+      })
+    });
+
+    await aiRankHandler(mockReq, mockRes);
+    const response = mockRes.json.mock.calls[0][0];
+    expect(response.promptVersion).toBe('v3.1');
+    const metricsCall = mockRes.setHeader.mock.calls.find(call => call[0] === 'X-RDD-Metrics');
+    const metrics = metricsCall ? JSON.parse(metricsCall[1]) : null;
+    expect(metrics.promptVersion).toBe('v3.1');
+  });
+
   test('Handles empty posts array', async () => {
     mockReq.body = {
       posts: [],

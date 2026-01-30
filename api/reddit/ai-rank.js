@@ -11,7 +11,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Frontend always provides openRouterModel in the request body
 
 // Prompt version for cache invalidation
-const PROMPT_VERSION = 'v3.0';
+const PROMPT_VERSION = 'v3.1';
 
 const { withCORS } = require('../../lib/cors');
 
@@ -42,6 +42,11 @@ function buildBatches(posts, {
     
     // Calculate age in hours
     const ageHours = p.created_utc ? Math.floor((Date.now() / 1000 - p.created_utc) / 3600) : 0;
+    const safeAgeHours = Math.max(1, ageHours);
+    const scoreRaw = Number(p.score) || 0;
+    const commentsRaw = Number(p.num_comments) || 0;
+    const scorePerHour = Math.round((scoreRaw / safeAgeHours) * 100) / 100;
+    const commentsPerHour = Math.round((commentsRaw / safeAgeHours) * 100) / 100;
 
     return {
       id: String(p.id),
@@ -52,8 +57,10 @@ function buildBatches(posts, {
       url_path: urlPath.slice(0, 100),
       is_link_post: isLinkPost,
       flair: (p.link_flair_text || '').slice(0, 50),
-      score: Number(p.score) || 0,
-      num_comments: Number(p.num_comments) || 0,
+      score: scoreRaw,
+      num_comments: commentsRaw,
+      score_per_hour: scorePerHour,
+      comments_per_hour: commentsPerHour,
       age_hours: ageHours,
     };
   });
@@ -110,6 +117,7 @@ async function callOpenRouter({ userGoals, userContext, postsBatch, apiKey, mode
     '5 – Must-read: perfectly aligned, immediately useful, directly actionable.',
     '',
     'Scarcity rule: most posts should be 0-3. Only a handful should reach 4, and at most one or two posts per batch deserve a 5.',
+    'Freshness rule: if two posts are equally relevant, prefer the newer one with higher velocity (score_per_hour, comments_per_hour).',
     'If the context says to avoid something, those posts must receive 0 or 1 regardless of engagement.',
     '',
     'Return ONLY valid JSON with this exact structure:',
@@ -125,7 +133,7 @@ async function callOpenRouter({ userGoals, userContext, postsBatch, apiKey, mode
   ].join('\n');
 
   const user = [
-    'Posts JSON. Each entry includes title, selftext, subreddit, flair, domain, score, comments, and age_hours:',
+    'Posts JSON. Each entry includes title, selftext, subreddit, flair, domain, score, comments, score_per_hour, comments_per_hour, and age_hours:',
     JSON.stringify(postsBatch),
     '',
     'Score EVERY postId. If information is insufficient, assign 0 and explain briefly. Only respond with the JSON array described earlier.',
