@@ -9,6 +9,7 @@ const authCallbackHandler = require('./api/auth/callback');
 const authLogoutHandler = require('./api/auth/logout');
 const authStatusHandler = require('./api/auth/status');
 const openrouterKeyHandler = require('./api/settings/openrouter-key');
+const openrouterModelsHandler = require('./api/openrouter/models');
 
 function optionalHandler(relativePath) {
   try {
@@ -45,6 +46,7 @@ function createApp() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
   app.get('/api/root-info', require('./api/root-info'));
+  app.get('/api/openrouter/models', openrouterModelsHandler);
 
   // Auth routes
   app.get('/api/auth/start', authStartHandler);

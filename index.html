@@ -130,6 +130,19 @@
     ];
     const AUTO_REFRESH_OPTIONS = [5, 10, 15, 30, 45, 60];
     const MIN_AUTO_REFRESH_MINUTES = 5;
+    const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.0-flash-exp:free';
+    const DEFAULT_LLM_POST_LIMIT = 60;
+    const LLM_SCORE_MORE_STEP = 40;
+    const MAX_LLM_POST_LIMIT = 200;
+    const FALLBACK_MODELS = [
+      { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', tier: 'free', speed: 'fast' },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Meta Llama 3.3 70B (Free)', tier: 'free', speed: 'balanced' },
+      { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B A3B (Free)', tier: 'free', speed: 'balanced' },
+      { id: 'openai/gpt-4o', name: 'GPT-4o', tier: 'paid', speed: 'balanced' },
+      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', tier: 'paid', speed: 'fast' },
+      { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', tier: 'paid', speed: 'balanced' },
+      { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', tier: 'paid', speed: 'balanced' },
+    ];
 
     function App() {
       const [subs, setSubs] = useState(() => {
@@ -274,12 +287,18 @@
       const [secureKeyStatus, setSecureKeyStatus] = useState({ hasKey: false, keyPreview: null, checking: true });
       const [savingSecureKey, setSavingSecureKey] = useState(false);
       const [openRouterModel, setOpenRouterModel] = useState(() => {
-        try { return localStorage.getItem('dashboard_openrouter_model') || 'qwen/qwen3-next-80b-a3b-instruct:free'; } catch { return 'qwen/qwen3-next-80b-a3b-instruct:free'; }
+        try { return localStorage.getItem('dashboard_openrouter_model') || DEFAULT_OPENROUTER_MODEL; } catch { return DEFAULT_OPENROUTER_MODEL; }
+      });
+      const [aiLlmPostLimit, setAiLlmPostLimit] = useState(() => {
+        try { return Number(localStorage.getItem('dashboard_ai_llm_limit')) || DEFAULT_LLM_POST_LIMIT; } catch { return DEFAULT_LLM_POST_LIMIT; }
       });
       const [postRelevanceScores, setPostRelevanceScores] = useState(new Map());
       const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(new Map());
       const [scoresVersion, setScoresVersion] = useState(0); // Version counter to force useMemo recalculation
       const [aiRankingLoading, setAiRankingLoading] = useState(false);
+      const [availableModels, setAvailableModels] = useState([]);
+      const [modelsLoading, setModelsLoading] = useState(false);
+      const [modelsError, setModelsError] = useState('');
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
 
@@ -361,6 +380,9 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_openrouter_model', openRouterModel); } catch {}
       }, [openRouterModel]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_ai_llm_limit', String(aiLlmPostLimit)); } catch {}
+      }, [aiLlmPostLimit]);
 
       // Persist fetched data and timestamp
       useEffect(() => {
@@ -521,6 +543,47 @@
         return () => { cancelled = true; };
       }, []); // Only run on mount - no dependencies needed
 
+      const modelsFetchRef = useRef({ inFlight: false, loaded: false });
+      const loadOpenRouterModels = useCallback(async () => {
+        if (modelsFetchRef.current.inFlight) return;
+        if (modelsFetchRef.current.loaded || availableModels.length > 0) return;
+        modelsFetchRef.current.inFlight = true;
+        setModelsLoading(true);
+        setModelsError('');
+        try {
+          const response = await fetch('/api/openrouter/models', {
+            credentials: 'include',
+            cache: 'no-store'
+          });
+          if (!response.ok) {
+            let message = '';
+            try {
+              const errorJson = await response.json();
+              message = errorJson.message || errorJson.error || '';
+            } catch {
+              message = await response.text();
+            }
+            throw new Error(message || `HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          const models = Array.isArray(data.models) ? data.models : [];
+          setAvailableModels(models);
+          modelsFetchRef.current.loaded = true;
+        } catch (error) {
+          console.warn('Failed to load OpenRouter models:', error);
+          setAvailableModels([]);
+          setModelsError(error.message || 'Failed to load models');
+        } finally {
+          modelsFetchRef.current.inFlight = false;
+          setModelsLoading(false);
+        }
+      }, [availableModels.length]);
+
+      useEffect(() => {
+        if (!settingsOpen || !aiEnabled) return;
+        loadOpenRouterModels();
+      }, [settingsOpen, aiEnabled, loadOpenRouterModels]);
+
       const allPosts = useMemo(() => {
         const rows = [];
         for (const group of data) {
@@ -562,11 +625,28 @@
         });
 
         const multiplier = sortOrder === 'asc' ? 1 : -1;
+        const nowSeconds = Date.now() / 1000;
         const sorted = [...filtered].sort((a, b) => {
           let delta = 0;
           switch (sortBy) {
             case 'upvotes': delta = (Number(a.score) || 0) - (Number(b.score) || 0); break;
             case 'comments': delta = (Number(a.num_comments) || 0) - (Number(b.num_comments) || 0); break;
+            case 'velocity-upvotes': {
+              const ageA = getPostAgeHours(a, nowSeconds);
+              const ageB = getPostAgeHours(b, nowSeconds);
+              const velA = (Number(a.score) || 0) / ageA;
+              const velB = (Number(b.score) || 0) / ageB;
+              delta = velA - velB;
+              break;
+            }
+            case 'velocity-comments': {
+              const ageA = getPostAgeHours(a, nowSeconds);
+              const ageB = getPostAgeHours(b, nowSeconds);
+              const velA = (Number(a.num_comments) || 0) / ageA;
+              const velB = (Number(b.num_comments) || 0) / ageB;
+              delta = velA - velB;
+              break;
+            }
             case 'ai-relevance': {
               const scoreA = postRelevanceScores.get(String(a.id));
               const scoreB = postRelevanceScores.get(String(b.id));
@@ -610,6 +690,46 @@
         return sorted;
       }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minAiRelevance, sortBy, sortOrder, hiddenPosts, postRelevanceScores, scoresVersion]);
 
+      const velocityMeta = useMemo(() => {
+        const nowSeconds = Date.now() / 1000;
+        const entries = visiblePosts.map(post => {
+          const ageHours = getPostAgeHours(post, nowSeconds);
+          const upvotesPerHour = (Number(post.score) || 0) / ageHours;
+          const commentsPerHour = (Number(post.num_comments) || 0) / ageHours;
+          return {
+            id: String(post.id),
+            ageHours,
+            upvotesPerHour,
+            commentsPerHour,
+          };
+        });
+
+        const upvoteRates = entries.map(e => e.upvotesPerHour).sort((a, b) => a - b);
+        const commentRates = entries.map(e => e.commentsPerHour).sort((a, b) => a - b);
+        const upvoteThreshold = percentileValue(upvoteRates, 0.9);
+        const commentThreshold = percentileValue(commentRates, 0.9);
+        const map = new Map(entries.map(e => [e.id, e]));
+        const spiking = new Set(entries.filter(e =>
+          e.ageHours <= 24 &&
+          (e.upvotesPerHour >= upvoteThreshold || e.commentsPerHour >= commentThreshold)
+        ).map(e => e.id));
+
+        return { map, spiking, upvoteThreshold, commentThreshold };
+      }, [visiblePosts]);
+
+      const aiScoreStats = useMemo(() => {
+        const stats = { total: allPosts.length, scored: 0, llm: 0 };
+        if (!allPosts.length) return stats;
+        for (const post of allPosts) {
+          const postId = String(post.id);
+          const score = postRelevanceScores.get(postId);
+          if (score !== null && score !== undefined) stats.scored += 1;
+          const meta = postRelevanceMetadata.get(postId);
+          if (meta && meta.source === 'llm') stats.llm += 1;
+        }
+        return stats;
+      }, [allPosts, postRelevanceScores, postRelevanceMetadata, scoresVersion]);
+
       const { maxScore, maxComments } = useMemo(() => {
         let maxScore = 0, maxComments = 0;
         for (const post of allPosts) {
@@ -632,6 +752,415 @@
         for (const group of data) map.set(group.subreddit, Boolean(group.partial));
         return map;
       }, [data]);
+
+      const runAiRanking = useCallback(async ({ perSub, triggeredByAuto = false, llmPostLimit = aiLlmPostLimit } = {}) => {
+        console.log('AI Ranking check:', { aiEnabled, hasGoals: Boolean(aiGoals && aiGoals.trim()), goalsLength: aiGoals?.length });
+        if (!aiEnabled || !aiGoals || !aiGoals.trim()) {
+          console.log('AI Ranking: Disabled or no goals set');
+          setPostRelevanceScores(new Map());
+          setPostRelevanceMetadata(new Map());
+          setScoresVersion(v => v + 1);
+          return;
+        }
+
+        const groups = Array.isArray(perSub) ? perSub : data;
+        const effectiveLlmLimit = Math.max(10, Math.min(MAX_LLM_POST_LIMIT, Number(llmPostLimit) || DEFAULT_LLM_POST_LIMIT));
+
+        try {
+          // Simple hash function for goals comparison
+          const hashGoals = (str) => {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+              hash = ((hash << 5) - hash) + str.charCodeAt(i);
+              hash = hash & hash;
+            }
+            return hash.toString(36);
+          };
+
+          // Cache versioning: invalidate if goals, model, or prompt version changed
+          const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
+          const currentGoalsHash = hashGoals(combinedGoals);
+          const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
+          const MODEL_KEY = 'dashboard_ai_model';
+          const savedModel = localStorage.getItem(MODEL_KEY) || 'unknown';
+          const currentCacheVersion = `${currentGoalsHash}_v4.0_${savedModel}`; // v4.0 includes context + tighter rubric
+          
+          try {
+            const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
+            if (savedCacheVersion && savedCacheVersion !== currentCacheVersion) {
+              console.log('AI Ranking: Cache version changed (goals/model/prompt), clearing cached scores');
+              localStorage.removeItem('dashboard_ai_scores_cache');
+            }
+            localStorage.setItem(CACHE_VERSION_KEY, currentCacheVersion);
+          } catch {}
+
+          // Clear any cached 0 scores (they were from errors) - one-time cleanup
+          try {
+            const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
+            if (cacheStr) {
+              const cache = JSON.parse(cacheStr);
+              let hasZeros = false;
+              Object.keys(cache).forEach(postId => {
+                if (cache[postId].score === 0) {
+                  delete cache[postId];
+                  hasZeros = true;
+                }
+              });
+              if (hasZeros) {
+                localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
+                console.log('AI Ranking: Cleared cached 0 scores (from previous errors)');
+              }
+            }
+          } catch {}
+          
+          // Load cached scores and metadata with version check
+          // NOTE: We cache raw LLM scores (0-5) and always recalibrate on load
+          // This ensures scores are relative to the current visible feed
+          let cachedScores = new Map();
+          let cachedMetadata = new Map();
+          try {
+            const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
+            if (cacheStr) {
+              const cache = JSON.parse(cacheStr);
+              const now = Date.now();
+              const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+              Object.entries(cache).forEach(([postId, data]) => {
+                if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY) {
+                  // Filter out 0 scores - they were likely assigned on error
+                  // Only cache scores > 0 (legitimate scores are 1-5)
+                  if (data.score > 0) {
+                    cachedScores.set(postId, data.score);
+                    // Load metadata if available
+                    if (data.source || data.confidence || data.reason) {
+                      cachedMetadata.set(postId, {
+                        source: data.source || 'llm',
+                        confidence: data.confidence || 'medium',
+                        reason: data.reason || 'Cached relevance'
+                      });
+                    }
+                  }
+                }
+              });
+              
+              // Clean up expired entries
+              const validEntries = Object.entries(cache).filter(([_, data]) => 
+                data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0
+              );
+              if (validEntries.length < Object.keys(cache).length) {
+                localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(Object.fromEntries(validEntries)));
+                console.log(`AI Ranking: Cleaned up ${Object.keys(cache).length - validEntries.length} expired cache entries`);
+              }
+            }
+          } catch (cacheError) {
+            console.warn('Error loading AI scores cache:', cacheError);
+          }
+
+          // Get all posts
+          const allNewPosts = groups.flatMap(g => g.posts || []);
+          console.log(`AI Ranking: Found ${allNewPosts.length} total posts, ${cachedScores.size} cached scores`);
+          
+          // Filter out posts that already have cached scores
+          const uncachedPosts = allNewPosts.filter(post => !cachedScores.has(String(post.id)));
+          console.log(`AI Ranking: ${uncachedPosts.length} posts need scoring`);
+
+          if (uncachedPosts.length > 0) {
+            setAiRankingLoading(true);
+            
+            // Two-stage ranking: heuristic prefilter + LLM rerank
+            const keywords = extractGoalKeywords(aiGoals.trim());
+            console.log('AI Ranking: Extracted', keywords.length, 'keywords from goals:', keywords.slice(0, 10).join(', '));
+            
+            // Compute heuristic scores for all uncached posts
+            const postsWithHeuristic = uncachedPosts.map(post => ({
+              post,
+              heuristicScore: computeHeuristicScore(post, keywords),
+            }));
+            
+            // Sort by heuristic score and take top N for LLM ranking
+            const MAX_LLM_POSTS = Math.min(effectiveLlmLimit, postsWithHeuristic.length);
+            postsWithHeuristic.sort((a, b) => b.heuristicScore - a.heuristicScore);
+            const topPosts = postsWithHeuristic.slice(0, MAX_LLM_POSTS).map(x => x.post);
+            const remainingPosts = postsWithHeuristic.slice(MAX_LLM_POSTS);
+            
+            console.log(`AI Ranking: Sending top ${topPosts.length} posts to LLM (${remainingPosts.length} will use heuristic scores only)`);
+            
+            // Batch posts into chunks of 50 to avoid payload size limits
+            const BATCH_SIZE = 50;
+            const batches = [];
+            for (let i = 0; i < topPosts.length; i += BATCH_SIZE) {
+              batches.push(topPosts.slice(i, i + BATCH_SIZE));
+            }
+            console.log(`AI Ranking: Processing ${batches.length} batches of up to ${BATCH_SIZE} posts each`);
+            
+            let scoresForHighRelevance = null;
+            try {
+              const allScores = new Map(cachedScores);
+              const allMetadata = new Map(cachedMetadata); // Store metadata for all scored posts
+              const cache = {};
+              
+              // Load existing cache
+              try {
+                const existingCache = localStorage.getItem('dashboard_ai_scores_cache');
+                if (existingCache) {
+                  Object.assign(cache, JSON.parse(existingCache));
+                }
+              } catch {}
+              
+              // Process batches sequentially to avoid overwhelming the API
+              for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+                const batch = batches[batchIdx];
+                console.log(`AI Ranking: Processing batch ${batchIdx + 1}/${batches.length} (${batch.length} posts)`);
+                
+                try {
+                  const response = await fetch('/api/reddit/ai-rank', {
+                    method: 'POST',
+                    credentials: 'include', // Include cookies for secure API key
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      posts: batch.map(p => ({
+                        id: p.id,
+                        title: p.title,
+                        selftext: p.selftext || '',
+                        subreddit: p.subreddit,
+                        url: p.reddit_url,
+                        external_url: p.external_url,
+                        domain: p.domain,
+                        score: p.score,
+                        num_comments: p.num_comments,
+                        created_utc: p.created_utc,
+                        link_flair_text: p.link_flair_text,
+                      })),
+                      userGoals: aiGoals.trim(),
+                      userContext: aiContext && aiContext.trim() ? aiContext.trim() : undefined,
+                      // Only send key in body if not stored securely (fallback for migration)
+                      openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
+                      openRouterModel: openRouterModel.trim(), // Always required - has default in useState
+                    }),
+                  });
+
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.model) {
+                      localStorage.setItem(MODEL_KEY, result.model);
+                      const updatedCacheVersion = `${currentGoalsHash}_v4.0_${result.model}`;
+                      if (updatedCacheVersion !== currentCacheVersion) {
+                        console.log('AI Ranking: Model changed, clearing cached scores');
+                        localStorage.removeItem('dashboard_ai_scores_cache');
+                        localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
+                      }
+                    }
+                    // New format: scores is an object map {postId: score}
+                    // Old format: scores is an array [{postId, relevanceScore}]
+                    const scoresObj = result.scores || {};
+                    const metadataObj = result.metadata || {};
+                    const scoreCount = typeof scoresObj === 'object' && !Array.isArray(scoresObj) 
+                      ? Object.keys(scoresObj).length 
+                      : (Array.isArray(scoresObj) ? scoresObj.length : 0);
+                    console.log(`AI Ranking: Batch ${batchIdx + 1} - Received scores for`, scoreCount, 'posts', result.cached ? `(${result.cached} cached)` : '');
+                    
+                    // Handle new object map format
+                    if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
+                      Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
+                        const postIdStr = String(postId);
+                        // Only cache non-null scores (null means failed to score)
+                        if (relevanceScore !== null && relevanceScore !== undefined) {
+                          allScores.set(postIdStr, relevanceScore);
+                          
+                          // Extract metadata if available
+                          const meta = metadataObj[postId] || {};
+                          allMetadata.set(postIdStr, {
+                            source: 'llm',
+                            confidence: meta.confidence || 'medium',
+                            reason: meta.reason || 'LLM-scored relevance'
+                          });
+                          
+                          cache[postIdStr] = { 
+                            score: relevanceScore, 
+                            timestamp: Date.now(),
+                            version: result.promptVersion || 'v3.0',
+                            model: result.model || 'unknown',
+                            confidence: meta.confidence || 'medium',
+                            reason: meta.reason || 'LLM-scored relevance',
+                            source: 'llm'
+                          };
+                        } else {
+                          // Track null scores but don't cache them
+                          allScores.set(postIdStr, null);
+                        }
+                      });
+                    } else if (Array.isArray(scoresObj)) {
+                      // Fallback: handle old array format for backwards compatibility
+                      scoresObj.forEach(({ postId, relevanceScore }) => {
+                        const postIdStr = String(postId);
+                        if (relevanceScore !== null && relevanceScore !== undefined) {
+                          allScores.set(postIdStr, relevanceScore);
+                          allMetadata.set(postIdStr, {
+                            source: 'llm',
+                            confidence: 'medium',
+                            reason: 'LLM-scored relevance'
+                          });
+                          cache[postIdStr] = { 
+                            score: relevanceScore, 
+                            timestamp: Date.now(),
+                            version: result.promptVersion || 'v3.0',
+                            model: result.model || 'unknown',
+                            confidence: 'medium',
+                            reason: 'LLM-scored relevance',
+                            source: 'llm'
+                          };
+                        } else {
+                          allScores.set(postIdStr, null);
+                        }
+                      });
+                    }
+                    
+                    // Log failed post IDs if provided
+                    if (result.failedPostIds && result.failedPostIds.length > 0) {
+                      console.warn(`AI Ranking: ${result.failedPostIds.length} posts failed to score:`, result.failedPostIds);
+                    }
+                  } else {
+                    const errorText = await response.text();
+                    console.error(`AI ranking API error for batch ${batchIdx + 1}:`, response.status, errorText);
+                  }
+                } catch (batchError) {
+                  console.error(`Error processing batch ${batchIdx + 1}:`, batchError);
+                }
+                
+                // Small delay between batches to avoid rate limiting
+                if (batchIdx < batches.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+              }
+              
+              // Save updated cache with LRU eviction (max 5000 entries)
+              try {
+                const MAX_CACHE_ENTRIES = 5000;
+                const entries = Object.entries(cache);
+                if (entries.length > MAX_CACHE_ENTRIES) {
+                  // Sort by timestamp (oldest first) and keep only newest entries
+                  entries.sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
+                  const toKeep = entries.slice(-MAX_CACHE_ENTRIES);
+                  const trimmedCache = Object.fromEntries(toKeep);
+                  localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(trimmedCache));
+                  console.log(`AI Ranking: Trimmed cache from ${entries.length} to ${MAX_CACHE_ENTRIES} entries`);
+                } else {
+                  localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
+                }
+              } catch (cacheError) {
+                console.warn('Error saving AI scores cache:', cacheError);
+                // If quota exceeded, clear cache and retry
+                if (cacheError.name === 'QuotaExceededError') {
+                  try {
+                    localStorage.removeItem('dashboard_ai_scores_cache');
+                    console.log('AI Ranking: Cleared cache due to quota exceeded');
+                  } catch {}
+                }
+              }
+              
+              // Add heuristic scores for remaining posts (map to 0-5 range, will be calibrated)
+              remainingPosts.forEach(({ post, heuristicScore }) => {
+                const postId = String(post.id);
+                if (!allScores.has(postId)) {
+                  // Map heuristic score to 0-5 range (max observed heuristic ~15-20)
+                  const normalizedScore = Math.min(5, Math.round(heuristicScore * 0.3));
+                  allScores.set(postId, normalizedScore);
+                  allMetadata.set(postId, { source: 'heuristic', confidence: 'low', reason: 'Keyword-based relevance' });
+                }
+              });
+              
+              // Apply percentile-based calibration to all scores
+              const calibratedScores = calibrateScores(allScores);
+              
+              const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+              console.log(`AI Ranking: Complete! ${calibratedScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4 after calibration`);
+              
+              // Update cache with calibrated scores
+              try {
+                calibratedScores.forEach((calibratedScore, postId) => {
+                  if (cache[postId] && calibratedScore !== null && calibratedScore !== undefined) {
+                    cache[postId].score = calibratedScore;
+                  }
+                });
+                localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
+                console.log('AI Ranking: Saved calibrated scores to cache');
+              } catch (cacheError) {
+                console.warn('Error saving calibrated scores:', cacheError);
+              }
+              
+              setPostRelevanceScores(calibratedScores);
+              setPostRelevanceMetadata(allMetadata);
+              setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+              scoresForHighRelevance = calibratedScores;
+            } catch (aiError) {
+              console.error('Error in AI ranking batch processing:', aiError);
+              // Use cached scores on error (with calibration)
+              const calibratedCached = calibrateScores(cachedScores);
+              setPostRelevanceScores(calibratedCached);
+              setPostRelevanceMetadata(cachedMetadata);
+              setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+              scoresForHighRelevance = calibratedCached;
+            } finally {
+              setAiRankingLoading(false);
+            }
+            // High-relevance notifications (use freshly computed scores)
+            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
+                  const threshold = Number(highRelevanceThreshold) || 4;
+              const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
+              const toNotify = [];
+              for (const [postId, score] of scoresForHighRelevance.entries()) {
+                if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
+                  toNotify.push({ postId, post: idToPost.get(postId) });
+                }
+              }
+              toNotify.forEach(({ post }) => {
+                new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
+              });
+              if (toNotify.length > 0) {
+                const toAdd = toNotify.map(({ postId }) => postId);
+                setNotifiedHighRelevancePostIds(prev => {
+                  const n = new Set(prev);
+                  toAdd.forEach(id => n.add(id));
+                  return n.size <= 500 ? n : new Set([...n].slice(-500));
+                });
+              }
+            }
+          } else {
+            // All posts are cached, use cached scores with calibration
+            console.log('AI Ranking: All posts already cached, using cached scores');
+            const calibratedCached = calibrateScores(cachedScores);
+            const highRelevanceCount = Array.from(calibratedCached.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+            console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 4 after calibration`);
+            setPostRelevanceScores(calibratedCached);
+            setPostRelevanceMetadata(cachedMetadata);
+            setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+            // High-relevance notifications (use freshly computed scores)
+            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && calibratedCached && calibratedCached.size > 0) {
+              const threshold = Number(highRelevanceThreshold) || 4;
+              const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
+              const toNotify = [];
+              for (const [postId, score] of calibratedCached.entries()) {
+                if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
+                  toNotify.push({ postId, post: idToPost.get(postId) });
+                }
+              }
+              toNotify.forEach(({ post }) => {
+                new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
+              });
+              if (toNotify.length > 0) {
+                const toAdd = toNotify.map(({ postId }) => postId);
+                setNotifiedHighRelevancePostIds(prev => {
+                  const n = new Set(prev);
+                  toAdd.forEach(id => n.add(id));
+                  return n.size <= 500 ? n : new Set([...n].slice(-500));
+                });
+              }
+            }
+          }
+        } catch (aiError) {
+          console.error('Error in AI ranking integration:', aiError);
+          setAiRankingLoading(false);
+        }
+      }, [aiEnabled, aiGoals, aiContext, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, calibrateScores, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);
@@ -702,410 +1231,7 @@
           setData(perSub);
           setFetchedAt(Date.now());
 
-          // AI Ranking integration
-          console.log('AI Ranking check:', { aiEnabled, hasGoals: Boolean(aiGoals && aiGoals.trim()), goalsLength: aiGoals?.length });
-          if (aiEnabled && aiGoals && aiGoals.trim()) {
-            try {
-              // Simple hash function for goals comparison
-              const hashGoals = (str) => {
-                let hash = 0;
-                for (let i = 0; i < str.length; i++) {
-                  hash = ((hash << 5) - hash) + str.charCodeAt(i);
-                  hash = hash & hash;
-                }
-                return hash.toString(36);
-              };
-
-              // Cache versioning: invalidate if goals, model, or prompt version changed
-              const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
-              const currentGoalsHash = hashGoals(combinedGoals);
-              const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
-              const MODEL_KEY = 'dashboard_ai_model';
-              const savedModel = localStorage.getItem(MODEL_KEY) || 'unknown';
-              const currentCacheVersion = `${currentGoalsHash}_v4.0_${savedModel}`; // v4.0 includes context + tighter rubric
-              
-              try {
-                const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
-                if (savedCacheVersion && savedCacheVersion !== currentCacheVersion) {
-                  console.log('AI Ranking: Cache version changed (goals/model/prompt), clearing cached scores');
-                  localStorage.removeItem('dashboard_ai_scores_cache');
-                }
-                localStorage.setItem(CACHE_VERSION_KEY, currentCacheVersion);
-              } catch {}
-
-              // Clear any cached 0 scores (they were from errors) - one-time cleanup
-              try {
-                const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-                if (cacheStr) {
-                  const cache = JSON.parse(cacheStr);
-                  let hasZeros = false;
-                  Object.keys(cache).forEach(postId => {
-                    if (cache[postId].score === 0) {
-                      delete cache[postId];
-                      hasZeros = true;
-                    }
-                  });
-                  if (hasZeros) {
-                    localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
-                    console.log('AI Ranking: Cleared cached 0 scores (from previous errors)');
-                  }
-                }
-              } catch {}
-              
-              // Load cached scores and metadata with version check
-              // NOTE: We cache raw LLM scores (0-5) and always recalibrate on load
-              // This ensures scores are relative to the current visible feed
-              let cachedScores = new Map();
-              let cachedMetadata = new Map();
-              try {
-                const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-                if (cacheStr) {
-                  const cache = JSON.parse(cacheStr);
-                  const now = Date.now();
-                  const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
-                  Object.entries(cache).forEach(([postId, data]) => {
-                    if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY) {
-                      // Filter out 0 scores - they were likely assigned on error
-                      // Only cache scores > 0 (legitimate scores are 1-10)
-                      if (data.score > 0) {
-                        cachedScores.set(postId, data.score);
-                        // Load metadata if available
-                        if (data.source || data.confidence || data.reason) {
-                          cachedMetadata.set(postId, {
-                            source: data.source || 'llm',
-                            confidence: data.confidence || 'medium',
-                            reason: data.reason || 'Cached relevance'
-                          });
-                        }
-                      }
-                    }
-                  });
-                  
-                  // Clean up expired entries
-                  const validEntries = Object.entries(cache).filter(([_, data]) => 
-                    data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score > 0
-                  );
-                  if (validEntries.length < Object.keys(cache).length) {
-                    localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(Object.fromEntries(validEntries)));
-                    console.log(`AI Ranking: Cleaned up ${Object.keys(cache).length - validEntries.length} expired cache entries`);
-                  }
-                }
-              } catch (cacheError) {
-                console.warn('Error loading AI scores cache:', cacheError);
-              }
-
-              // Get all posts
-              const allNewPosts = perSub.flatMap(g => g.posts || []);
-              console.log(`AI Ranking: Found ${allNewPosts.length} total posts, ${cachedScores.size} cached scores`);
-              
-              // Filter out posts that already have cached scores
-              const uncachedPosts = allNewPosts.filter(post => !cachedScores.has(String(post.id)));
-              console.log(`AI Ranking: ${uncachedPosts.length} posts need scoring`);
-
-              if (uncachedPosts.length > 0) {
-                setAiRankingLoading(true);
-                
-                // Two-stage ranking: heuristic prefilter + LLM rerank
-                const keywords = extractGoalKeywords(aiGoals.trim());
-                console.log('AI Ranking: Extracted', keywords.length, 'keywords from goals:', keywords.slice(0, 10).join(', '));
-                
-                // Compute heuristic scores for all uncached posts
-                const postsWithHeuristic = uncachedPosts.map(post => ({
-                  post,
-                  heuristicScore: computeHeuristicScore(post, keywords),
-                }));
-                
-                // Sort by heuristic score and take top N for LLM ranking
-                const MAX_LLM_POSTS = 60;
-                postsWithHeuristic.sort((a, b) => b.heuristicScore - a.heuristicScore);
-                const topPosts = postsWithHeuristic.slice(0, MAX_LLM_POSTS).map(x => x.post);
-                const remainingPosts = postsWithHeuristic.slice(MAX_LLM_POSTS);
-                
-                console.log(`AI Ranking: Sending top ${topPosts.length} posts to LLM (${remainingPosts.length} will use heuristic scores only)`);
-                
-                // Batch posts into chunks of 50 to avoid payload size limits
-                const BATCH_SIZE = 50;
-                const batches = [];
-                for (let i = 0; i < topPosts.length; i += BATCH_SIZE) {
-                  batches.push(topPosts.slice(i, i + BATCH_SIZE));
-                }
-                console.log(`AI Ranking: Processing ${batches.length} batches of up to ${BATCH_SIZE} posts each`);
-                
-                let scoresForHighRelevance = null;
-                try {
-                  const allScores = new Map(cachedScores);
-                  const allMetadata = new Map(cachedMetadata); // Store metadata for all scored posts
-                  const cache = {};
-                  
-                  // Load existing cache
-                  try {
-                    const existingCache = localStorage.getItem('dashboard_ai_scores_cache');
-                    if (existingCache) {
-                      Object.assign(cache, JSON.parse(existingCache));
-                    }
-                  } catch {}
-                  
-                  // Process batches sequentially to avoid overwhelming the API
-                  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-                    const batch = batches[batchIdx];
-                    console.log(`AI Ranking: Processing batch ${batchIdx + 1}/${batches.length} (${batch.length} posts)`);
-                    
-                    try {
-                      const response = await fetch('/api/reddit/ai-rank', {
-                        method: 'POST',
-                        credentials: 'include', // Include cookies for secure API key
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          posts: batch.map(p => ({
-                            id: p.id,
-                            title: p.title,
-                            selftext: p.selftext || '',
-                            subreddit: p.subreddit,
-                            url: p.reddit_url,
-                            external_url: p.external_url,
-                            domain: p.domain,
-                            score: p.score,
-                            num_comments: p.num_comments,
-                            created_utc: p.created_utc,
-                            link_flair_text: p.link_flair_text,
-                          })),
-                          userGoals: aiGoals.trim(),
-                          userContext: aiContext && aiContext.trim() ? aiContext.trim() : undefined,
-                          // Only send key in body if not stored securely (fallback for migration)
-                          openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
-                          openRouterModel: openRouterModel.trim(), // Always required - has default in useState
-                        }),
-                      });
-
-                      if (response.ok) {
-                        const result = await response.json();
-                        if (result.model) {
-                          localStorage.setItem(MODEL_KEY, result.model);
-                          const updatedCacheVersion = `${currentGoalsHash}_v3.0_${result.model}`;
-                          if (updatedCacheVersion !== currentCacheVersion) {
-                            console.log('AI Ranking: Model changed, clearing cached scores');
-                            localStorage.removeItem('dashboard_ai_scores_cache');
-                            localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
-                          }
-                        }
-                        // New format: scores is an object map {postId: score}
-                        // Old format: scores is an array [{postId, relevanceScore}]
-                        const scoresObj = result.scores || {};
-                        const metadataObj = result.metadata || {};
-                        const scoreCount = typeof scoresObj === 'object' && !Array.isArray(scoresObj) 
-                          ? Object.keys(scoresObj).length 
-                          : (Array.isArray(scoresObj) ? scoresObj.length : 0);
-                        console.log(`AI Ranking: Batch ${batchIdx + 1} - Received scores for`, scoreCount, 'posts', result.cached ? `(${result.cached} cached)` : '');
-                        
-                        // Handle new object map format
-                        if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
-                          Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
-                            const postIdStr = String(postId);
-                            // Only cache non-null scores (null means failed to score)
-                            if (relevanceScore !== null && relevanceScore !== undefined) {
-                              allScores.set(postIdStr, relevanceScore);
-                              
-                              // Extract metadata if available
-                              const meta = metadataObj[postId] || {};
-                              allMetadata.set(postIdStr, {
-                                source: 'llm',
-                                confidence: meta.confidence || 'medium',
-                                reason: meta.reason || 'LLM-scored relevance'
-                              });
-                              
-                              cache[postIdStr] = { 
-                                score: relevanceScore, 
-                                timestamp: Date.now(),
-                                version: result.promptVersion || 'v3.0',
-                                model: result.model || 'unknown',
-                                confidence: meta.confidence || 'medium',
-                                reason: meta.reason || 'LLM-scored relevance',
-                                source: 'llm'
-                              };
-                            } else {
-                              // Track null scores but don't cache them
-                              allScores.set(postIdStr, null);
-                            }
-                          });
-                        } else if (Array.isArray(scoresObj)) {
-                          // Fallback: handle old array format for backwards compatibility
-                          scoresObj.forEach(({ postId, relevanceScore }) => {
-                            const postIdStr = String(postId);
-                            if (relevanceScore !== null && relevanceScore !== undefined) {
-                              allScores.set(postIdStr, relevanceScore);
-                              allMetadata.set(postIdStr, {
-                                source: 'llm',
-                                confidence: 'medium',
-                                reason: 'LLM-scored relevance'
-                              });
-                              cache[postIdStr] = { 
-                                score: relevanceScore, 
-                                timestamp: Date.now(),
-                                version: result.promptVersion || 'v3.0',
-                                model: result.model || 'unknown',
-                                confidence: 'medium',
-                                reason: 'LLM-scored relevance',
-                                source: 'llm'
-                              };
-                            } else {
-                              allScores.set(postIdStr, null);
-                            }
-                          });
-                        }
-                        
-                        // Log failed post IDs if provided
-                        if (result.failedPostIds && result.failedPostIds.length > 0) {
-                          console.warn(`AI Ranking: ${result.failedPostIds.length} posts failed to score:`, result.failedPostIds);
-                        }
-                      } else {
-                        const errorText = await response.text();
-                        console.error(`AI ranking API error for batch ${batchIdx + 1}:`, response.status, errorText);
-                      }
-                    } catch (batchError) {
-                      console.error(`Error processing batch ${batchIdx + 1}:`, batchError);
-                    }
-                    
-                    // Small delay between batches to avoid rate limiting
-                    if (batchIdx < batches.length - 1) {
-                      await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                  }
-                  
-                  // Save updated cache with LRU eviction (max 5000 entries)
-                  try {
-                    const MAX_CACHE_ENTRIES = 5000;
-                    const entries = Object.entries(cache);
-                    if (entries.length > MAX_CACHE_ENTRIES) {
-                      // Sort by timestamp (oldest first) and keep only newest entries
-                      entries.sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
-                      const toKeep = entries.slice(-MAX_CACHE_ENTRIES);
-                      const trimmedCache = Object.fromEntries(toKeep);
-                      localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(trimmedCache));
-                      console.log(`AI Ranking: Trimmed cache from ${entries.length} to ${MAX_CACHE_ENTRIES} entries`);
-                    } else {
-                      localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
-                    }
-                  } catch (cacheError) {
-                    console.warn('Error saving AI scores cache:', cacheError);
-                    // If quota exceeded, clear cache and retry
-                    if (cacheError.name === 'QuotaExceededError') {
-                      try {
-                        localStorage.removeItem('dashboard_ai_scores_cache');
-                        console.log('AI Ranking: Cleared cache due to quota exceeded');
-                      } catch {}
-                    }
-                  }
-                  
-                  // Add heuristic scores for remaining posts (map to 0-5 range, will be calibrated)
-                  remainingPosts.forEach(({ post, heuristicScore }) => {
-                    const postId = String(post.id);
-                    if (!allScores.has(postId)) {
-                      // Map heuristic score to 0-5 range (max observed heuristic ~15-20)
-                      const normalizedScore = Math.min(5, Math.round(heuristicScore * 0.3));
-                      allScores.set(postId, normalizedScore);
-                      allMetadata.set(postId, { source: 'heuristic', confidence: 'low', reason: 'Keyword-based relevance' });
-                    }
-                  });
-                  
-                  // Apply percentile-based calibration to all scores
-                  const calibratedScores = calibrateScores(allScores);
-                  
-                  const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-                  console.log(`AI Ranking: Complete! ${calibratedScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4 after calibration`);
-                  
-                  // Update cache with calibrated scores
-                  try {
-                    calibratedScores.forEach((calibratedScore, postId) => {
-                      if (cache[postId] && calibratedScore !== null && calibratedScore !== undefined) {
-                        cache[postId].score = calibratedScore;
-                      }
-                    });
-                    localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
-                    console.log('AI Ranking: Saved calibrated scores to cache');
-                  } catch (cacheError) {
-                    console.warn('Error saving calibrated scores:', cacheError);
-                  }
-                  
-                  setPostRelevanceScores(calibratedScores);
-                  setPostRelevanceMetadata(allMetadata);
-                  setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-                  scoresForHighRelevance = calibratedScores;
-                } catch (aiError) {
-                  console.error('Error in AI ranking batch processing:', aiError);
-                  // Use cached scores on error (with calibration)
-                  const calibratedCached = calibrateScores(cachedScores);
-                  setPostRelevanceScores(calibratedCached);
-                  setPostRelevanceMetadata(cachedMetadata);
-                  setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-                  scoresForHighRelevance = calibratedCached;
-                } finally {
-                  setAiRankingLoading(false);
-                }
-                // High-relevance notifications (use freshly computed scores)
-                if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
-                      const threshold = Number(highRelevanceThreshold) || 4;
-                  const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
-                  const toNotify = [];
-                  for (const [postId, score] of scoresForHighRelevance.entries()) {
-                    if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
-                      toNotify.push({ postId, post: idToPost.get(postId) });
-                    }
-                  }
-                  toNotify.forEach(({ post }) => {
-                    new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
-                  });
-                  if (toNotify.length > 0) {
-                    const toAdd = toNotify.map(({ postId }) => postId);
-                    setNotifiedHighRelevancePostIds(prev => {
-                      const n = new Set(prev);
-                      toAdd.forEach(id => n.add(id));
-                      return n.size <= 500 ? n : new Set([...n].slice(-500));
-                    });
-                  }
-                }
-              } else {
-                // All posts are cached, use cached scores with calibration
-                console.log('AI Ranking: All posts already cached, using cached scores');
-                const calibratedCached = calibrateScores(cachedScores);
-                const highRelevanceCount = Array.from(calibratedCached.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-                console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 4 after calibration`);
-                setPostRelevanceScores(calibratedCached);
-                setPostRelevanceMetadata(cachedMetadata);
-                setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-                // High-relevance notifications (use freshly computed scores)
-                if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && calibratedCached && calibratedCached.size > 0) {
-                  const threshold = Number(highRelevanceThreshold) || 4;
-                  const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
-                  const toNotify = [];
-                  for (const [postId, score] of calibratedCached.entries()) {
-                    if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
-                      toNotify.push({ postId, post: idToPost.get(postId) });
-                    }
-                  }
-                  toNotify.forEach(({ post }) => {
-                    new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
-                  });
-                  if (toNotify.length > 0) {
-                    const toAdd = toNotify.map(({ postId }) => postId);
-                    setNotifiedHighRelevancePostIds(prev => {
-                      const n = new Set(prev);
-                      toAdd.forEach(id => n.add(id));
-                      return n.size <= 500 ? n : new Set([...n].slice(-500));
-                    });
-                  }
-                }
-              }
-            } catch (aiError) {
-              console.error('Error in AI ranking integration:', aiError);
-              setAiRankingLoading(false);
-            }
-          } else {
-            // Clear scores if AI is disabled or goals not set
-            console.log('AI Ranking: Disabled or no goals set');
-            setPostRelevanceScores(new Map());
-            setPostRelevanceMetadata(new Map());
-            setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-          }
+          await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
 
           // Check for notifications on auto-refresh
           if (triggeredByAuto) {
@@ -1162,7 +1288,7 @@
           setNextRefreshAt(plan.nextRefreshAt);
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, aiEnabled, aiGoals, aiContext, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1280,6 +1406,17 @@
         setHoverPost(null);
       }, []);
 
+      const handleScoreMore = useCallback(async () => {
+        if (aiRankingLoading || loading) return;
+        if (!aiEnabled || !aiGoals || !aiGoals.trim()) return;
+        const total = allPosts.length;
+        if (!total) return;
+        const nextLimit = Math.min(MAX_LLM_POST_LIMIT, Math.max(aiLlmPostLimit + LLM_SCORE_MORE_STEP, aiLlmPostLimit));
+        if (nextLimit === aiLlmPostLimit) return;
+        setAiLlmPostLimit(nextLimit);
+        await runAiRanking({ perSub: data, triggeredByAuto: false, llmPostLimit: nextLimit });
+      }, [aiRankingLoading, loading, aiEnabled, aiGoals, allPosts.length, aiLlmPostLimit, data, runAiRanking]);
+
       // Cleanup hover timeout on unmount
       useEffect(() => {
         return () => {
@@ -1333,6 +1470,34 @@
           alert('Failed to remove API key: ' + e.message);
         }
       }, []);
+
+      const modelGroups = useMemo(() => {
+        const source = availableModels.length ? availableModels : FALLBACK_MODELS;
+        const normalized = source.map(model => {
+          const id = model.id || model.model || model.name;
+          const name = model.name || id;
+          const pricing = model.pricing || null;
+          const tier = model.tier || (isFreePricing(pricing) ? 'free' : 'paid');
+          const speed = model.speed || inferModelSpeed(id || '');
+          const costHint = formatCostHint(pricing);
+          const contextHint = model.context_length ? `${formatNumber(model.context_length)} ctx` : '';
+          const tierHint = tier === 'free' ? 'free' : (pricing ? costHint : 'paid');
+          const hintParts = [tierHint, speed, contextHint].filter(Boolean);
+          return {
+            id,
+            name,
+            tier,
+            speed,
+            hint: hintParts.join(' • '),
+          };
+        }).filter(model => model.id);
+
+        const recommended = normalized.filter(m => m.id === DEFAULT_OPENROUTER_MODEL);
+        const free = normalized.filter(m => m.tier === 'free' && m.id !== DEFAULT_OPENROUTER_MODEL);
+        const paid = normalized.filter(m => m.tier === 'paid');
+
+        return { recommended, free, paid };
+      }, [availableModels]);
 
       const filtersActive = minUpvoteFilter || minCommentFilter || minAiRelevance || keyword;
 
@@ -1403,6 +1568,11 @@
             autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `• Next ${formatTimeUntil(nextRefreshAt)}`),
             aiRankingLoading && h('span', { className: 'text-emerald-700 dark:text-emerald-300 font-medium' }, '• AI Ranking...'),
             !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-emerald-700 dark:text-emerald-300' }, '• AI Active'),
+            !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && aiScoreStats.total > 0 && h('span', { className: 'text-emerald-700 dark:text-emerald-300' }, `• AI scored ${aiScoreStats.llm}/${aiScoreStats.total} (LLM)`),
+            !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && aiScoreStats.total > aiScoreStats.llm && aiLlmPostLimit < Math.min(MAX_LLM_POST_LIMIT, aiScoreStats.total) && h('button', {
+              onClick: handleScoreMore,
+              className: 'text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 dark:hover:text-emerald-200 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
+            }, 'Score more'),
             !aiRankingLoading && (!aiEnabled || !aiGoals || !aiGoals.trim()) && postRelevanceScores.size === 0 && h('span', { className: 'text-zinc-500 text-xs' }, '• AI Inactive'),
             (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
@@ -1589,6 +1759,8 @@
                 h('option', { value: 'upvotes-asc' }, 'Least upvotes'),
                 h('option', { value: 'comments-desc' }, 'Most comments'),
                 h('option', { value: 'comments-asc' }, 'Least comments'),
+                h('option', { value: 'velocity-upvotes-desc' }, '⚡ Upvotes per hour'),
+                h('option', { value: 'velocity-comments-desc' }, '💬 Comments per hour'),
                 aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size > 0 && [
                   h('option', { key: 'ai-desc', value: 'ai-relevance-desc' }, '🤖 Highest AI relevance'),
                   h('option', { key: 'ai-asc', value: 'ai-relevance-asc' }, '🤖 Lowest AI relevance')
@@ -1643,6 +1815,10 @@
                         const relevanceMeta = postRelevanceMetadata.get(String(post.id));
                         const isHighlyRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
                         const isVeryHighRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
+                        const velocity = velocityMeta.map.get(String(post.id));
+                        const isSpiking = velocityMeta.spiking.has(String(post.id));
+                        const upvotesPerHour = velocity?.upvotesPerHour || 0;
+                        const commentsPerHour = velocity?.commentsPerHour || 0;
                         // Debug: log first post's score retrieval
                         if (visiblePosts.indexOf(post) === 0) {
                           console.log('Post rendering debug:', {
@@ -1691,6 +1867,10 @@
                                   }, flair),
                                   h('span', null, '•'),
                                   h('span', null, timeAgo(post.created_utc)),
+                                  isSpiking && h('span', {
+                                    className: 'px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-200'
+                                  }, 'Spiking'),
+                                  h('span', { className: 'text-[10px] text-zinc-500 dark:text-zinc-400' }, `⚡ ${formatVelocity(upvotesPerHour)}/h`),
                                   relevanceScore !== undefined && relevanceScore !== null && h('span', {
                                     className: `px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                       relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
@@ -1702,9 +1882,18 @@
                                   }, `AI ${relevanceScore}`)
                                 ),
                                 h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
+                                h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
+                                  buildWhyLine({
+                                    post,
+                                    relevanceMeta,
+                                    upvotesPerHour,
+                                    commentsPerHour
+                                  })
+                                ),
                                 h('div', { className: 'flex items-center gap-3 mt-1.5 text-xs' },
                                   h('span', { className: 'text-emerald-700 dark:text-emerald-400 font-medium' }, `▲ ${score}`),
                                   h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, `💬 ${comments}`),
+                                  commentsPerHour > 0 && h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `💬 ${formatVelocity(commentsPerHour)}/h`),
                                   h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
                                 )
                               )
@@ -2215,36 +2404,32 @@
                   ),
                   h('label', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'AI Model'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Choose the AI model for ranking posts'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Choose the AI model for ranking posts (dynamic list from OpenRouter)'),
                     h('select', {
                       value: openRouterModel,
                       onChange: (e) => setOpenRouterModel(e.target.value),
                       disabled: !aiEnabled,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     },
-                      h('optgroup', { label: 'Free Models (Latest)' },
-                        h('option', { value: 'xiaomi/mimo-v2-flash:free' }, 'Xiaomi MiMo-V2-Flash (Free)'),
-                        h('option', { value: 'mistralai/devstral-2512:free' }, 'Mistral Devstral 2 2512 (Free)'),
-                        h('option', { value: 'tngtech/deepseek-r1t2-chimera:free' }, 'TNG DeepSeek R1T2 Chimera (Free)'),
-                        h('option', { value: 'z-ai/glm-4.5-air:free' }, 'Z.AI GLM 4.5 Air (Free)'),
-                        h('option', { value: 'deepseek/deepseek-r1-0528:free' }, 'DeepSeek R1 0528 (Free)'),
-                        h('option', { value: 'qwen/qwen3-coder:free' }, 'Qwen3 Coder 480B A35B (Free)'),
-                        h('option', { value: 'qwen/qwen3-next-80b-a3b-instruct:free' }, 'Qwen3 Next 80B A3B (Free)'),
-                        h('option', { value: 'meta-llama/llama-3.3-70b-instruct:free' }, 'Meta Llama 3.3 70B (Free)'),
-                        h('option', { value: 'google/gemma-3-27b-it:free' }, 'Google Gemma 3 27B (Free)'),
-                        h('option', { value: 'nvidia/nemotron-3-nano-30b-a3b:free' }, 'NVIDIA Nemotron 3 Nano 30B (Free)'),
-                        h('option', { value: 'openai/gpt-oss-120b:free' }, 'OpenAI gpt-oss-120b (Free)'),
-                        h('option', { value: 'openai/gpt-oss-20b:free' }, 'OpenAI gpt-oss-20b (Free)'),
-                        h('option', { value: 'arcee-ai/trinity-mini:free' }, 'Arcee AI Trinity Mini (Free)')
+                      modelGroups.recommended.length > 0 && h('optgroup', { label: 'Recommended' },
+                        modelGroups.recommended.map(model =>
+                          h('option', { key: `rec-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
+                        )
                       ),
-                      h('optgroup', { label: 'Paid Models (Popular)' },
-                        h('option', { value: 'anthropic/claude-sonnet-4.5' }, 'Claude Sonnet 4.5'),
-                        h('option', { value: 'openai/gpt-4o' }, 'GPT-4o'),
-                        h('option', { value: 'openai/gpt-4o-mini' }, 'GPT-4o Mini'),
-                        h('option', { value: 'google/gemini-pro-1.5' }, 'Gemini Pro 1.5')
+                      modelGroups.free.length > 0 && h('optgroup', { label: 'Free Models' },
+                        modelGroups.free.map(model =>
+                          h('option', { key: `free-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
+                        )
+                      ),
+                      modelGroups.paid.length > 0 && h('optgroup', { label: 'Paid Models' },
+                        modelGroups.paid.map(model =>
+                          h('option', { key: `paid-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
+                        )
                       )
                     )
                   ),
+                  modelsLoading && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Loading models...'),
+                  modelsError && h('p', { className: 'text-xs text-rose-600 dark:text-rose-400' }, modelsError),
                   aiRankingLoading && h('div', { className: 'flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400' },
                     h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' }),
                     'Analyzing posts...'
@@ -2256,7 +2441,7 @@
                 h('div', { className: 'flex gap-2' },
                   h('button', {
                     onClick: () => {
-                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterApiKey, openRouterModel });
+                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterApiKey, openRouterModel, aiLlmPostLimit });
                       navigator.clipboard.writeText(backup);
                       alert('Settings copied to clipboard');
                     },
@@ -2283,6 +2468,7 @@
                           if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
                           if (parsed.openRouterApiKey !== undefined) setOpenRouterApiKey(parsed.openRouterApiKey);
                           if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);
+                          if (parsed.aiLlmPostLimit !== undefined) setAiLlmPostLimit(Number(parsed.aiLlmPostLimit) || DEFAULT_LLM_POST_LIMIT);
                           alert('Settings restored');
                         } catch (e) {
                           alert('Invalid backup format');
@@ -2346,6 +2532,76 @@
         unitIndex += 1;
       }
       return `${val.toFixed(val >= 10 ? 0 : 1)}${units[unitIndex]}`;
+    }
+
+    function formatNumber(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '';
+      return num.toLocaleString('en-US');
+    }
+
+    function getPostAgeHours(post, nowSeconds = Date.now() / 1000) {
+      const createdUtc = Number(post?.created_utc);
+      const base = Number.isFinite(createdUtc) ? createdUtc : nowSeconds;
+      const ageSeconds = Math.max(60, nowSeconds - base);
+      return Math.max(0.25, ageSeconds / 3600);
+    }
+
+    function percentileValue(sortedValues, percentile) {
+      if (!Array.isArray(sortedValues) || sortedValues.length === 0) return 0;
+      const clamped = Math.min(1, Math.max(0, percentile));
+      const index = Math.floor((sortedValues.length - 1) * clamped);
+      return sortedValues[Math.max(0, Math.min(sortedValues.length - 1, index))];
+    }
+
+    function formatVelocity(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num) || num <= 0) return '0';
+      if (num >= 100) return String(Math.round(num));
+      if (num >= 10) return num.toFixed(1);
+      return num.toFixed(2);
+    }
+
+    function buildWhyLine({ post, relevanceMeta, upvotesPerHour, commentsPerHour }) {
+      if (relevanceMeta && relevanceMeta.reason) {
+        return `Why: ${relevanceMeta.reason}`;
+      }
+      const age = timeAgo(post.created_utc);
+      const score = Number(post.score) || 0;
+      const comments = Number(post.num_comments) || 0;
+      const velocityBits = [];
+      if (Number.isFinite(upvotesPerHour) && upvotesPerHour > 0) {
+        velocityBits.push(`⚡ ${formatVelocity(upvotesPerHour)}/h`);
+      }
+      if (Number.isFinite(commentsPerHour) && commentsPerHour > 0) {
+        velocityBits.push(`💬 ${formatVelocity(commentsPerHour)}/h`);
+      }
+      const base = `Fresh ${age} • ${score}▲ • ${comments}💬`;
+      return velocityBits.length ? `${base} • ${velocityBits.join(' • ')}` : base;
+    }
+
+    function isFreePricing(pricing) {
+      const prompt = Number(pricing?.prompt);
+      const completion = Number(pricing?.completion);
+      return Number.isFinite(prompt) && Number.isFinite(completion) && prompt === 0 && completion === 0;
+    }
+
+    function inferModelSpeed(modelId) {
+      const id = String(modelId || '').toLowerCase();
+      if (id.includes('flash') || id.includes('mini') || id.includes('lite') || id.includes('small')) return 'fast';
+      if (id.includes('70b') || id.includes('72b') || id.includes('120b') || id.includes('405b') || id.includes('r1')) return 'slow';
+      return 'balanced';
+    }
+
+    function formatCostHint(pricing) {
+      if (!pricing) return 'pricing n/a';
+      const prompt = Number(pricing.prompt);
+      const completion = Number(pricing.completion);
+      if (Number.isFinite(prompt) && Number.isFinite(completion) && prompt === 0 && completion === 0) return 'free';
+      const parts = [];
+      if (Number.isFinite(prompt)) parts.push(`$${(prompt * 1e6).toFixed(2)}/M in`);
+      if (Number.isFinite(completion)) parts.push(`$${(completion * 1e6).toFixed(2)}/M out`);
+      return parts.length ? parts.join(' • ') : 'pricing n/a';
     }
 
     function parseNumberFilter(value) {

@@ -56,7 +56,7 @@ These tests are designed to:
    - Invalid data
 
 4. **Validate Quality**: Check that:
-   - AI ranking properly calibrates scores (top 10% get ≥7)
+   - AI ranking properly calibrates scores (top 10% get ≥4)
    - Posts are ranked by relevance to user goals
    - Batching is efficient for large post lists
 
@@ -70,8 +70,8 @@ These tests are designed to:
 The tests output helpful metrics:
 
 - ⏱️ Performance timing (e.g., "Workflow completed in 45000ms")
-- ✅ Quality metrics (e.g., "Surfaces 5 highly relevant posts (score ≥ 7)")
-- 📊 Calibration checks (e.g., "3 posts scored ≥7 out of 20")
+- ✅ Quality metrics (e.g., "Surfaces 5 highly relevant posts (score ≥ 4)")
+- 📊 Calibration checks (e.g., "3 posts scored ≥4 out of 20")
 - 🔄 Batching efficiency (e.g., "Batched 100 posts into 4 requests")
 
 ## Continuous Improvement
