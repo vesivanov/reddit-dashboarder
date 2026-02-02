@@ -14,6 +14,7 @@
 
 const { withCORS } = require('../../lib/cors');
 const { parseRequest, getQueryValue } = require('../../lib/request-utils');
+const { getRefreshToken } = require('../../lib/token-store');
 
 const TOKEN_ENDPOINT = 'https://www.reddit.com/api/v1/access_token';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -56,13 +57,16 @@ async function getAccessToken() {
     return cachedAccessToken;
   }
   
-  const refreshToken = process.env.REDDIT_REFRESH_TOKEN;
+  // Get refresh token from KV or env var
+  const { token: refreshToken, source } = await getRefreshToken();
   const clientId = process.env.REDDIT_CLIENT_ID;
   const clientSecret = process.env.REDDIT_CLIENT_SECRET;
   
   if (!refreshToken) {
-    throw new Error('REDDIT_REFRESH_TOKEN not configured');
+    throw new Error('No Reddit refresh token found. Either configure Vercel KV and authenticate via browser, or set REDDIT_REFRESH_TOKEN env var.');
   }
+  
+  console.log(`[digest] Using refresh token from: ${source}`);
   if (!clientId || !clientSecret) {
     throw new Error('Reddit OAuth credentials not configured');
   }

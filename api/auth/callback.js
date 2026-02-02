@@ -1,4 +1,5 @@
 const { readSignedCookie, makeSignedCookie, clearCookie } = require('../../lib/cookies');
+const { saveRefreshToken, isKVConfigured } = require('../../lib/token-store');
 
 async function exchangeCodeForTokens(code, verifier, redirectUri) {
   const clientId = process.env.REDDIT_CLIENT_ID;
@@ -118,6 +119,16 @@ module.exports = async function handler(req, res) {
 
   try {
     const tokenResponse = await exchangeCodeForTokens(code, verifier, redirectUri);
+
+    // Save refresh token to Vercel KV for headless/agent access
+    if (tokenResponse.refresh_token && isKVConfigured()) {
+      const saveResult = await saveRefreshToken(tokenResponse.refresh_token);
+      if (saveResult.success) {
+        console.log('OAuth callback: Refresh token saved to Vercel KV');
+      } else {
+        console.warn('OAuth callback: Failed to save refresh token to KV:', saveResult.error);
+      }
+    }
 
     const cookies = [
       makeSignedCookie('access', tokenResponse.access_token, { maxAge: Math.max(0, (tokenResponse.expires_in || 3600) - 10) }),
