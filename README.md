@@ -29,6 +29,7 @@ Trust the ordering enough to use it daily
 - **💾 Persistent Settings**: Subreddits and preferences in `localStorage` with backup/restore
 - **📱 Responsive Design**: Works on desktop and mobile
 - **🚀 Deploy Anywhere**: Vercel, Cloudflare Workers, or local Express
+- **🤖 Agent/Automation Ready**: Headless digest endpoint for bots and cron jobs
 
 ## 🎯 Final Vision
 
@@ -340,6 +341,82 @@ POST /api/reddit/ai-rank
 **Response Headers:**
 - `X-RDD-Metrics`: JSON string containing performance metrics (same as `metrics` in response body)
 
+### Agent Digest Endpoint (Headless/Automated)
+
+```
+GET /api/reddit/digest
+```
+
+Agent-friendly endpoint for automated monitoring. Fetches posts, ranks them with AI, and returns only high-priority posts. Uses server-side Reddit authentication (no browser OAuth required).
+
+**Authentication:**
+- Requires `Authorization: Bearer <token>` header
+- Token must match `DIGEST_API_KEY` environment variable
+
+**Query Parameters:**
+- `subs` (optional): Comma-separated subreddits (default: `DIGEST_SUBREDDITS` env var)
+- `goals` (optional): AI ranking goals (default: `DIGEST_GOALS` env var)
+- `context` (optional): Additional context/clarifiers (default: `DIGEST_CONTEXT` env var)
+- `threshold` (optional): Minimum AI score to include (0-5, default: `4`)
+- `days` (optional): Days to look back (1-7, default: `1`)
+- `model` (optional): OpenRouter model (default: `OPENROUTER_MODEL` env var)
+- `format` (optional): `json` or `markdown` (default: `json`)
+
+**Required Environment Variables:**
+- `DIGEST_API_KEY` - Bearer token for authentication
+- `REDDIT_REFRESH_TOKEN` - Server-side Reddit refresh token
+- `OPENROUTER_API_KEY` - For AI ranking
+
+**Optional Environment Variables:**
+- `DIGEST_SUBREDDITS` - Default subreddits
+- `DIGEST_GOALS` - Default AI goals
+- `DIGEST_CONTEXT` - Default AI context
+- `DIGEST_THRESHOLD` - Default score threshold
+
+**Response (JSON):**
+```json
+{
+  "highPriorityPosts": [
+    {
+      "id": "abc123",
+      "title": "Looking for SEO consultant...",
+      "subreddit": "smallbusiness",
+      "author": "user123",
+      "url": "https://www.reddit.com/r/smallbusiness/...",
+      "score": 5,
+      "redditScore": 42,
+      "numComments": 15,
+      "ageHours": 3,
+      "reason": "Direct service request matching profile",
+      "confidence": "high",
+      "flair": "Help Wanted",
+      "preview": "First 200 chars of post body..."
+    }
+  ],
+  "stats": {
+    "subreddits": 3,
+    "total": 147,
+    "scored": 147,
+    "highPriority": 2,
+    "threshold": 4,
+    "model": "google/gemini-2.0-flash-exp:free",
+    "durationMs": 8500
+  }
+}
+```
+
+**Example:**
+```bash
+curl -H "Authorization: Bearer your-secret-key" \
+  "https://your-app.vercel.app/api/reddit/digest?subs=smallbusiness,entrepreneur&goals=Find%20leads%20for%20SEO%20services&threshold=4"
+```
+
+**Markdown Format:**
+```bash
+curl -H "Authorization: Bearer your-secret-key" \
+  "https://your-app.vercel.app/api/reddit/digest?format=markdown"
+```
+
 ### Authentication Endpoints
 
 - `GET /api/auth/start` - Initiate OAuth flow
@@ -419,6 +496,12 @@ See `__tests__/README.md` for more details on the test suite.
 | `APP_BASE_URL` | No | Base URL (used when `REDDIT_REDIRECT_URI` is not set; auth derives redirect from host otherwise) |
 | `APP_DOMAIN` | No | Used by CORS for allowed origins |
 | `NODE_ENV` | No | `development` or `production` |
+| `DIGEST_API_KEY` | No | Bearer token for `/api/reddit/digest` endpoint auth |
+| `REDDIT_REFRESH_TOKEN` | No | Server-side Reddit refresh token for headless access |
+| `DIGEST_SUBREDDITS` | No | Default subreddits for digest endpoint |
+| `DIGEST_GOALS` | No | Default AI goals for digest endpoint |
+| `DIGEST_CONTEXT` | No | Default AI context for digest endpoint |
+| `DIGEST_THRESHOLD` | No | Default score threshold for digest (0-5, default: 4) |
 
 ## 🎨 Customization
 
