@@ -197,6 +197,42 @@ See the `worker/` directory for Cloudflare Worker implementation. Note: OAuth an
 
 The `server.js` file provides a full Express server that can be deployed to any Node.js hosting service (Railway, Render, Heroku, etc.).
 
+### Setting Up Vercel KV (for Agent/Digest Endpoint)
+
+If you want to use the `/api/reddit/digest` endpoint for automated monitoring (bots, cron jobs), set up Vercel KV to persist the Reddit refresh token:
+
+1. **Add Vercel KV to your project**:
+   ```bash
+   vercel storage add kv
+   ```
+   Or via Vercel Dashboard: Project → Storage → Create Database → KV
+
+2. **Link to your project** (if not auto-linked):
+   ```bash
+   vercel link
+   vercel env pull
+   ```
+   This sets `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+
+3. **Set up the digest API key**:
+   ```bash
+   vercel env add DIGEST_API_KEY
+   # Enter a secure random string
+   ```
+
+4. **Authenticate once via browser**:
+   - Visit your app and click "Authenticate with Reddit"
+   - The refresh token is automatically saved to Vercel KV
+
+5. **Verify setup**:
+   ```bash
+   curl -H "Authorization: Bearer your-digest-api-key" \
+     "https://your-app.vercel.app/api/admin/token"
+   ```
+   Should show `"source": "kv"` and `"hasToken": true`.
+
+Now the digest endpoint can access Reddit without browser authentication!
+
 ## 📖 Usage
 
 ### Authentication
@@ -364,8 +400,11 @@ Agent-friendly endpoint for automated monitoring. Fetches posts, ranks them with
 
 **Required Environment Variables:**
 - `DIGEST_API_KEY` - Bearer token for authentication
-- `REDDIT_REFRESH_TOKEN` - Server-side Reddit refresh token
 - `OPENROUTER_API_KEY` - For AI ranking
+
+**Reddit Authentication (one of these):**
+- **Option A (Recommended):** Set up Vercel KV, then authenticate once via browser. The refresh token is automatically stored and kept fresh.
+- **Option B:** Set `REDDIT_REFRESH_TOKEN` env var manually (may need updating if Reddit rotates the token).
 
 **Optional Environment Variables:**
 - `DIGEST_SUBREDDITS` - Default subreddits
@@ -420,9 +459,34 @@ curl -H "Authorization: Bearer your-secret-key" \
 ### Authentication Endpoints
 
 - `GET /api/auth/start` - Initiate OAuth flow
-- `GET /api/auth/callback` - OAuth callback
+- `GET /api/auth/callback` - OAuth callback (also saves refresh token to Vercel KV if configured)
 - `GET /api/auth/logout` - Logout
 - `GET /api/auth/status` - Auth status
+
+### Admin Token Endpoint
+
+Manage the server-side Reddit refresh token. Requires `Authorization: Bearer <DIGEST_API_KEY>`.
+
+- `GET /api/admin/token` - View token status (source, preview, last updated)
+- `POST /api/admin/token` - Manually set token (body: `{ "token": "..." }`)
+- `DELETE /api/admin/token` - Delete token from Vercel KV
+
+**Example:**
+```bash
+# Check token status
+curl -H "Authorization: Bearer your-api-key" \
+  "https://your-app.vercel.app/api/admin/token"
+
+# Response:
+{
+  "hasToken": true,
+  "source": "kv",
+  "updatedAt": "2024-01-15T10:30:00.000Z",
+  "tokenPreview": "12345678...abcd",
+  "kvConfigured": true,
+  "envVarSet": false
+}
+```
 
 ### Settings: OpenRouter Key (optional)
 
@@ -496,8 +560,10 @@ See `__tests__/README.md` for more details on the test suite.
 | `APP_BASE_URL` | No | Base URL (used when `REDDIT_REDIRECT_URI` is not set; auth derives redirect from host otherwise) |
 | `APP_DOMAIN` | No | Used by CORS for allowed origins |
 | `NODE_ENV` | No | `development` or `production` |
-| `DIGEST_API_KEY` | No | Bearer token for `/api/reddit/digest` endpoint auth |
-| `REDDIT_REFRESH_TOKEN` | No | Server-side Reddit refresh token for headless access |
+| `DIGEST_API_KEY` | No | Bearer token for `/api/reddit/digest` and `/api/admin/token` auth |
+| `REDDIT_REFRESH_TOKEN` | No | Fallback Reddit refresh token (Vercel KV is preferred) |
+| `KV_REST_API_URL` | No | Vercel KV REST API URL (auto-set when you add Vercel KV) |
+| `KV_REST_API_TOKEN` | No | Vercel KV REST API token (auto-set when you add Vercel KV) |
 | `DIGEST_SUBREDDITS` | No | Default subreddits for digest endpoint |
 | `DIGEST_GOALS` | No | Default AI goals for digest endpoint |
 | `DIGEST_CONTEXT` | No | Default AI context for digest endpoint |
