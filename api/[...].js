@@ -3,8 +3,8 @@
 
 const createApp = require('../app');
 
-// Create the Express app
+// Create the Express app (Vercel will cache this)
 const app = createApp();
 
-// Export as Vercel serverless function
+// Export the Express app directly - Vercel handles the routing
 module.exports = app;
