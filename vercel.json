@@ -3,9 +3,10 @@
   "buildCommand": "echo 'No build'",
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/[...].js": { "maxDuration": 60 }
+    "api/index.js": { "maxDuration": 60 }
   }
 }
