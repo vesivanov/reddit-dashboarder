@@ -34,8 +34,8 @@ function createApp() {
   // Parse JSON bodies for POST requests (increase limit for AI ranking endpoint)
   app.use(express.json({ limit: '10mb' }));
 
-  // Serve static files from root
-  app.use(express.static(__dirname));
+  // Serve static files from public
+  app.use(express.static(path.join(__dirname, 'public')));
 
   // API routes
   app.get('/api/reddit', redditHandler);
@@ -79,7 +79,7 @@ function createApp() {
 
   // Serve index.html for all other routes (SPA routing)
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 
   return app;
