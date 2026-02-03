@@ -4,8 +4,7 @@
     "api/index.js": { "maxDuration": 60 }
   },
   "routes": [
-    { "handle": "filesystem" },
     { "src": "/api/(.*)", "dest": "/api/index.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/api/index.js" }
   ]
 }
