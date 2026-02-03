@@ -27,9 +27,10 @@ Trust the ordering enough to use it daily
 - **🔍 Filtering**: Keywords, min upvotes/comments, time range, days
 - **⚡ Velocity Signal**: Upvotes/comments per hour with "spiking" badge + velocity sorting
 - **💾 Persistent Settings**: Subreddits and preferences in `localStorage` with backup/restore
+- **🔌 Settings API**: Import/export settings via `/api/settings/import` for AI agents and automation
 - **📱 Responsive Design**: Works on desktop and mobile
 - **🚀 Deploy Anywhere**: Vercel, Cloudflare Workers, or local Express
-- **🤖 Agent/Automation Ready**: Headless digest endpoint for bots and cron jobs
+- **🤖 Agent/Automation Ready**: Headless digest endpoint and settings API for bots and cron jobs
 
 ## 🎯 Final Vision
 
@@ -68,7 +69,8 @@ reddit-dashboarder/
 │   ├── reddit/
 │   │   └── ai-rank.js        # AI post ranking (OpenRouter)
 │   ├── settings/
-│   │   └── openrouter-key.js # Secure OpenRouter key storage (HttpOnly cookie)
+│   │   ├── openrouter-key.js # Secure OpenRouter key storage (HttpOnly cookie)
+│   │   └── import.js          # Settings import/export API (for AI agents)
 │   ├── reddit.js             # Reddit data API
 │   └── health.js             # Health check
 ├── lib/
@@ -188,6 +190,32 @@ The dashboard will be available at `http://localhost:3000`
 
 3. **Update Reddit App Redirect URI**:
    - Update your Reddit app's redirect URI to match your Vercel URL: `https://your-app.vercel.app/api/auth/callback`
+
+### Quick deploy: Vercel KV + Digest API
+
+To enable the headless digest and admin token APIs (free tier):
+
+```bash
+# 1. Add Vercel KV (free tier)
+vercel storage add kv
+
+# 2. Set your digest API key
+vercel env add DIGEST_API_KEY
+# (enter a random secret when prompted)
+
+# 3. Deploy
+vercel --prod
+```
+
+Then:
+
+4. **Auth once in browser** — Visit your app → click **"Authenticate with Reddit"** (the refresh token is saved to KV).
+5. **Verify**:
+   ```bash
+   curl -H "Authorization: Bearer <your-key>" \
+     https://reddit-dashboarder.vercel.app/api/admin/token
+   ```
+   Replace `<your-key>` with the value you set for `DIGEST_API_KEY`, and use your actual Vercel app URL if different. You should see `"source": "kv"` and `"hasToken": true`.
 
 ### Option 2: Deploy to Cloudflare Workers
 
@@ -493,6 +521,56 @@ curl -H "Authorization: Bearer your-api-key" \
 - `GET /api/settings/openrouter-key` - Check if a key is stored (`hasKey`, `keyPreview`; never returns the key)
 - `POST /api/settings/openrouter-key` - Store key in HttpOnly signed cookie (body: `{ "apiKey": "sk-or-..." }`)
 - `DELETE /api/settings/openrouter-key` - Remove stored key
+
+### Settings: Import/Export (for AI agents)
+
+- `GET /api/settings/import` - Export stored settings (returns `{ hasSettings: boolean, settings: {...} }`)
+- `POST /api/settings/import` - Import settings (body: settings JSON object)
+- `DELETE /api/settings/import` - Clear stored settings
+
+Settings include: `subs`, `maxPages`, `autoRefreshEnabled`, `autoRefreshInterval`, `notificationsEnabled`, `upvoteThreshold`, `alertKeywords`, `notifyHighRelevance`, `highRelevanceThreshold`, `notifiedHighRelevancePostIds`, `aiGoals`, `aiContext`, `aiEnabled`, `openRouterModel`, `aiLlmPostLimit`.
+
+**Note**: The OpenRouter API key is stored separately via `/api/settings/openrouter-key` for security reasons.
+
+**Example:**
+```bash
+# Export settings
+curl -X GET "http://localhost:3000/api/settings/import" \
+  --cookie "rdd_dashboard_settings=..."
+
+# Response:
+{
+  "hasSettings": true,
+  "settings": {
+    "subs": ["programming", "webdev"],
+    "maxPages": 5,
+    "aiEnabled": true,
+    "aiGoals": "Find posts about React and TypeScript",
+    "openRouterModel": "google/gemini-2.0-flash-exp:free"
+  }
+}
+
+# Import settings
+curl -X POST "http://localhost:3000/api/settings/import" \
+  -H "Content-Type: application/json" \
+  --cookie-jar cookies.txt \
+  -d '{
+    "subs": ["programming", "webdev", "javascript"],
+    "maxPages": 5,
+    "aiEnabled": true,
+    "aiGoals": "Find posts about React and TypeScript best practices",
+    "aiContext": "Prefer hands-on guides, avoid memes",
+    "openRouterModel": "google/gemini-2.0-flash-exp:free"
+  }'
+
+# Response:
+{
+  "success": true,
+  "settings": { ... }
+}
+```
+
+Settings are stored in an HttpOnly signed cookie, so they persist across sessions and are accessible via the API for AI agents and automation tools.
 
 ### Health Check
 

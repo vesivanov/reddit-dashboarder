@@ -121,3 +121,4 @@ build/
 
 # Development-only endpoints (not deployed to production)
 dev-only/
+.env*.local

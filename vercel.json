@@ -8,6 +8,8 @@
   "functions": {
     "api/reddit.js": { "maxDuration": 30 },
     "api/reddit/ai-rank.js": { "maxDuration": 60 },
+    "api/reddit/digest.js": { "maxDuration": 60 },
+    "api/admin/token.js": { "maxDuration": 10 },
     "api/health.js": { "maxDuration": 10 },
     "api/root-info.js": { "maxDuration": 5 }
   }

@@ -2704,45 +2704,104 @@
               ),
               h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
                 h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, 'Data Management'),
-                h('div', { className: 'flex gap-2' },
-                  h('button', {
-                    onClick: () => {
-                      const backup = JSON.stringify({ subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterApiKey, openRouterModel, aiLlmPostLimit });
-                      navigator.clipboard.writeText(backup);
-                      alert('Settings copied to clipboard');
-                    },
-                    className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
-                  }, 'Export settings'),
-                  h('button', {
-                    onClick: () => {
-                      const input = prompt('Paste your settings backup:');
-                      if (input) {
+                h('div', { className: 'space-y-2' },
+                  h('div', { className: 'flex gap-2' },
+                    h('button', {
+                      onClick: async () => {
+                        const settings = { subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterModel, aiLlmPostLimit };
+                        const backup = JSON.stringify(settings);
+                        navigator.clipboard.writeText(backup);
+                        
+                        // Also save to API for AI agents
                         try {
-                          const parsed = JSON.parse(input);
-                          if (parsed.subs) setSubs(parsed.subs);
-                          if (parsed.maxPages) setMaxPages(parsed.maxPages);
-                          if (typeof parsed.autoRefreshEnabled === 'boolean') setAutoRefreshEnabled(parsed.autoRefreshEnabled);
-                          if (parsed.autoRefreshInterval) setAutoRefreshInterval(parsed.autoRefreshInterval);
-                          if (typeof parsed.notificationsEnabled === 'boolean') setNotificationsEnabled(parsed.notificationsEnabled);
-                          if (parsed.upvoteThreshold) setUpvoteThreshold(parsed.upvoteThreshold);
-                          if (parsed.alertKeywords !== undefined) setAlertKeywords(parsed.alertKeywords);
-                          if (typeof parsed.notifyHighRelevance === 'boolean') setNotifyHighRelevance(parsed.notifyHighRelevance);
-                          if (parsed.highRelevanceThreshold != null) setHighRelevanceThreshold(Number(parsed.highRelevanceThreshold) || 4);
-                          if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
-                          if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
-                          if (parsed.aiContext !== undefined) setAiContext(parsed.aiContext);
-                          if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
-                          if (parsed.openRouterApiKey !== undefined) setOpenRouterApiKey(parsed.openRouterApiKey);
-                          if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);
-                          if (parsed.aiLlmPostLimit !== undefined) setAiLlmPostLimit(Number(parsed.aiLlmPostLimit) || DEFAULT_LLM_POST_LIMIT);
-                          alert('Settings restored');
+                          const response = await fetch('/api/settings/import', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: backup
+                          });
+                          if (response.ok) {
+                            alert('Settings copied to clipboard and saved to API endpoint!\n\nAI agents can access via: GET /api/settings/import');
+                          } else {
+                            alert('Settings copied to clipboard (API save failed)');
+                          }
                         } catch (e) {
-                          alert('Invalid backup format');
+                          alert('Settings copied to clipboard (API save failed: ' + e.message + ')');
                         }
-                      }
-                    },
-                    className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
-                  }, 'Import settings')
+                      },
+                      className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
+                    }, 'Export settings'),
+                    h('button', {
+                      onClick: async () => {
+                        // Try to load from API first
+                        try {
+                          const response = await fetch('/api/settings/import', {
+                            method: 'GET',
+                            credentials: 'include'
+                          });
+                          if (response.ok) {
+                            const data = await response.json();
+                            if (data.hasSettings && data.settings) {
+                              const parsed = data.settings;
+                              if (parsed.subs) setSubs(parsed.subs);
+                              if (parsed.maxPages) setMaxPages(parsed.maxPages);
+                              if (typeof parsed.autoRefreshEnabled === 'boolean') setAutoRefreshEnabled(parsed.autoRefreshEnabled);
+                              if (parsed.autoRefreshInterval) setAutoRefreshInterval(parsed.autoRefreshInterval);
+                              if (typeof parsed.notificationsEnabled === 'boolean') setNotificationsEnabled(parsed.notificationsEnabled);
+                              if (parsed.upvoteThreshold) setUpvoteThreshold(parsed.upvoteThreshold);
+                              if (parsed.alertKeywords !== undefined) setAlertKeywords(parsed.alertKeywords);
+                              if (typeof parsed.notifyHighRelevance === 'boolean') setNotifyHighRelevance(parsed.notifyHighRelevance);
+                              if (parsed.highRelevanceThreshold != null) setHighRelevanceThreshold(Number(parsed.highRelevanceThreshold) || 4);
+                              if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
+                              if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
+                              if (parsed.aiContext !== undefined) setAiContext(parsed.aiContext);
+                              if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
+                              if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);
+                              if (parsed.aiLlmPostLimit !== undefined) setAiLlmPostLimit(Number(parsed.aiLlmPostLimit) || DEFAULT_LLM_POST_LIMIT);
+                              alert('Settings loaded from API');
+                              return;
+                            }
+                          }
+                        } catch (e) {
+                          console.warn('Failed to load from API:', e);
+                        }
+                        
+                        // Fallback to manual paste
+                        const input = prompt('Paste your settings backup:');
+                        if (input) {
+                          try {
+                            const parsed = JSON.parse(input);
+                            if (parsed.subs) setSubs(parsed.subs);
+                            if (parsed.maxPages) setMaxPages(parsed.maxPages);
+                            if (typeof parsed.autoRefreshEnabled === 'boolean') setAutoRefreshEnabled(parsed.autoRefreshEnabled);
+                            if (parsed.autoRefreshInterval) setAutoRefreshInterval(parsed.autoRefreshInterval);
+                            if (typeof parsed.notificationsEnabled === 'boolean') setNotificationsEnabled(parsed.notificationsEnabled);
+                            if (parsed.upvoteThreshold) setUpvoteThreshold(parsed.upvoteThreshold);
+                            if (parsed.alertKeywords !== undefined) setAlertKeywords(parsed.alertKeywords);
+                            if (typeof parsed.notifyHighRelevance === 'boolean') setNotifyHighRelevance(parsed.notifyHighRelevance);
+                            if (parsed.highRelevanceThreshold != null) setHighRelevanceThreshold(Number(parsed.highRelevanceThreshold) || 4);
+                            if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
+                            if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
+                            if (parsed.aiContext !== undefined) setAiContext(parsed.aiContext);
+                            if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
+                            if (parsed.openRouterApiKey !== undefined) setOpenRouterApiKey(parsed.openRouterApiKey);
+                            if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);
+                            if (parsed.aiLlmPostLimit !== undefined) setAiLlmPostLimit(Number(parsed.aiLlmPostLimit) || DEFAULT_LLM_POST_LIMIT);
+                            alert('Settings restored');
+                          } catch (e) {
+                            alert('Invalid backup format');
+                          }
+                        }
+                      },
+                      className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
+                    }, 'Import settings')
+                  ),
+                  h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 
+                    'AI agents can access settings via: ',
+                    h('code', { className: 'text-xs bg-zinc-100 dark:bg-zinc-800 px-1 rounded' }, 'GET /api/settings/import'),
+                    ' or ',
+                    h('code', { className: 'text-xs bg-zinc-100 dark:bg-zinc-800 px-1 rounded' }, 'POST /api/settings/import')
+                  )
                 )
               )
             ),
