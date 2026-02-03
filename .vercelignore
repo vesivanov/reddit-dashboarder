@@ -6,7 +6,7 @@ server.js
 __tests__
 
 # Prevent Vercel from auto-creating separate functions for each API file.
-# We use api/index.js as a single catch-all Express app instead.
+# We use api/[...].js as a single catch-all Express app instead.
 api/reddit.js
 api/reddit/ai-rank.js
 api/reddit/digest.js
