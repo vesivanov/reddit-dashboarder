@@ -9,6 +9,7 @@ const authCallbackHandler = require('./api/auth/callback');
 const authLogoutHandler = require('./api/auth/logout');
 const authStatusHandler = require('./api/auth/status');
 const openrouterKeyHandler = require('./api/settings/openrouter-key');
+const settingsImportHandler = require('./api/settings/import');
 const openrouterModelsHandler = require('./api/openrouter/models');
 
 function optionalHandler(relativePath) {
@@ -59,6 +60,12 @@ function createApp() {
   app.post('/api/settings/openrouter-key', openrouterKeyHandler);
   app.delete('/api/settings/openrouter-key', openrouterKeyHandler);
   app.options('/api/settings/openrouter-key', openrouterKeyHandler);
+
+  // Settings import/export routes (for AI agents)
+  app.get('/api/settings/import', settingsImportHandler);
+  app.post('/api/settings/import', settingsImportHandler);
+  app.delete('/api/settings/import', settingsImportHandler);
+  app.options('/api/settings/import', settingsImportHandler);
 
   if (authDebugRedirectHandler) {
     app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
