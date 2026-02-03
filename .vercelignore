@@ -1,10 +1,22 @@
-# Prevent Vercel from treating these as root serverless entry points.
-# They are for local dev only (npm run local).
+# Prevent Vercel from treating server.js as a root serverless entry point.
+# It's for local dev only (npm run local).
 server.js
-app.js
 
 # Exclude tests from deploy (not needed in production).
 __tests__
 
-# Never deploy api/index.js (root/SPA handler); root is static index.html.
-api/index.js
+# Prevent Vercel from auto-creating separate functions for each API file.
+# We use api/index.js as a single catch-all Express app instead.
+api/reddit.js
+api/reddit/ai-rank.js
+api/reddit/digest.js
+api/admin/token.js
+api/auth/start.js
+api/auth/callback.js
+api/auth/logout.js
+api/auth/status.js
+api/health.js
+api/openrouter/models.js
+api/root-info.js
+api/settings/openrouter-key.js
+api/settings/import.js

@@ -3,14 +3,10 @@
   "buildCommand": "echo 'No build'",
   "outputDirectory": ".",
   "rewrites": [
-    { "source": "/", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/reddit.js": { "maxDuration": 30 },
-    "api/reddit/ai-rank.js": { "maxDuration": 60 },
-    "api/reddit/digest.js": { "maxDuration": 60 },
-    "api/admin/token.js": { "maxDuration": 10 },
-    "api/health.js": { "maxDuration": 10 },
-    "api/root-info.js": { "maxDuration": 5 }
+    "api/index.js": { "maxDuration": 60 }
   }
 }
