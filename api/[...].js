@@ -1,4 +1,4 @@
-// Vercel serverless function entry point
+// Vercel serverless function catch-all for all API routes
 // Consolidates all API routes into a single function to avoid the 12-function limit
 
 const createApp = require('../app');
