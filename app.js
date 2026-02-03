@@ -4,6 +4,7 @@ const fs = require('fs');
 
 const redditHandler = require('./lib/api-handlers/reddit');
 const aiRankHandler = require('./lib/api-handlers/reddit/ai-rank');
+const digestHandler = require('./lib/api-handlers/reddit/digest');
 const authStartHandler = require('./lib/api-handlers/auth/start');
 const authCallbackHandler = require('./lib/api-handlers/auth/callback');
 const authLogoutHandler = require('./lib/api-handlers/auth/logout');
@@ -43,6 +44,7 @@ function createApp() {
     app.get('/api/reddit-test', redditTestHandler);
   }
   app.post('/api/reddit/ai-rank', aiRankHandler);
+  app.get('/api/reddit/digest', digestHandler);
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
