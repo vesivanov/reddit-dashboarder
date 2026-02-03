@@ -5,18 +5,6 @@ server.js
 # Exclude tests from deploy (not needed in production).
 __tests__
 
-# Prevent Vercel from auto-creating separate functions for each API file.
-# We use api/[...].js as a single catch-all Express app instead.
-api/reddit.js
-api/reddit/ai-rank.js
-api/reddit/digest.js
-api/admin/token.js
-api/auth/start.js
-api/auth/callback.js
-api/auth/logout.js
-api/auth/status.js
-api/health.js
-api/openrouter/models.js
-api/root-info.js
-api/settings/openrouter-key.js
-api/settings/import.js
+# API handler files are now in lib/api-handlers/ to prevent Vercel
+# from creating separate serverless functions for them.
+# Only api/index.js is deployed as a single serverless function.

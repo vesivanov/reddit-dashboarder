@@ -2,15 +2,15 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
-const redditHandler = require('./api/reddit');
-const aiRankHandler = require('./api/reddit/ai-rank');
-const authStartHandler = require('./api/auth/start');
-const authCallbackHandler = require('./api/auth/callback');
-const authLogoutHandler = require('./api/auth/logout');
-const authStatusHandler = require('./api/auth/status');
-const openrouterKeyHandler = require('./api/settings/openrouter-key');
-const settingsImportHandler = require('./api/settings/import');
-const openrouterModelsHandler = require('./api/openrouter/models');
+const redditHandler = require('./lib/api-handlers/reddit');
+const aiRankHandler = require('./lib/api-handlers/reddit/ai-rank');
+const authStartHandler = require('./lib/api-handlers/auth/start');
+const authCallbackHandler = require('./lib/api-handlers/auth/callback');
+const authLogoutHandler = require('./lib/api-handlers/auth/logout');
+const authStatusHandler = require('./lib/api-handlers/auth/status');
+const openrouterKeyHandler = require('./lib/api-handlers/settings/openrouter-key');
+const settingsImportHandler = require('./lib/api-handlers/settings/import');
+const openrouterModelsHandler = require('./lib/api-handlers/openrouter/models');
 
 function optionalHandler(relativePath) {
   try {
@@ -46,7 +46,7 @@ function createApp() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
-  app.get('/api/root-info', require('./api/root-info'));
+  app.get('/api/root-info', require('./lib/api-handlers/root-info'));
   app.get('/api/openrouter/models', openrouterModelsHandler);
 
   // Auth routes
