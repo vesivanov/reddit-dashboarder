@@ -1878,6 +1878,33 @@
           )
         ),
 
+        // AI Suggestions Banner
+        pendingSuggestions.length > 0 && h('div', { className: 'bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-200 dark:border-indigo-800 px-4 py-3' },
+          pendingSuggestions.slice(0, 1).map(suggestion => 
+            h('div', { key: suggestion.id, className: 'flex items-center justify-between gap-4' },
+              h('div', { className: 'flex items-center gap-3 flex-1 min-w-0' },
+                h('span', { className: 'text-xl' }, '🤖'),
+                h('div', { className: 'flex-1 min-w-0' },
+                  h('p', { className: 'text-sm font-medium text-indigo-900 dark:text-indigo-300' }, suggestion.reason),
+                  suggestion.impact && h('p', { className: 'text-xs text-indigo-600 dark:text-indigo-400' }, suggestion.impact)
+                )
+              ),
+              h('div', { className: 'flex items-center gap-2 shrink-0' },
+                h('button', {
+                  onClick: () => dismissSuggestion(suggestion.id),
+                  disabled: suggestionsLoading,
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors disabled:opacity-50'
+                }, 'Dismiss'),
+                h('button', {
+                  onClick: () => applySuggestion(suggestion),
+                  disabled: suggestionsLoading,
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50'
+                }, suggestionsLoading ? 'Applying...' : 'Apply')
+              )
+            )
+          )
+        ),
+
         // Status bar
         h('div', { className: 'bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex items-center gap-4' },
