@@ -2872,59 +2872,78 @@
                     h('div', { className: 'flex gap-2' },
                       h('button', {
                         onClick: async () => {
-                          const bridge = new AICollaborationBridge();
                           try {
-                            const settings = { subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterModel, aiLlmPostLimit };
-                            const state = { filters: { selectedSub, keyword, minUpvotes: minUpvoteFilter, minComments: minCommentFilter, minAiRelevance, sortBy, sortOrder }, selectedPostIds: [], hiddenPostIds: Array.from(hiddenPosts), flaggedPostIds: [] };
-                            const result = await bridge.shareWithAI({
-                              intent: aiGoals || 'Collaborate on Reddit lead discovery',
-                              ttlHours: 24,
-                              settings,
-                              state,
-                              meta: { source: 'human-frontend' }
+                            // Generate or get existing token
+                            let token = localStorage.getItem('rdd_sync_token');
+                            if (!token) {
+                              token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                              localStorage.setItem('rdd_sync_token', token);
+                            }
+                            
+                            // Build sync payload with posts
+                            const syncData = {
+                              token,
+                              posts: allPosts.slice(0, 100), // Send up to 100 posts
+                              settings: {
+                                subs,
+                                maxPages,
+                                autoRefreshEnabled,
+                                autoRefreshInterval,
+                                notificationsEnabled,
+                                upvoteThreshold,
+                                alertKeywords,
+                                notifyHighRelevance,
+                                highRelevanceThreshold,
+                                aiGoals,
+                                aiContext,
+                                aiEnabled,
+                                openRouterModel,
+                                aiLlmPostLimit
+                              },
+                              filters: {
+                                selectedSub,
+                                keyword,
+                                minUpvotes: minUpvoteFilter,
+                                minComments: minCommentFilter,
+                                minAiRelevance,
+                                sortBy,
+                                sortOrder
+                              },
+                              timestamp: new Date().toISOString()
+                            };
+                            
+                            // POST to sync endpoint
+                            const response = await fetch('/api/sync', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(syncData)
                             });
-                            navigator.clipboard.writeText(result.shareMessage);
-                            alert(`🤖 Context shared with AI!\n\nToken: ${result.token}\nExpires: ${new Date(result.expiresAt).toLocaleString()}\n\nThe share message has been copied to your clipboard. Send it to your AI agent.`);
+                            
+                            if (!response.ok) throw new Error('Sync failed');
+                            const result = await response.json();
+                            
+                            // Copy token for AI agent
+                            const shareMessage = `🤖 Reddit Dashboard Sync Token\n\nToken: ${token}\nPosts: ${result.postCount}\nExpires: ${new Date(result.expiresAt).toLocaleString()}\n\nAI can access at:\n${window.location.origin}/api/sync/${token}`;
+                            navigator.clipboard.writeText(shareMessage);
+                            
+                            alert(`🤖 Data synced with AI!\n\nToken: ${token}\nPosts: ${result.postCount}\n\nToken copied to clipboard. Send it to your AI agent.`);
                           } catch (e) {
-                            alert('Failed to share: ' + e.message);
+                            alert('Failed to sync: ' + e.message);
                           }
                         },
-                        disabled: !aiGoals.trim(),
+                        disabled: !allPosts.length,
                         className: 'flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                      }, 'Share with AI'),
+                      }, 'Sync with AI'),
                       h('button', {
                         onClick: async () => {
-                          const input = prompt('Paste AI collaboration token:');
+                          const input = prompt('Paste AI sync token:');
                           if (!input) return;
                           const token = input.trim();
                           try {
-                            const response = await fetch(`/api/context-bundle/${token}`);
+                            const response = await fetch(`/api/sync/${token}`);
                             if (!response.ok) throw new Error('Invalid or expired token');
                             const data = await response.json();
-                            const bundle = data.bundle;
-                            // Apply settings
-                            if (bundle.settings) {
-                              if (bundle.settings.subs) setSubs(bundle.settings.subs);
-                              if (bundle.settings.aiGoals) setAiGoals(bundle.settings.aiGoals);
-                              if (bundle.settings.aiContext) setAiContext(bundle.settings.aiContext);
-                              if (typeof bundle.settings.aiEnabled === 'boolean') setAiEnabled(bundle.settings.aiEnabled);
-                              if (bundle.settings.openRouterModel) setOpenRouterModel(bundle.settings.openRouterModel);
-                              if (bundle.settings.aiLlmPostLimit) setAiLlmPostLimit(bundle.settings.aiLlmPostLimit);
-                            }
-                            // Check for pending changes
-                            if (bundle.collaboration?.pendingChanges) {
-                              const changes = bundle.collaboration.pendingChanges;
-                              const changeList = Object.entries(changes.changes).map(([k, v]) => `• ${k}: ${JSON.stringify(v)}`).join('\n');
-                              const approved = confirm(`AI suggested changes:\n\n${changes.reason}\n\nChanges:\n${changeList}\n\nApply these changes?`);
-                              await fetch(`/api/context-bundle/${token}/apply`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ approved })
-                              });
-                              if (approved) alert('Changes applied!');
-                            } else {
-                              alert('Context loaded! AI interpretation:\n' + (bundle.collaboration?.aiInterpretation || 'No interpretation provided'));
-                            }
+                            alert(`Loaded ${data.data.posts.length} posts from sync.\n\nSubreddits: ${data.data.settings.subs.join(', ')}`);
                           } catch (e) {
                             alert('Failed to load: ' + e.message);
                           }
