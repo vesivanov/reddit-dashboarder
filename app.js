@@ -12,6 +12,7 @@ const authStatusHandler = require('./lib/api-handlers/auth/status');
 const openrouterKeyHandler = require('./lib/api-handlers/settings/openrouter-key');
 const settingsImportHandler = require('./lib/api-handlers/settings/import');
 const contextBundleHandler = require('./lib/api-handlers/settings/context-bundle');
+const suggestionsHandler = require('./lib/api-handlers/suggestions');
 const openrouterModelsHandler = require('./lib/api-handlers/openrouter/models');
 
 function optionalHandler(relativePath) {
@@ -74,6 +75,10 @@ function createApp() {
   app.all('/api/context-bundle', contextBundleHandler);
   app.all('/api/context-bundle/:token', contextBundleHandler);
   app.all('/api/context-bundle/:token/apply', contextBundleHandler);
+
+  // AI Suggestion Queue routes
+  app.all('/api/suggestions', suggestionsHandler);
+  app.all('/api/suggestions/:id', suggestionsHandler);
 
   if (authDebugRedirectHandler) {
     app.get('/api/auth/debug-redirect', authDebugRedirectHandler);

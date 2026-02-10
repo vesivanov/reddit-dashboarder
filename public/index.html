@@ -361,7 +361,95 @@
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
 
+      // AI Suggestion Queue state
+      const [pendingSuggestions, setPendingSuggestions] = useState([]);
+      const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+      const [userToken] = useState(() => {
+        // Generate or retrieve persistent user token for AI collaboration
+        try {
+          let token = localStorage.getItem('dashboard_user_token');
+          if (!token) {
+            token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('dashboard_user_token', token);
+          }
+          return token;
+        } catch { return 'anonymous-' + Date.now(); }
+      });
+
       useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+      // Poll for AI suggestions every 30 seconds
+      useEffect(() => {
+        if (!userToken) return;
+        
+        const checkSuggestions = async () => {
+          try {
+            const response = await fetch(`/api/suggestions?for=${userToken}`);
+            if (response.ok) {
+              const data = await response.json();
+              setPendingSuggestions(data.suggestions || []);
+            }
+          } catch (e) {
+            // Silently fail - suggestions are optional
+          }
+        };
+        
+        checkSuggestions(); // Initial check
+        const interval = setInterval(checkSuggestions, 30000);
+        return () => clearInterval(interval);
+      }, [userToken]);
+
+      // Apply a suggestion
+      const applySuggestion = async (suggestion) => {
+        setSuggestionsLoading(true);
+        try {
+          const response = await fetch(`/api/suggestions/${suggestion.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'apply' })
+          });
+          
+          if (response.ok) {
+            // Apply changes locally based on suggestion type
+            if (suggestion.type === 'add_subreddits' && suggestion.changes.subs) {
+              setSubs(prev => {
+                const existing = new Set(prev.map(s => s.toLowerCase()));
+                const newOnes = suggestion.changes.subs.filter(s => !existing.has(s.toLowerCase()));
+                return [...prev, ...newOnes];
+              });
+            }
+            if (suggestion.type === 'update_goals' && suggestion.changes.aiGoals) {
+              setAiGoals(suggestion.changes.aiGoals);
+            }
+            if (suggestion.type === 'update_filters' && suggestion.changes.filters) {
+              const f = suggestion.changes.filters;
+              if (f.minAiRelevance) setMinAiRelevance(String(f.minAiRelevance));
+              if (f.minUpvotes) setMinUpvoteFilter(String(f.minUpvotes));
+            }
+            
+            // Remove from pending
+            setPendingSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+          }
+        } catch (e) {
+          console.error('Failed to apply suggestion:', e);
+        } finally {
+          setSuggestionsLoading(false);
+        }
+      };
+
+      // Dismiss a suggestion
+      const dismissSuggestion = async (suggestionId) => {
+        try {
+          await fetch(`/api/suggestions/${suggestionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'dismiss' })
+          });
+          setPendingSuggestions(prev => prev.filter(s => s.id !== suggestionId));
+        } catch (e) {
+          console.error('Failed to dismiss suggestion:', e);
+        }
+      };
 
       // Persist subs
       useEffect(() => {
@@ -1750,6 +1838,70 @@
                       onClick: () => { window.location.href = '/api/auth/start'; },
                     className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-indigo-600 text-white hover:bg-zinc-800 dark:hover:bg-indigo-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                     }, 'Sign in')
+          )
+        ),
+
+        // AI Suggestion Banner
+        pendingSuggestions.length > 0 && h('div', { className: 'bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-200 dark:border-indigo-700' },
+          pendingSuggestions.slice(0, 2).map(suggestion =>
+            h('div', {
+              key: suggestion.id,
+              className: 'px-4 py-3 flex items-center justify-between gap-4'
+            },
+              h('div', { className: 'flex items-center gap-3 flex-1 min-w-0' },
+                h('span', { className: 'text-xl' }, '🤖'),
+                h('div', { className: 'flex-1 min-w-0' },
+                  h('p', { className: 'text-sm font-medium text-indigo-900 dark:text-indigo-100' }, suggestion.reason),
+                  suggestion.impact && h('p', { className: 'text-xs text-indigo-600 dark:text-indigo-300 mt-0.5' }, suggestion.impact),
+                  h('p', { className: 'text-xs text-indigo-500 dark:text-indigo-400 mt-1' },
+                    suggestion.type === 'add_subreddits' ? `Add: ${suggestion.changes.subs?.join(', ')}` :
+                    suggestion.type === 'update_goals' ? 'Update AI goals' :
+                    suggestion.type === 'update_filters' ? 'Adjust filters' :
+                    'Suggested changes'
+                  )
+                )
+              ),
+              h('div', { className: 'flex items-center gap-2 shrink-0' },
+                suggestionsLoading && h('div', { className: 'w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin' }),
+                h('button', {
+                  onClick: () => applySuggestion(suggestion),
+                  disabled: suggestionsLoading,
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors'
+                }, 'Apply'),
+                h('button', {
+                  onClick: () => dismissSuggestion(suggestion.id),
+                  disabled: suggestionsLoading,
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800/50 disabled:opacity-50 transition-colors'
+                }, 'Dismiss')
+              )
+            )
+          )
+        ),
+
+        // AI Suggestions Banner
+        pendingSuggestions.length > 0 && h('div', { className: 'bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-200 dark:border-indigo-800 px-4 py-3' },
+          pendingSuggestions.slice(0, 1).map(suggestion => 
+            h('div', { key: suggestion.id, className: 'flex items-center justify-between gap-4' },
+              h('div', { className: 'flex items-center gap-3 flex-1 min-w-0' },
+                h('span', { className: 'text-xl' }, '🤖'),
+                h('div', { className: 'flex-1 min-w-0' },
+                  h('p', { className: 'text-sm font-medium text-indigo-900 dark:text-indigo-300' }, suggestion.reason),
+                  suggestion.impact && h('p', { className: 'text-xs text-indigo-600 dark:text-indigo-400' }, suggestion.impact)
+                )
+              ),
+              h('div', { className: 'flex items-center gap-2 shrink-0' },
+                h('button', {
+                  onClick: () => dismissSuggestion(suggestion.id),
+                  disabled: suggestionsLoading,
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors disabled:opacity-50'
+                }, 'Dismiss'),
+                h('button', {
+                  onClick: () => applySuggestion(suggestion),
+                  disabled: suggestionsLoading,
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50'
+                }, suggestionsLoading ? 'Applying...' : 'Apply')
+              )
+            )
           )
         ),
 
