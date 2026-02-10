@@ -11,8 +11,6 @@ const authLogoutHandler = require('./lib/api-handlers/auth/logout');
 const authStatusHandler = require('./lib/api-handlers/auth/status');
 const openrouterKeyHandler = require('./lib/api-handlers/settings/openrouter-key');
 const settingsImportHandler = require('./lib/api-handlers/settings/import');
-const contextBundleHandler = require('./lib/api-handlers/settings/context-bundle');
-const suggestionsHandler = require('./lib/api-handlers/suggestions');
 const syncHandler = require('./lib/api-handlers/sync');
 const openrouterModelsHandler = require('./lib/api-handlers/openrouter/models');
 
@@ -71,15 +69,6 @@ function createApp() {
   app.post('/api/settings/import', settingsImportHandler);
   app.delete('/api/settings/import', settingsImportHandler);
   app.options('/api/settings/import', settingsImportHandler);
-
-  // Context bundle routes (human-AI collaboration)
-  app.all('/api/context-bundle', contextBundleHandler);
-  app.all('/api/context-bundle/:token', contextBundleHandler);
-  app.all('/api/context-bundle/:token/apply', contextBundleHandler);
-
-  // AI Suggestion Queue routes
-  app.all('/api/suggestions', suggestionsHandler);
-  app.all('/api/suggestions/:id', suggestionsHandler);
 
   // Sync routes (frontend-AI data exchange)
   app.all('/api/sync', syncHandler);
