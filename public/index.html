@@ -17,6 +17,7 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
   <script src="/lib/ui-helpers.js"></script>
+  <script src="/lib/ai-collaboration-bridge.js"></script>
   <style>
     body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial; }
     .post-body { font-size: 0.875rem; line-height: 1.6; }
@@ -2702,6 +2703,91 @@
                   )
                 )
               ),
+              // AI Collaboration Section
+              h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
+                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, '🤖 AI Collaboration'),
+                h('div', { className: 'space-y-3' },
+                  // Intent-based sharing
+                  h('div', { className: 'space-y-2' },
+                    h('label', { className: 'text-xs text-zinc-600 dark:text-zinc-300' }, 'What do you want to find?'),
+                    h('textarea', {
+                      value: aiGoals,
+                      onChange: (e) => setAiGoals(e.target.value),
+                      placeholder: 'e.g., "Find me SEO leads from small businesses" or "I want hiring posts from startups"',
+                      rows: 3,
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none'
+                    }),
+                    h('div', { className: 'flex gap-2' },
+                      h('button', {
+                        onClick: async () => {
+                          const bridge = new AICollaborationBridge();
+                          try {
+                            const settings = { subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterModel, aiLlmPostLimit };
+                            const state = { filters: { selectedSub, keyword, minUpvotes: minUpvoteFilter, minComments: minCommentFilter, minAiRelevance, sortBy, sortOrder }, selectedPostIds: [], hiddenPostIds: Array.from(hiddenPosts), flaggedPostIds: [] };
+                            const result = await bridge.shareWithAI({
+                              intent: aiGoals || 'Collaborate on Reddit lead discovery',
+                              ttlHours: 24,
+                              settings,
+                              state,
+                              meta: { source: 'human-frontend' }
+                            });
+                            navigator.clipboard.writeText(result.shareMessage);
+                            alert(`🤖 Context shared with AI!\n\nToken: ${result.token}\nExpires: ${new Date(result.expiresAt).toLocaleString()}\n\nThe share message has been copied to your clipboard. Send it to your AI agent.`);
+                          } catch (e) {
+                            alert('Failed to share: ' + e.message);
+                          }
+                        },
+                        disabled: !aiGoals.trim(),
+                        className: 'flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                      }, 'Share with AI'),
+                      h('button', {
+                        onClick: async () => {
+                          const input = prompt('Paste AI collaboration token:');
+                          if (!input) return;
+                          const token = input.trim();
+                          try {
+                            const response = await fetch(`/api/context-bundle/${token}`);
+                            if (!response.ok) throw new Error('Invalid or expired token');
+                            const data = await response.json();
+                            const bundle = data.bundle;
+                            // Apply settings
+                            if (bundle.settings) {
+                              if (bundle.settings.subs) setSubs(bundle.settings.subs);
+                              if (bundle.settings.aiGoals) setAiGoals(bundle.settings.aiGoals);
+                              if (bundle.settings.aiContext) setAiContext(bundle.settings.aiContext);
+                              if (typeof bundle.settings.aiEnabled === 'boolean') setAiEnabled(bundle.settings.aiEnabled);
+                              if (bundle.settings.openRouterModel) setOpenRouterModel(bundle.settings.openRouterModel);
+                              if (bundle.settings.aiLlmPostLimit) setAiLlmPostLimit(bundle.settings.aiLlmPostLimit);
+                            }
+                            // Check for pending changes
+                            if (bundle.collaboration?.pendingChanges) {
+                              const changes = bundle.collaboration.pendingChanges;
+                              const changeList = Object.entries(changes.changes).map(([k, v]) => `• ${k}: ${JSON.stringify(v)}`).join('\n');
+                              const approved = confirm(`AI suggested changes:\n\n${changes.reason}\n\nChanges:\n${changeList}\n\nApply these changes?`);
+                              await fetch(`/api/context-bundle/${token}/apply`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ approved })
+                              });
+                              if (approved) alert('Changes applied!');
+                            } else {
+                              alert('Context loaded! AI interpretation:\n' + (bundle.collaboration?.aiInterpretation || 'No interpretation provided'));
+                            }
+                          } catch (e) {
+                            alert('Failed to load: ' + e.message);
+                          }
+                        },
+                        className: 'flex-1 px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
+                      }, 'Load from AI')
+                    )
+                  ),
+                  h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' },
+                    'Share your dashboard context with AI agents for collaborative filtering.'
+                  )
+                )
+              ),
+
+              // Legacy import/export
               h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
                 h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, 'Data Management'),
                 h('div', { className: 'space-y-2' },
@@ -2711,8 +2797,6 @@
                         const settings = { subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterModel, aiLlmPostLimit };
                         const backup = JSON.stringify(settings);
                         navigator.clipboard.writeText(backup);
-                        
-                        // Also save to API for AI agents
                         try {
                           const response = await fetch('/api/settings/import', {
                             method: 'POST',
@@ -2733,7 +2817,6 @@
                     }, 'Export settings'),
                     h('button', {
                       onClick: async () => {
-                        // Try to load from API first
                         try {
                           const response = await fetch('/api/settings/import', {
                             method: 'GET',
@@ -2765,8 +2848,6 @@
                         } catch (e) {
                           console.warn('Failed to load from API:', e);
                         }
-                        
-                        // Fallback to manual paste
                         const input = prompt('Paste your settings backup:');
                         if (input) {
                           try {
@@ -2795,12 +2876,6 @@
                       },
                       className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700 transition-colors'
                     }, 'Import settings')
-                  ),
-                  h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 
-                    'AI agents can access settings via: ',
-                    h('code', { className: 'text-xs bg-zinc-100 dark:bg-zinc-800 px-1 rounded' }, 'GET /api/settings/import'),
-                    ' or ',
-                    h('code', { className: 'text-xs bg-zinc-100 dark:bg-zinc-800 px-1 rounded' }, 'POST /api/settings/import')
                   )
                 )
               )
