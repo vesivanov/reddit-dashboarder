@@ -315,9 +315,23 @@
         try { return localStorage.getItem('dashboard_notify_high_relevance') === '1'; } catch { return false; }
       });
       const [highRelevanceThreshold, setHighRelevanceThreshold] = useState(() => {
-        try { return Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 4; } catch { return 4; }
+        try { 
+          const val = Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 4;
+          // Clamp to valid range 0-5 (AI scores only go up to 5)
+          return Math.max(0, Math.min(5, val));
+        } catch { return 4; }
       });
       const [notifiedHighRelevancePostIds, setNotifiedHighRelevancePostIds] = useState(() => new Set());
+      
+      // Validate threshold is within valid range (0-5)
+      useEffect(() => {
+        if (highRelevanceThreshold > 5) {
+          console.warn(`Invalid highRelevanceThreshold: ${highRelevanceThreshold}. Max AI score is 5. Resetting to 4.`);
+          setHighRelevanceThreshold(4);
+        } else if (highRelevanceThreshold < 0) {
+          setHighRelevanceThreshold(0);
+        }
+      }, [highRelevanceThreshold]);
       const [mobileView, setMobileView] = useState('posts');
       const [touchStart, setTouchStart] = useState(null);
       const [aiGoals, setAiGoals] = useState(() => {
