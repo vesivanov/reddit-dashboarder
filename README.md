@@ -528,6 +528,60 @@ curl -H "Authorization: Bearer your-api-key" \
 - `POST /api/settings/import` - Import settings (body: settings JSON object)
 - `DELETE /api/settings/import` - Clear stored settings
 
+### AI Sync (Frontend-AI Data Exchange)
+
+Enable AI assistants to access your dashboard data in real-time.
+
+**How it works:**
+1. Frontend syncs current posts + settings to the server
+2. AI assistant fetches the data via token
+3. AI analyzes and can suggest improvements or alert on hot leads
+
+**Endpoints:**
+
+- `POST /api/sync` - Store current frontend data
+  ```json
+  {
+    "token": "your-unique-token",
+    "posts": [...],
+    "settings": {...},
+    "filters": {...},
+    "timestamp": "2026-02-10T12:00:00Z"
+  }
+  ```
+
+- `GET /api/sync/:token` - Retrieve stored data
+  ```json
+  {
+    "success": true,
+    "data": {
+      "posts": [...],
+      "settings": {...},
+      "filters": {...}
+    }
+  }
+  ```
+
+- `DELETE /api/sync/:token` - Clear stored data
+
+**Frontend Integration:**
+
+The dashboard automatically syncs data every time you refresh posts. The sync token is generated from your settings and stored in localStorage.
+
+**AI Assistant Usage:**
+
+```bash
+# Fetch user's dashboard data
+curl "https://your-app.vercel.app/api/sync/user-token-123"
+
+# Response includes:
+# - posts: All posts currently visible to user
+# - settings: Subreddits, goals, AI config
+# - filters: Active filters and sorting
+```
+
+Data expires after 24 hours (TTL cleanup).
+
 Settings include: `subs`, `maxPages`, `autoRefreshEnabled`, `autoRefreshInterval`, `notificationsEnabled`, `upvoteThreshold`, `alertKeywords`, `notifyHighRelevance`, `highRelevanceThreshold`, `notifiedHighRelevancePostIds`, `aiGoals`, `aiContext`, `aiEnabled`, `openRouterModel`, `aiLlmPostLimit`.
 
 **Note**: The OpenRouter API key is stored separately via `/api/settings/openrouter-key` for security reasons.
