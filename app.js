@@ -10,6 +10,7 @@ const authCallbackHandler = require('./lib/api-handlers/auth/callback');
 const authLogoutHandler = require('./lib/api-handlers/auth/logout');
 const authStatusHandler = require('./lib/api-handlers/auth/status');
 const openrouterKeyHandler = require('./lib/api-handlers/settings/openrouter-key');
+const serverOpenrouterKeyHandler = require('./lib/api-handlers/settings/server-openrouter-key');
 const settingsImportHandler = require('./lib/api-handlers/settings/import');
 const syncHandler = require('./lib/api-handlers/sync');
 const openrouterModelsHandler = require('./lib/api-handlers/openrouter/models');
@@ -63,6 +64,12 @@ function createApp() {
   app.post('/api/settings/openrouter-key', openrouterKeyHandler);
   app.delete('/api/settings/openrouter-key', openrouterKeyHandler);
   app.options('/api/settings/openrouter-key', openrouterKeyHandler);
+
+  // Server-side settings routes (for digest/automated use)
+  app.get('/api/settings/server/openrouter-key', serverOpenrouterKeyHandler);
+  app.post('/api/settings/server/openrouter-key', serverOpenrouterKeyHandler);
+  app.delete('/api/settings/server/openrouter-key', serverOpenrouterKeyHandler);
+  app.options('/api/settings/server/openrouter-key', serverOpenrouterKeyHandler);
 
   // Settings import/export routes (for AI agents)
   app.get('/api/settings/import', settingsImportHandler);
