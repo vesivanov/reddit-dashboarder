@@ -1,0 +1,22 @@
+name: Reddit Leads Poller
+
+on:
+  schedule:
+    # Run every 2 hours
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  poll-reddit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll Reddit for new leads
+        run: |
+          curl -X GET \
+            "https://reddit-dashboarder.vercel.app/api/cron/refresh-leads" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET_KEY }}" \
+            -H "Content-Type: application/json" \
+            --fail \
+            --silent \
+            --show-error
+        timeout-minutes: 5
