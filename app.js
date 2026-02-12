@@ -81,6 +81,10 @@ function createApp() {
   app.all('/api/sync', syncHandler);
   app.all('/api/sync/:token', syncHandler);
 
+  // Agent API v1 routes (productized API for AI agents)
+  const v1SnapshotHandler = require('./lib/api-v1/handlers/snapshot');
+  app.get('/api/v1/snapshot', v1SnapshotHandler);
+
   if (authDebugRedirectHandler) {
     app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
   }
