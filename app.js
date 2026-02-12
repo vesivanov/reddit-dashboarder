@@ -92,6 +92,13 @@ function createApp() {
   app.post('/api/v1/analyze', v1JobsHandler);
   app.get('/api/v1/jobs/:jobId', v1JobsHandler);
 
+  // Background poller routes (automated lead fetching)
+  const cronRefreshHandler = require('./api/cron/refresh-leads');
+  const v1LeadsLatestHandler = require('./api/v1/leads/latest');
+  
+  app.get('/api/cron/refresh-leads', cronRefreshHandler);
+  app.get('/api/v1/leads/latest', v1LeadsLatestHandler);
+
   if (authDebugRedirectHandler) {
     app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
   }
