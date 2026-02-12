@@ -2,8 +2,8 @@
 // No token required - fetches from storage
 // GET /api/v1/leads/latest
 
-const { withCORS } = require('../../lib/cors');
-const storage = require('../../lib/storage');
+const { withCORS } = require('../../../lib/cors');
+const storage = require('../../../lib/storage');
 
 async function handler(req, res) {
   // Handle CORS
