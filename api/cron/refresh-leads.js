@@ -3,8 +3,8 @@
 // GET /api/cron/refresh-leads
 // Header: X-Cron-Secret: YOUR_CRON_SECRET_KEY
 
-const { withCORS } = require('../lib/cors');
-const { RedditPoller } = require('../lib/poller');
+const { withCORS } = require('../../lib/cors');
+const { RedditPoller } = require('../../lib/poller');
 
 const DEFAULT_SUBREDDITS = ['SEO', 'webdev', 'startups', 'freelance', 'marketing'];
 
