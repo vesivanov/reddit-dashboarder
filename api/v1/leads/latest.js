@@ -1,9 +1,9 @@
 // /api/v1/leads/latest - Get latest polled leads
-// No token required - fetches from KV storage
+// No token required - fetches from storage
 // GET /api/v1/leads/latest
 
 const { withCORS } = require('../../lib/cors');
-const { KVStorage } = require('../../lib/storage/kv');
+const storage = require('../../lib/storage');
 
 async function handler(req, res) {
   // Handle CORS
@@ -16,8 +16,7 @@ async function handler(req, res) {
   }
 
   try {
-    const kv = new KVStorage();
-    const data = await kv.get('latest-leads');
+    const data = await storage.get('latest-leads');
 
     if (!data) {
       return withCORS(req, res).status(404).json({
