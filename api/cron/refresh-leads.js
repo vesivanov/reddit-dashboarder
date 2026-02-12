@@ -1,6 +1,7 @@
 // /api/cron/refresh-leads - Scheduled endpoint for cron-job.org
 // Fetches Reddit posts, runs AI ranking, stores in KV
-// GET /api/cron/refresh-leads?key=CRON_SECRET_KEY
+// GET /api/cron/refresh-leads
+// Header: X-Cron-Secret: YOUR_CRON_SECRET_KEY
 
 const { withCORS } = require('../lib/cors');
 const { RedditPoller } = require('../lib/poller');
@@ -17,14 +18,13 @@ async function handler(req, res) {
     return withCORS(req, res).status(405).json({ error: 'Method not allowed' });
   }
 
-  // Auth check - simple secret key
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const key = url.searchParams.get('key');
+  // Auth check - secret in header (not URL for security)
+  const key = req.headers['x-cron-secret'];
   
   if (key !== process.env.CRON_SECRET_KEY) {
     return withCORS(req, res).status(401).json({ 
       error: 'Unauthorized',
-      message: 'Provide valid CRON_SECRET_KEY'
+      message: 'Provide valid X-Cron-Secret header'
     });
   }
 
