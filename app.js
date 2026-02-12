@@ -83,7 +83,14 @@ function createApp() {
 
   // Agent API v1 routes (productized API for AI agents)
   const v1SnapshotHandler = require('./lib/api-v1/handlers/snapshot');
+  const v1ConfigHandler = require('./lib/api-v1/handlers/config');
+  const v1JobsHandler = require('./lib/api-v1/handlers/jobs');
+  
   app.get('/api/v1/snapshot', v1SnapshotHandler);
+  app.get('/api/v1/config', v1ConfigHandler);
+  app.patch('/api/v1/config', v1ConfigHandler);
+  app.post('/api/v1/analyze', v1JobsHandler);
+  app.get('/api/v1/jobs/:jobId', v1JobsHandler);
 
   if (authDebugRedirectHandler) {
     app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
