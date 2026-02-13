@@ -2,8 +2,8 @@ name: Reddit Leads Poller
 
 on:
   schedule:
-    # Run every 2 hours
-    - cron: '0 */2 * * *'
+    # Run every hour
+    - cron: '0 * * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
