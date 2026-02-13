@@ -20,7 +20,7 @@ Trust the ordering enough to use it daily
 
 - **🔐 Reddit OAuth Authentication**: Secure PKCE-based authentication for higher API rate limits
 - **🤖 AI-Powered Ranking**: Uses OpenRouter API to rank posts by relevance to your goals (user or server API key)
-- **📊 Three-Pane Dashboard**: Subreddit list, post list, and post detail views (React + Tailwind, `index.html` SPA)
+- **📊 Three-Pane Dashboard**: Subreddit list, post list, and post detail views (React + Tailwind, `public/index.html` SPA)
 - **🔒 Secure API Key Storage**: OpenRouter key can be stored in an HttpOnly signed cookie via `/api/settings/openrouter-key`
 - **🌙 Dark Mode**: Dark/light theme with system preference detection
 - **⚡ Auto-Refresh**: Configurable intervals (5–60 minutes)
@@ -46,7 +46,7 @@ Reddit Dashboard aims to be the **one place to skim, filter, and act on Reddit**
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   React UI      │───▶│  Express/Vercel  │───▶│   Reddit API     │
-│   (index.html)  │    │  Serverless API  │    │   (OAuth)        │
+│   (public/)     │    │  Serverless API  │    │   (OAuth)        │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
                               ▼
@@ -61,36 +61,23 @@ Reddit Dashboard aims to be the **one place to skim, filter, and act on Reddit**
 ```
 reddit-dashboarder/
 ├── api/
-│   ├── auth/
-│   │   ├── start.js          # OAuth initiation
-│   │   ├── callback.js       # OAuth callback
-│   │   ├── logout.js         # Logout
-│   │   └── status.js         # Auth status
-│   ├── reddit/
-│   │   └── ai-rank.js        # AI post ranking (OpenRouter)
-│   ├── settings/
-│   │   ├── openrouter-key.js # Secure OpenRouter key storage (HttpOnly cookie)
-│   │   └── import.js          # Settings import/export API (for AI agents)
-│   ├── reddit.js             # Reddit data API
-│   └── health.js             # Health check
+│   └── index.js              # Single Vercel serverless entry (all API routes)
 ├── lib/
+│   ├── api-handlers/         # Route handlers (reddit, auth, settings, sync, admin, etc.)
+│   ├── api-v1/               # Agent API v1 (snapshot, config, jobs)
+│   ├── storage/              # Redis/KV storage adapters
+│   ├── token-store.js        # Reddit refresh token persistence (Redis/KV)
 │   ├── cookies.js            # Signed cookie helpers
 │   ├── cors.js               # CORS helpers
 │   ├── pkce.js               # PKCE OAuth helpers
-│   └── ui-helpers.js         # UI utility functions (keyword extraction, scoring, etc.)
+│   └── ui-helpers.js         # UI utility functions
+├── public/
+│   └── index.html            # React SPA (Tailwind, DOMPurify)
 ├── __tests__/                # Test suite (Jest)
-│   ├── api/                  # API endpoint tests
-│   ├── integration/          # Integration tests
-│   └── unit/                 # Unit tests
-├── worker/
-│   ├── worker.js             # Cloudflare Worker (optional)
-│   └── wrangler.toml         # Worker config
-├── app.js                    # Express app factory (used by server.js and tests)
-├── index.html                # React SPA (Tailwind, DOMPurify)
-├── server.js                 # Express server (local)
-├── package.json
-├── jest.config.js            # Jest test configuration
-├── vercel.json               # Vercel serverless config
+├── worker/                   # Cloudflare Worker (optional)
+├── app.js                    # Express app factory (server.js + api/index.js)
+├── server.js                 # Local Express server
+├── vercel.json               # Vercel config (rewrites, single api function)
 ├── design-system.md          # UI tokens, components, patterns
 └── README.md
 ```
@@ -191,31 +178,29 @@ The dashboard will be available at `http://localhost:3000`
 3. **Update Reddit App Redirect URI**:
    - Update your Reddit app's redirect URI to match your Vercel URL: `https://your-app.vercel.app/api/auth/callback`
 
-### Quick deploy: Vercel KV + Digest API
+### Digest API + Redis (for headless / cron)
 
-To enable the headless digest and admin token APIs (free tier):
+To use `/api/reddit/digest` and `/api/admin/token`, you need persistent storage for the Reddit refresh token:
 
-```bash
-# 1. Add Vercel KV (free tier)
-vercel storage add kv
+1. **Add Redis via Vercel Marketplace** (Vercel KV is deprecated):
+   - In Vercel: Project → **Storage** or **Integrations** → add a Redis provider (e.g. **Upstash Redis**).
+   - The integration will set env vars such as `REDIS_URL` or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` automatically.
 
-# 2. Set your digest API key
-vercel env add DIGEST_API_KEY
-# (enter a random secret when prompted)
+2. **Set the digest API key** in Vercel → Settings → Environment Variables:
+   - `DIGEST_API_KEY` — a secret string used as the Bearer token for `/api/reddit/digest` and `/api/admin/token`.
 
-# 3. Deploy
-vercel --prod
-```
+3. **Auth once in the browser** — Visit your app, click **"Authenticate with Reddit"**. The refresh token is stored in Redis.
 
-Then:
-
-4. **Auth once in browser** — Visit your app → click **"Authenticate with Reddit"** (the refresh token is saved to KV).
-5. **Verify**:
+4. **Verify** that Redis and the token are in use:
    ```bash
-   curl -H "Authorization: Bearer <your-key>" \
-     https://reddit-dashboarder.vercel.app/api/admin/token
+   # List env vars (should include REDIS_URL or UPSTASH_* and DIGEST_API_KEY)
+   vercel env ls
+
+   # Check token status (replace YOUR_DIGEST_API_KEY with your actual key)
+   curl -H "Authorization: Bearer YOUR_DIGEST_API_KEY" \
+     https://your-app.vercel.app/api/admin/token
    ```
-   Replace `<your-key>` with the value you set for `DIGEST_API_KEY`, and use your actual Vercel app URL if different. You should see `"source": "kv"` and `"hasToken": true`.
+   You should see `"hasToken": true` and a source indicating Redis (e.g. `"source": "kv"`).
 
 ### Option 2: Deploy to Cloudflare Workers
 
@@ -225,41 +210,10 @@ See the `worker/` directory for Cloudflare Worker implementation. Note: OAuth an
 
 The `server.js` file provides a full Express server that can be deployed to any Node.js hosting service (Railway, Render, Heroku, etc.).
 
-### Setting Up Vercel KV (for Agent/Digest Endpoint)
+### Verifying Redis and digest setup
 
-If you want to use the `/api/reddit/digest` endpoint for automated monitoring (bots, cron jobs), set up Vercel KV to persist the Reddit refresh token:
-
-1. **Add Vercel KV to your project**:
-   ```bash
-   vercel storage add kv
-   ```
-   Or via Vercel Dashboard: Project → Storage → Create Database → KV
-
-2. **Link to your project** (if not auto-linked):
-   ```bash
-   vercel link
-   vercel env pull
-   ```
-   This sets `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
-
-3. **Set up the digest API key**:
-   ```bash
-   vercel env add DIGEST_API_KEY
-   # Enter a secure random string
-   ```
-
-4. **Authenticate once via browser**:
-   - Visit your app and click "Authenticate with Reddit"
-   - The refresh token is automatically saved to Vercel KV
-
-5. **Verify setup**:
-   ```bash
-   curl -H "Authorization: Bearer your-digest-api-key" \
-     "https://your-app.vercel.app/api/admin/token"
-   ```
-   Should show `"source": "kv"` and `"hasToken": true`.
-
-Now the digest endpoint can access Reddit without browser authentication!
+- **Confirm env vars**: Run `vercel env ls` and ensure you have `REDIS_URL` (or `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) and `DIGEST_API_KEY`.
+- **Confirm token storage**: Call `GET /api/admin/token` with `Authorization: Bearer <DIGEST_API_KEY>`. A response with `"hasToken": true` means the Reddit refresh token is stored and the digest endpoint can run without browser auth.
 
 ## 📖 Usage
 
@@ -431,7 +385,7 @@ Agent-friendly endpoint for automated monitoring. Fetches posts, ranks them with
 - `OPENROUTER_API_KEY` - For AI ranking
 
 **Reddit Authentication (one of these):**
-- **Option A (Recommended):** Set up Vercel KV, then authenticate once via browser. The refresh token is automatically stored and kept fresh.
+- **Option A (Recommended):** Add Redis via Vercel Marketplace (e.g. Upstash Redis), set `DIGEST_API_KEY`, then authenticate once in the browser. The refresh token is stored in Redis and used by the digest.
 - **Option B:** Set `REDDIT_REFRESH_TOKEN` env var manually (may need updating if Reddit rotates the token).
 
 **Optional Environment Variables:**
@@ -487,7 +441,7 @@ curl -H "Authorization: Bearer your-secret-key" \
 ### Authentication Endpoints
 
 - `GET /api/auth/start` - Initiate OAuth flow
-- `GET /api/auth/callback` - OAuth callback (also saves refresh token to Vercel KV if configured)
+- `GET /api/auth/callback` - OAuth callback (saves refresh token to Redis if configured)
 - `GET /api/auth/logout` - Logout
 - `GET /api/auth/status` - Auth status
 
@@ -497,7 +451,7 @@ Manage the server-side Reddit refresh token. Requires `Authorization: Bearer <DI
 
 - `GET /api/admin/token` - View token status (source, preview, last updated)
 - `POST /api/admin/token` - Manually set token (body: `{ "token": "..." }`)
-- `DELETE /api/admin/token` - Delete token from Vercel KV
+- `DELETE /api/admin/token` - Delete token from Redis
 
 **Example:**
 ```bash
@@ -505,7 +459,8 @@ Manage the server-side Reddit refresh token. Requires `Authorization: Bearer <DI
 curl -H "Authorization: Bearer your-api-key" \
   "https://your-app.vercel.app/api/admin/token"
 
-# Response:
+# Response (example):
+# "source": "kv" means token is stored in Redis/KV-backed storage.
 {
   "hasToken": true,
   "source": "kv",
@@ -518,9 +473,15 @@ curl -H "Authorization: Bearer your-api-key" \
 
 ### Settings: OpenRouter Key (optional)
 
+**User-facing (HttpOnly cookie):**
 - `GET /api/settings/openrouter-key` - Check if a key is stored (`hasKey`, `keyPreview`; never returns the key)
 - `POST /api/settings/openrouter-key` - Store key in HttpOnly signed cookie (body: `{ "apiKey": "sk-or-..." }`)
 - `DELETE /api/settings/openrouter-key` - Remove stored key
+
+**Server-side (Redis/KV, for digest/automation):**  
+- `GET /api/settings/server/openrouter-key` - Check stored server key  
+- `POST /api/settings/server/openrouter-key` - Store key (body: `{ "apiKey": "sk-or-..." }`). Requires `Authorization: Bearer <DIGEST_API_KEY>`.  
+- `DELETE /api/settings/server/openrouter-key` - Remove stored key
 
 ### Settings: Import/Export (for AI agents)
 
@@ -693,19 +654,22 @@ See `__tests__/README.md` for more details on the test suite.
 | `APP_DOMAIN` | No | Used by CORS for allowed origins |
 | `NODE_ENV` | No | `development` or `production` |
 | `DIGEST_API_KEY` | No | Bearer token for `/api/reddit/digest` and `/api/admin/token` auth |
-| `REDDIT_REFRESH_TOKEN` | No | Fallback Reddit refresh token (Vercel KV is preferred) |
-| `KV_REST_API_URL` | No | Vercel KV REST API URL (auto-set when you add Vercel KV) |
-| `KV_REST_API_TOKEN` | No | Vercel KV REST API token (auto-set when you add Vercel KV) |
+| `REDDIT_REFRESH_TOKEN` | No | Fallback Reddit refresh token (Redis/KV preferred) |
+| `REDIS_URL` | No | Redis connection URL (from Vercel Redis/Upstash integration). Used for refresh token storage. |
+| `UPSTASH_REDIS_REST_URL` | No | Upstash REST URL (alternative to REDIS_URL when using Upstash from Marketplace) |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Upstash REST token (used with UPSTASH_REDIS_REST_URL or REDIS_URL) |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | No | Legacy Vercel KV (deprecated); use Redis via Marketplace instead |
 | `DIGEST_SUBREDDITS` | No | Default subreddits for digest endpoint |
 | `DIGEST_GOALS` | No | Default AI goals for digest endpoint |
 | `DIGEST_CONTEXT` | No | Default AI context for digest endpoint |
 | `DIGEST_THRESHOLD` | No | Default score threshold for digest (0-5, default: 4) |
+| `CRON_SECRET_KEY` | No | Secret for cron endpoints (e.g. `/api/cron/refresh-leads`); send as `X-Cron-Secret` header |
 
 ## 🎨 Customization
 
 ### UI Themes
 
-The dashboard uses Tailwind CSS with dark mode. See `design-system.md` for semantic tokens, component recipes, and patterns; override in `index.html` as needed.
+The dashboard uses Tailwind CSS with dark mode. See `design-system.md` for semantic tokens, component recipes, and patterns; override in `public/index.html` as needed.
 
 ### AI Models
 
@@ -724,7 +688,7 @@ Paid options (requires credits):
 
 ### Rate Limiting
 
-The app includes built-in rate limiting and retry logic. Adjust concurrency and delays in `api/reddit.js` if needed.
+The app includes built-in rate limiting and retry logic. Adjust concurrency and delays in `lib/api-handlers/reddit.js` if needed.
 
 ## 🔒 Security
 
