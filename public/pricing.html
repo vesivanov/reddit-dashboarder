@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing — Reddit Dashboarder</title>
+  <meta name="description" content="Start free. Upgrade to Pro for unlimited AI ranking, automated polling, and API access.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  </style>
+</head>
+<body class="bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
+  
+  <!-- Navigation -->
+  <nav class="bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+          <span class="text-xl font-bold">Reddit Dashboarder</span>
+        </div>
+        
+        <div class="flex items-center gap-6">
+          <a href="/" class="hover:text-purple-600 transition">Home</a>
+          <a href="/docs" class="hover:text-purple-600 transition">Docs</a>
+          <a href="/app" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition font-medium">
+            Try Free
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  
+  <!-- Hero -->
+  <section class="py-16 px-6">
+    <div class="max-w-4xl mx-auto text-center">
+      <h1 class="text-5xl font-bold mb-4">Simple, Transparent Pricing</h1>
+      <p class="text-xl text-zinc-600 dark:text-zinc-400 mb-2">
+        Start free. Upgrade when you're ready.
+      </p>
+      <p class="text-sm text-zinc-500">
+        No hidden fees. Cancel anytime.
+      </p>
+    </div>
+  </section>
+  
+  <!-- Pricing Cards -->
+  <section class="pb-20 px-6">
+    <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
+      
+      <!-- Free Tier -->
+      <div class="bg-white dark:bg-zinc-800 p-10 rounded-2xl border-2 border-zinc-200 dark:border-zinc-700">
+        <h3 class="text-2xl font-bold mb-2">Free Forever</h3>
+        <p class="text-zinc-600 dark:text-zinc-400 mb-6">Perfect for trying out the platform</p>
+        
+        <div class="mb-8">
+          <span class="text-5xl font-bold">$0</span>
+          <span class="text-zinc-600 dark:text-zinc-400">/month</span>
+        </div>
+        
+        <a href="/app" class="block w-full bg-zinc-200 dark:bg-zinc-700 text-center py-4 rounded-lg font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-600 transition mb-8">
+          Start Free →
+        </a>
+        
+        <div class="space-y-4">
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>Manual dashboard browsing</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>Up to 3 subreddits</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>Keyword filtering</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>Velocity signals</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>Dark mode</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-zinc-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            <span class="text-zinc-400">No AI ranking</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-zinc-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            <span class="text-zinc-400">No automated polling</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-zinc-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            <span class="text-zinc-400">No Digest API</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Pro Tier -->
+      <div class="bg-white dark:bg-zinc-800 p-10 rounded-2xl border-2 border-purple-600 relative">
+        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
+          MOST POPULAR
+        </div>
+        
+        <h3 class="text-2xl font-bold mb-2">Pro</h3>
+        <p class="text-zinc-600 dark:text-zinc-400 mb-6">For serious lead generation</p>
+        
+        <div class="mb-8">
+          <span class="text-5xl font-bold">$29</span>
+          <span class="text-zinc-600 dark:text-zinc-400">/month</span>
+          <p class="text-sm text-purple-600 mt-2">Early bird pricing — lock it in now</p>
+        </div>
+        
+        <button id="notify-pro" class="block w-full gradient-bg text-white text-center py-4 rounded-lg font-semibold hover:opacity-90 transition mb-2">
+          Notify Me When Available →
+        </button>
+        <p class="text-xs text-center text-zinc-500 mb-8">Launching soon</p>
+        
+        <div class="space-y-4">
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Everything in Free</strong></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Unlimited AI ranking</strong> (OpenRouter models)</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Unlimited subreddits</strong></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Automated polling</strong> (hourly background fetching)</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Digest API</strong> (integrate with Slack, email, etc.)</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Export to CSV</strong></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Priority support</strong></span>
+          </div>
+          <div class="flex items-start gap-3">
+            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span><strong>Early access</strong> to new features</span>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </section>
+  
+  <!-- FAQ -->
+  <section class="py-16 px-6 bg-white dark:bg-zinc-800">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+      
+      <div class="space-y-8">
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Can I switch plans later?</h3>
+          <p class="text-zinc-600 dark:text-zinc-400">Yes! Upgrade or downgrade anytime. No long-term contracts.</p>
+        </div>
+        
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Do I need an OpenRouter API key?</h3>
+          <p class="text-zinc-600 dark:text-zinc-400">For Free tier with AI ranking, yes (get one free at openrouter.ai). Pro tier includes server-side AI credits.</p>
+        </div>
+        
+        <div>
+          <h3 class="text-xl font-semibold mb-2">What's the refund policy?</h3>
+          <p class="text-zinc-600 dark:text-zinc-400">14-day money-back guarantee, no questions asked.</p>
+        </div>
+        
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Can I use this for multiple clients?</h3>
+          <p class="text-zinc-600 dark:text-zinc-400">Yes! Pro tier is perfect for agencies managing multiple client accounts. Team plan coming soon.</p>
+        </div>
+        
+        <div>
+          <h3 class="text-xl font-semibold mb-2">Is my Reddit data secure?</h3>
+          <p class="text-zinc-600 dark:text-zinc-400">Yes. OAuth tokens are stored securely in httpOnly cookies. We never see your Reddit password.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- CTA -->
+  <section class="gradient-bg text-white py-16 px-6">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-4xl font-bold mb-6">Start Free Today</h2>
+      <p class="text-xl mb-8 opacity-90">No credit card required. Upgrade when you're ready.</p>
+      <a href="/app" class="inline-block bg-white text-purple-600 px-12 py-5 rounded-lg font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
+        Try Reddit Dashboarder →
+      </a>
+    </div>
+  </section>
+  
+  <!-- Footer -->
+  <footer class="bg-zinc-900 text-zinc-400 py-12 px-6">
+    <div class="max-w-6xl mx-auto text-center">
+      <p>© 2026 Reddit Dashboarder. Built by <a href="https://vesivanov.com" class="text-purple-400 hover:text-purple-300">Ves Ivanov</a></p>
+    </div>
+  </footer>
+  
+  <script>
+    document.getElementById('notify-pro').addEventListener('click', async () => {
+      const email = prompt('Enter your email to get notified when Pro launches:');
+      if (!email) return;
+      
+      const button = document.getElementById('notify-pro');
+      const originalText = button.textContent;
+      button.textContent = 'Subscribing...';
+      button.disabled = true;
+      
+      try {
+        const res = await fetch('/api/notify-me', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, tier: 'pro' })
+        });
+        
+        const data = await res.json();
+        alert(data.message || 'Thanks! We'll notify you when Pro launches.');
+      } catch (error) {
+        alert('Failed to subscribe. Please try again.');
+      } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

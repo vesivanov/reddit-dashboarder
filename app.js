@@ -14,6 +14,7 @@ const serverOpenrouterKeyHandler = require('./lib/api-handlers/settings/server-o
 const settingsImportHandler = require('./lib/api-handlers/settings/import');
 const syncHandler = require('./lib/api-handlers/sync');
 const openrouterModelsHandler = require('./lib/api-handlers/openrouter/models');
+const { aiRankLimiter, redditLimiter, generalLimiter, waitlistLimiter } = require('./lib/middleware/rate-limit');
 
 function optionalHandler(relativePath) {
   try {
@@ -40,13 +41,13 @@ function createApp() {
   // Serve static files from public
   app.use(express.static(path.join(__dirname, 'public')));
 
-  // API routes
-  app.get('/api/reddit', redditHandler);
+  // API routes (with rate limiting)
+  app.get('/api/reddit', redditLimiter, redditHandler);
   if (redditTestHandler) {
-    app.get('/api/reddit-test', redditTestHandler);
+    app.get('/api/reddit-test', redditLimiter, redditTestHandler);
   }
-  app.post('/api/reddit/ai-rank', aiRankHandler);
-  app.get('/api/reddit/digest', digestHandler);
+  app.post('/api/reddit/ai-rank', aiRankLimiter, aiRankHandler);
+  app.get('/api/reddit/digest', aiRankLimiter, digestHandler);
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
@@ -95,9 +96,12 @@ function createApp() {
   // Background poller routes (automated lead fetching)
   const cronRefreshHandler = require('./api/cron/refresh-leads');
   const v1LeadsLatestHandler = require('./api/v1/leads/latest');
+  const notifyMeHandler = require('./lib/api-handlers/notify-me');
   
   app.get('/api/cron/refresh-leads', cronRefreshHandler);
-  app.get('/api/v1/leads/latest', v1LeadsLatestHandler);
+  app.get('/api/v1/leads/latest', generalLimiter, v1LeadsLatestHandler);
+  app.post('/api/notify-me', waitlistLimiter, notifyMeHandler);
+  app.options('/api/notify-me', notifyMeHandler);
 
   if (authDebugRedirectHandler) {
     app.get('/api/auth/debug-redirect', authDebugRedirectHandler);
