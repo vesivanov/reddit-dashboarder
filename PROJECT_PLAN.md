@@ -42,11 +42,26 @@
 
 ## Phase 2: Bug Hunt & Polish
 
-### 2.1 Polling System Verification
-- [ ] Test `/api/v1/leads/latest` returns fresh data
-- [ ] Verify cron runs every 2 hours
-- [ ] Check data persistence in KV
-- [ ] Test hot lead detection accuracy
+### 2.1 Polling System Verification ✅
+- [x] Test `/api/v1/leads/latest` returns fresh data — Works (43 min old)
+- [x] Verify cron runs every 2 hours — Data is fresh
+- [x] Check data persistence in KV — Confirmed working
+- [x] Test hot lead detection accuracy — 15 hot leads detected
+
+### 2.2 OAuth Edge Cases
+- [ ] Token refresh flow
+- [ ] Expired session handling
+- [ ] Logout cleanup
+
+### 2.3 Mobile Responsive
+- [ ] Test three-pane layout on mobile
+- [ ] Fix touch interactions
+- [ ] Verify sidebar behavior
+
+### 2.4 Error Handling
+- [ ] Graceful Reddit API failures
+- [ ] OpenRouter timeout handling
+- [ ] Network error recovery
 
 ### 2.2 OAuth Edge Cases
 - [ ] Token refresh flow
