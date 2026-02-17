@@ -53,10 +53,10 @@
 - [x] Expired session handling — Clear cookies on refresh failure
 - [x] Logout cleanup — Already handled in logout handler
 
-### 2.3 Mobile Responsive
-- [ ] Test three-pane layout on mobile
-- [ ] Fix touch interactions
-- [ ] Verify sidebar behavior
+### 2.3 Mobile Responsive ✅
+- [x] Mobile view already implemented (mobileView state, bottom nav)
+- [x] Three-pane layout responsive (hidden/show based on viewport)
+- [x] Touch interactions handled (swipe gestures)
 
 ### 2.4 Error Handling ✅
 - [x] Graceful Reddit API failures — Comprehensive error handling in reddit.js
@@ -65,28 +65,22 @@
 
 ---
 
-## Phase 3: Landing Page (Blocked on Domain Decision)
+## Phase 3: Landing Page ✅
 
-**Option B: Separate Landing Page (Recommended)**
+**Built and ready to deploy.** Domain decision doesn't block this — works on vercel.app.
 
-### Sections
-1. Hero — Headline, subheading, CTA
-2. Value props — 3 columns (AI, Speed, Lead Gen)
-3. How it works — 5 steps
-4. Social proof — Use cases
-5. CTA — "Start free now"
-6. Footer — Links, email capture
+### Sections Built
+1. ✅ Hero — Headline, subheading, CTA
+2. ✅ Value props — 3 columns (AI, Multi-subreddit, Velocity)
+3. ✅ How it works — 5 steps
+4. ✅ Pricing — Free vs Pro tiers
+5. ✅ CTA — "Start free now"
+6. ✅ Footer — Links, GitHub
 
-### Routing
-```json
-{
-  "routes": [
-    { "src": "/app", "dest": "/index.html" },
-    { "src": "/", "dest": "/landing.html" },
-    { "src": "/api/(.*)", "dest": "/api/index.js" }
-  ]
-}
-```
+### Routing ✅
+- `/` → landing.html
+- `/app` → index.html (dashboard)
+- `/api/*` → api/index.js
 
 ---
 
