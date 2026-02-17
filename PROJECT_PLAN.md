@@ -84,14 +84,18 @@
 
 ---
 
-## Phase 4: Extensive Testing
+## Phase 4: Extensive Testing (IN PROGRESS)
 
-| Layer | Scope |
-|-------|-------|
-| Unit | API handlers, utilities, sanitization |
-| Integration | Reddit API mocking, OpenRouter mocking |
-| E2E | Auth → add subreddit → rank → export |
-| Load | Rate limiting under stress |
+| Layer | Scope | Status |
+|-------|-------|--------|
+| Unit | API handlers, utilities, sanitization | ⏳ In progress |
+| Integration | Reddit API mocking, OpenRouter mocking | ⏳ Pending |
+| E2E | Auth → add subreddit → rank → export | ⏳ In progress |
+| Load | Rate limiting under stress | ⏳ Pending |
+
+### Test Files Created
+- [x] `__tests__/api/security.test.js` — Rate limiting, auth, validation, CORS
+- [x] `__tests__/e2e/critical-flows.spec.js` — Critical user flows
 
 ---
 
