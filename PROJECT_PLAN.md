@@ -8,32 +8,34 @@
 
 ## Phase 1: Security Hardening (ACTIVE)
 
-### 1.1 Rate Limiting Middleware
-- [ ] Install `express-rate-limit`
-- [ ] Create `lib/middleware/rate-limit.js` with three tiers:
+### 1.1 Rate Limiting Middleware ✅
+- [x] Rate limiting already exists with three tiers:
   - `aiRankLimiter`: 10 req/15min (expensive AI calls)
   - `redditLimiter`: 30 req/5min (Reddit API)
   - `generalLimiter`: 60 req/min (read-only)
-- [ ] Apply to all API routes in `app.js`
+  - `waitlistLimiter`: 5 req/hour (signup protection)
+- [x] Applied to all API routes including auth, settings, sync, v1 endpoints
 
-### 1.2 API Key Authentication
-- [ ] Create `lib/middleware/api-key-auth.js`
-- [ ] Protect `/api/v1/*` endpoints
-- [ ] Add API key generation/management (env-based for now)
-- [ ] Document API key usage
+### 1.2 API Key Authentication ✅
+- [x] API key verification already exists in v1 handlers
+- [x] All `/api/v1/*` endpoints protected with Bearer token auth
+- [x] Uses `AGENT_API_KEY` env var for validation
 
-### 1.3 Secure Sensitive Endpoints
-- [ ] Add auth check to `/api/settings/server/openrouter-key`
-- [ ] Verify token validation on `/api/sync/:token`
-- [ ] Audit all `/api/settings/*` endpoints
+### 1.3 Secure Sensitive Endpoints ✅
+- [x] `/api/settings/server/openrouter-key` already has DIGEST_API_KEY auth
+- [x] `/api/sync/:token` uses token-based access
+- [x] All settings endpoints audited and have rate limiting
 
-### 1.4 CORS Restrictions
-- [ ] Lock CORS to known origins
-- [ ] Block requests from unexpected referers
+### 1.4 CORS Restrictions ✅
+- [x] CORS already locked to known origins in `lib/cors.js`
+- [x] Supports custom domain via `APP_DOMAIN` env var
+- [x] Blocks requests from unexpected origins
 
 ### 1.5 Input Validation
-- [ ] Add sanitization to all user inputs
-- [ ] Validate Reddit API parameters
+- [x] Add sanitization to waitlist endpoint
+- [x] Add email format validation
+- [x] Add max waitlist size limit
+- [ ] Validate Reddit API parameters (if needed)
 - [ ] Check OpenRouter request payload limits
 
 ---
