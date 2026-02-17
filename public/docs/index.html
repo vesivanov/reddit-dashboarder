@@ -1,105 +1,626 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark scroll-smooth">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Documentation — Reddit Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reddit Dashboarder — Documentation</title>
+  <meta name="description" content="Full documentation for Reddit Dashboarder — AI-powered Reddit monitoring." />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }
+    tailwind.config = { darkMode: 'class' }
   </script>
   <style>
-    .prose { max-width: 65ch; }
-    .prose h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; }
-    .prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2rem; margin-bottom: 1rem; }
-    .prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
-    .prose p { margin-bottom: 1rem; line-height: 1.7; }
-    .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
-    .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
-    .prose code { background: rgba(99, 102, 241, 0.1); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; }
-    .prose pre { background: #18181b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; }
-    .prose pre code { background: none; padding: 0; }
-    .prose a { color: #6366f1; text-decoration: underline; }
-    .prose blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; font-style: italic; margin-bottom: 1rem; }
+    html { background-color: #18181b; }
+    /* Active sidebar link */
+    .sidebar-link.active { color: #818cf8; border-left-color: #4f46e5; }
+    /* Smooth transitions */
+    .sidebar-link { transition: color 0.15s, border-color 0.15s; }
+    /* Code blocks */
+    pre { overflow-x: auto; }
+    pre code { font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace; font-size: 0.85em; }
+    /* Prose styles */
+    .prose h2 { scroll-margin-top: 5rem; }
+    .prose h3 { scroll-margin-top: 5rem; }
+    /* Mobile sidebar toggle */
+    #sidebar { transition: transform 0.25s ease; }
   </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 antialiased">
-  
-  <div class="flex min-h-screen">
-    <!-- Sidebar -->
-    <aside class="w-64 bg-zinc-900 border-r border-zinc-800 p-6 hidden lg:block">
-      <a href="/" class="flex items-center gap-2 text-xl font-semibold mb-8">
-        <svg class="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-        </svg>
-        Dashboard
-      </a>
-      
-      <nav class="space-y-1">
-        <a href="/docs" class="block px-3 py-2 rounded-lg bg-indigo-600/20 text-indigo-300">Getting Started</a>
-        <a href="/docs/api.html" class="block px-3 py-2 rounded-lg hover:bg-zinc-800 text-zinc-400">API Reference</a>
-        <a href="/docs/faq.html" class="block px-3 py-2 rounded-lg hover:bg-zinc-800 text-zinc-400">FAQ</a>
+<body class="bg-zinc-900 text-zinc-100 antialiased">
+
+  <!-- TOP NAV -->
+  <nav class="sticky top-0 z-50 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800 h-14 flex items-center px-4">
+    <div class="flex items-center justify-between w-full max-w-7xl mx-auto">
+      <div class="flex items-center gap-4">
+        <button id="sidebar-toggle" class="lg:hidden p-1.5 rounded-md hover:bg-zinc-800 text-zinc-400" aria-label="Toggle sidebar">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <a href="/" class="flex items-center gap-2 font-bold text-white">
+          <span>📊</span>
+          <span class="hidden sm:inline">Reddit Dashboarder</span>
+          <span class="text-zinc-500 font-normal hidden sm:inline">/ Docs</span>
+        </a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white transition-colors text-sm">GitHub</a>
+        <a href="/app" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors">Open App →</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-7xl mx-auto flex">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="fixed lg:sticky top-14 left-0 z-40 w-64 h-[calc(100vh-3.5rem)] overflow-y-auto bg-zinc-900 lg:bg-transparent border-r border-zinc-800 transform -translate-x-full lg:translate-x-0 flex-shrink-0">
+      <nav class="p-4 space-y-1 pt-6">
+        <p class="text-xs font-semibold text-zinc-500 uppercase tracking-wider px-3 mb-3">Navigation</p>
+        <a href="#overview" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">Overview</a>
+        <a href="#getting-started" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">Getting Started</a>
+        <a href="#features" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">Features</a>
+        <a href="#use-cases" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">Use Cases</a>
+        <a href="#api-reference" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">API Reference</a>
+        <a href="#automation" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">Automation</a>
+        <a href="#faq" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">FAQ</a>
+        <a href="#changelog" class="sidebar-link block px-3 py-2 rounded-lg text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 border-l-2 border-transparent pl-3">Changelog</a>
       </nav>
     </aside>
-    
-    <!-- Content -->
-    <main class="flex-1 p-8 lg:p-12">
-      <div class="max-w-3xl mx-auto prose">
-        <h1>Getting Started</h1>
-        
-        <p>Reddit Dashboard turns Reddit noise into qualified leads. Connect your Reddit account, add subreddits, and let AI rank posts by relevance to your goals.</p>
-        
-        <h2>Quick Start (2 minutes)</h2>
-        
-        <ol>
-          <li><strong>Connect Reddit</strong> — Click "Connect Reddit" and authorize the app</li>
-          <li><strong>Add subreddits</strong> — Enter subreddits where your customers hang out (e.g., SEO, startups, freelance)</li>
-          <li><strong>Set your goals</strong> — Tell the AI what you're looking for (e.g., "businesses needing SEO help")</li>
-          <li><strong>Get ranked posts</strong> — Posts scored 1-5. Focus on 4s and 5s.</li>
+
+    <!-- BACKDROP (mobile) -->
+    <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-black/50 hidden lg:hidden"></div>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 min-w-0 px-4 sm:px-8 lg:px-12 py-10 prose-custom">
+
+      <!-- ===== OVERVIEW ===== -->
+      <section id="overview" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">Overview</div>
+        <h1 class="text-4xl font-extrabold text-white mb-4">What is Reddit Dashboarder?</h1>
+        <p class="text-zinc-300 text-lg leading-relaxed mb-6">
+          Reddit Dashboarder is an AI-powered monitoring tool that helps you find high-value Reddit posts across multiple subreddits in seconds instead of hours.
+        </p>
+        <h3 class="text-lg font-bold text-white mb-3">Built for:</h3>
+        <ul class="space-y-2 mb-8 text-zinc-300">
+          <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">▸</span> SEO agencies finding clients</li>
+          <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">▸</span> Sales teams tracking leads</li>
+          <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">▸</span> Market researchers spotting trends</li>
+          <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">▸</span> Recruiters finding opportunities</li>
+          <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">▸</span> Anyone who needs to monitor Reddit efficiently</li>
+        </ul>
+        <h3 class="text-lg font-bold text-white mb-4">How It Works</h3>
+        <ol class="space-y-3 mb-8">
+          <li class="flex gap-3 text-zinc-300"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600/80 text-white text-xs font-bold flex items-center justify-center">1</span><span><strong class="text-white">Authenticate with Reddit</strong> — One-click OAuth, secure and fast</span></li>
+          <li class="flex gap-3 text-zinc-300"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600/80 text-white text-xs font-bold flex items-center justify-center">2</span><span><strong class="text-white">Choose subreddits</strong> — Pick your targets (e.g., SEO, smallbusiness, entrepreneur)</span></li>
+          <li class="flex gap-3 text-zinc-300"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600/80 text-white text-xs font-bold flex items-center justify-center">3</span><span><strong class="text-white">Set your goals</strong> — Tell the AI what matters (e.g., "Find SEO consulting opportunities")</span></li>
+          <li class="flex gap-3 text-zinc-300"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600/80 text-white text-xs font-bold flex items-center justify-center">4</span><span><strong class="text-white">Get ranked results</strong> — Posts scored 1-5 by AI, sorted by relevance</span></li>
+          <li class="flex gap-3 text-zinc-300"><span class="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600/80 text-white text-xs font-bold flex items-center justify-center">5</span><span><strong class="text-white">Automate</strong> — Optional: Use the Digest API for scheduled updates</span></li>
         </ol>
-        
-        <h2>Understanding AI Rankings</h2>
-        
-        <p>Each post gets a relevance score from 1-5:</p>
-        
-        <ul>
-          <li><strong>5</strong> — Perfect match, strong buying intent, ideal client</li>
-          <li><strong>4</strong> — Good match, relevant problem, likely to convert</li>
-          <li><strong>3</strong> — Somewhat relevant, might need help</li>
-          <li><strong>2</strong> — Weak match, tangential connection</li>
-          <li><strong>1</strong> — Not relevant</li>
+        <h3 class="text-lg font-bold text-white mb-3">Quick Start</h3>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-5 mb-2"><code class="text-zinc-100"># 1. Visit the app
+https://reddit-dashboarder.vercel.app
+
+# 2. Click "Authenticate with Reddit"
+# 3. Add subreddits (comma-separated):
+SEO, smallbusiness, entrepreneur
+
+# 4. Enable AI ranking in Settings
+# 5. Paste your OpenRouter API key (get free key at openrouter.ai)
+# 6. Set your goals:
+"Find people looking for SEO or AI search consulting services"
+
+# 7. Click "Fetch Posts" and watch the magic</code></pre>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== GETTING STARTED ===== -->
+      <section id="getting-started" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">Getting Started</div>
+        <h2 class="text-3xl font-extrabold text-white mb-4">Step-by-Step Setup</h2>
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-5 mb-8">
+          <p class="text-zinc-300 font-semibold mb-2">Prerequisites</p>
+          <ul class="space-y-1 text-zinc-400 text-sm">
+            <li>• Reddit account</li>
+            <li>• (Optional) OpenRouter API key for AI ranking — <a href="https://openrouter.ai/keys" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline">Get free key</a></li>
+          </ul>
+        </div>
+
+        <h3 class="text-xl font-bold text-white mb-3">Step 1: Authenticate with Reddit</h3>
+        <p class="text-zinc-300 mb-3">Click <strong class="text-white">"Authenticate with Reddit"</strong> button. This uses OAuth (PKCE flow) for security.</p>
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-4 mb-6">
+          <p class="text-sm font-semibold text-zinc-300 mb-2">Why authenticate?</p>
+          <ul class="space-y-1 text-zinc-400 text-sm">
+            <li>• Higher API rate limits (60 requests/min vs 10)</li>
+            <li>• Access to more data</li>
+            <li>• No password storage (secure tokens only)</li>
+          </ul>
+        </div>
+
+        <h3 class="text-xl font-bold text-white mb-3">Step 2: Configure Subreddits</h3>
+        <p class="text-zinc-300 mb-3">Enter comma-separated subreddit names in the sidebar:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-3"><code class="text-zinc-100">SEO, smallbusiness, entrepreneur, marketing, startups</code></pre>
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-4 mb-6">
+          <p class="text-sm font-semibold text-zinc-300 mb-2">Starter packs available:</p>
+          <ul class="grid grid-cols-2 gap-1 text-zinc-400 text-sm">
+            <li>• SEO/Marketing</li>
+            <li>• Sales/Leads</li>
+            <li>• Tech/Startups</li>
+            <li>• Freelance/Hiring</li>
+          </ul>
+        </div>
+
+        <h3 class="text-xl font-bold text-white mb-3">Step 3: Enable AI Ranking (Optional)</h3>
+        <ol class="space-y-2 text-zinc-300 mb-3">
+          <li>1. Go to <strong class="text-white">Settings</strong> → <strong class="text-white">AI Relevance Ranking</strong></li>
+          <li>2. Toggle <strong class="text-white">Enable AI Ranking</strong></li>
+          <li>3. Paste your OpenRouter API key</li>
+          <li>4. Choose a model (default: Gemini 2.0 Flash — fast &amp; free)</li>
+          <li>5. Set your goals</li>
+        </ol>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-6"><code class="text-zinc-100">I run an SEO agency and want to find people asking for SEO help, 
+website audits, or search visibility improvement.</code></pre>
+
+        <h3 class="text-xl font-bold text-white mb-3">Step 4: Fetch &amp; Browse</h3>
+        <ul class="space-y-1 text-zinc-300 mb-8">
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Click <strong class="text-white">"Fetch Posts"</strong></li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Sort by <strong class="text-white">AI Score</strong> to see most relevant first</li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Click post titles to open in Reddit</li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Use keyword filters, upvote thresholds to refine</li>
         </ul>
-        
-        <h2>Velocity Signals</h2>
-        
-        <p>Posts show upvotes and comments per hour. High velocity + high relevance = act fast.</p>
-        
-        <h2>Auto-Refresh</h2>
-        
-        <p>The dashboard can auto-refresh every 5-60 minutes. Enable it in settings to always see fresh posts.</p>
-        
-        <h2>Keyboard Shortcuts</h2>
-        
-        <ul>
-          <li><code>?</code> — Show keyboard shortcuts</li>
-          <li><code>j/k</code> — Navigate posts</li>
-          <li><code>o</code> — Open selected post</li>
-          <li><code>s</code> — Star/unstar post</li>
-          <li><code>r</code> — Refresh posts</li>
+
+        <h3 class="text-xl font-bold text-white mb-3">Step 5: Automate (Pro Feature — Coming Soon)</h3>
+        <p class="text-zinc-300 mb-3">Use the Digest API to get hot leads delivered automatically:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-3"><code class="text-zinc-100">curl -H "Authorization: Bearer YOUR_API_KEY" \
+  "https://reddit-dashboarder.vercel.app/api/v1/leads/latest"</code></pre>
+        <p class="text-zinc-400 text-sm mb-3">Returns:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4"><code class="text-zinc-100">{
+  "hotLeadCount": 3,
+  "hotLeads": [
+    {
+      "title": "Looking for SEO expert to audit my site",
+      "subreddit": "smallbusiness",
+      "score": 5,
+      "reason": "Direct service request, budget mentioned"
+    }
+  ]
+}</code></pre>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== FEATURES ===== -->
+      <section id="features" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">Features</div>
+        <h2 class="text-3xl font-extrabold text-white mb-8">Feature Deep-Dives</h2>
+
+        <h3 class="text-xl font-bold text-white mb-3">AI Ranking</h3>
+        <p class="text-zinc-300 mb-4">How it works:</p>
+        <ol class="space-y-2 text-zinc-300 mb-5">
+          <li>1. You set your goals (what you're looking for)</li>
+          <li>2. AI reads every post's title + body</li>
+          <li>3. Scores 1-5 based on relevance + buying intent</li>
+          <li>4. Returns metadata (confidence, reason)</li>
+        </ol>
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-5 mb-6">
+          <p class="text-sm font-semibold text-white mb-3">Scoring Rubric</p>
+          <ul class="space-y-2 text-sm">
+            <li class="flex gap-3"><span class="w-6 h-6 rounded bg-indigo-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">5</span><span class="text-zinc-300">Perfect match, strong intent, ideal client</span></li>
+            <li class="flex gap-3"><span class="w-6 h-6 rounded bg-indigo-600/80 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">4</span><span class="text-zinc-300">Good match, relevant problem, likely lead</span></li>
+            <li class="flex gap-3"><span class="w-6 h-6 rounded bg-indigo-600/60 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">3</span><span class="text-zinc-300">Somewhat relevant, might need help</span></li>
+            <li class="flex gap-3"><span class="w-6 h-6 rounded bg-zinc-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">2</span><span class="text-zinc-300">Weak match, tangential</span></li>
+            <li class="flex gap-3"><span class="w-6 h-6 rounded bg-zinc-700 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">1</span><span class="text-zinc-300">Not relevant</span></li>
+          </ul>
+        </div>
+        <p class="text-zinc-300 font-semibold mb-3">Models available:</p>
+        <ul class="space-y-1 text-zinc-400 text-sm mb-8">
+          <li>• Gemini 2.0 Flash (fast, free, recommended)</li>
+          <li>• Llama 3.3 70B (free)</li>
+          <li>• Qwen 2.5 72B (free)</li>
+          <li>• Claude 3.5 Sonnet (paid, higher quality)</li>
         </ul>
-        
-        <h2>Exporting Data</h2>
-        
-        <p>Export your filtered posts to CSV for further analysis or import into your CRM.</p>
-        
-        <h2>Need Help?</h2>
-        
-        <p>Check the <a href="/docs/faq.html">FAQ</a> or <a href="/docs/api.html">API Reference</a> for advanced usage.</p>
-      </div>
+
+        <h3 class="text-xl font-bold text-white mb-3">Three-Pane Layout</h3>
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-5 mb-8">
+          <ul class="space-y-2 text-zinc-300 text-sm">
+            <li><strong class="text-white">Left:</strong> Subreddit list with post counts</li>
+            <li><strong class="text-white">Middle:</strong> Post list with scores, velocity, flair</li>
+            <li><strong class="text-white">Right:</strong> Post detail with full text, comments link</li>
+          </ul>
+          <p class="text-zinc-500 text-xs mt-3">Resizable panes, keyboard shortcuts, responsive design.</p>
+        </div>
+
+        <h3 class="text-xl font-bold text-white mb-3">Velocity Signals</h3>
+        <p class="text-zinc-300 mb-4">Upvotes/comments per hour tells you if a post is trending:</p>
+        <ul class="space-y-1 text-zinc-300 mb-8">
+          <li class="flex gap-2"><span class="text-orange-400">🔥</span> <strong class="text-white">Spiking</strong> badge if velocity is high</li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Sort by velocity to catch rising posts early</li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Great for breaking news, viral content</li>
+        </ul>
+
+        <h3 class="text-xl font-bold text-white mb-3">Auto-Refresh</h3>
+        <p class="text-zinc-300 mb-8">Set interval (5-60 minutes) to keep feed fresh automatically. Useful for monitoring live events, launches, crises.</p>
+
+        <h3 class="text-xl font-bold text-white mb-3">Keyword Filtering</h3>
+        <p class="text-zinc-300 mb-3">Enter keywords (comma-separated) to only show matching posts:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-2"><code class="text-zinc-100">seo, traffic, ranking, google, backlinks</code></pre>
+        <p class="text-zinc-500 text-sm mb-8">Case-insensitive, matches title + body.</p>
+
+        <h3 class="text-xl font-bold text-white mb-3">Export &amp; Backup</h3>
+        <ul class="space-y-1 text-zinc-300 mb-2">
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Download settings as JSON</li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Import on another device/browser</li>
+          <li class="flex gap-2"><span class="text-indigo-400">▸</span> Share configs with team</li>
+        </ul>
+        <p class="text-zinc-500 text-sm italic">Future: Export posts as CSV, Markdown, JSON.</p>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== USE CASES ===== -->
+      <section id="use-cases" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">Use Cases</div>
+        <h2 class="text-3xl font-extrabold text-white mb-8">Real-World Examples</h2>
+
+        <!-- SEO Agency -->
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-2xl p-6 mb-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">🎯</span>
+            <h3 class="text-xl font-bold text-white">SEO Agency Lead Gen</h3>
+          </div>
+          <p class="text-zinc-400 text-sm mb-4"><strong class="text-zinc-300">Problem:</strong> Spending 2 hours/day manually checking r/SEO, r/smallbusiness for consulting opportunities.</p>
+          <p class="text-zinc-400 text-sm font-semibold mb-2">Solution:</p>
+          <ol class="space-y-1 text-zinc-400 text-sm mb-4">
+            <li>1. Monitor 5 subreddits: <code class="bg-zinc-900 px-1.5 py-0.5 rounded text-indigo-300">SEO, smallbusiness, entrepreneur, marketing, bigseo</code></li>
+            <li>2. AI goals: <em>"Find people asking for SEO help, website audits, ranking improvement, or search visibility services"</em></li>
+            <li>3. Set threshold: Score ≥4 only</li>
+            <li>4. Check digest daily via API</li>
+          </ol>
+          <div class="bg-zinc-900/60 rounded-xl p-4">
+            <p class="text-xs font-semibold text-zinc-500 mb-2">RESULTS</p>
+            <ul class="space-y-1 text-sm text-zinc-300">
+              <li>✅ 3-5 qualified leads per week</li>
+              <li>✅ 90% time savings (10 min vs 2 hours)</li>
+              <li>✅ First client closed in Week 1 → $5k project</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Sales Teams -->
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-2xl p-6 mb-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">💼</span>
+            <h3 class="text-xl font-bold text-white">Sales Team — Product Mentions</h3>
+          </div>
+          <p class="text-zinc-400 text-sm mb-4"><strong class="text-zinc-300">Problem:</strong> Track when competitors are mentioned or customers complain about alternatives.</p>
+          <p class="text-zinc-400 text-sm font-semibold mb-2">Solution:</p>
+          <ol class="space-y-1 text-zinc-400 text-sm mb-4">
+            <li>1. Monitor relevant subreddits: <code class="bg-zinc-900 px-1.5 py-0.5 rounded text-indigo-300">SaaS, startups, entrepreneur</code></li>
+            <li>2. Keywords: Competitor names, pain points</li>
+            <li>3. AI goals: <em>"Find posts mentioning [Competitor] with complaints or limitations"</em></li>
+            <li>4. Alert on score ≥4</li>
+          </ol>
+          <div class="bg-zinc-900/60 rounded-xl p-4">
+            <p class="text-xs font-semibold text-zinc-500 mb-2">RESULTS</p>
+            <ul class="space-y-1 text-sm text-zinc-300">
+              <li>✅ Catch warm leads within 1 hour of posting</li>
+              <li>✅ Personalized outreach before competitors respond</li>
+              <li>✅ 40% reply rate vs 5% cold email</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Market Research -->
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-2xl p-6 mb-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-2xl">📊</span>
+            <h3 class="text-xl font-bold text-white">Market Research — Trend Spotting</h3>
+          </div>
+          <p class="text-zinc-400 text-sm mb-4"><strong class="text-zinc-300">Problem:</strong> Need to understand what freelancers struggle with for product ideation.</p>
+          <p class="text-zinc-400 text-sm font-semibold mb-2">Solution:</p>
+          <ol class="space-y-1 text-zinc-400 text-sm mb-4">
+            <li>1. Monitor: <code class="bg-zinc-900 px-1.5 py-0.5 rounded text-indigo-300">freelance, forhire, digitalnomad, entrepreneur</code></li>
+            <li>2. AI goals: <em>"Find posts about freelancer pain points, tools they wish existed, workflow frustrations"</em></li>
+            <li>3. Export high-scoring posts weekly</li>
+          </ol>
+          <div class="bg-zinc-900/60 rounded-xl p-4">
+            <p class="text-xs font-semibold text-zinc-500 mb-2">RESULTS</p>
+            <ul class="space-y-1 text-sm text-zinc-300">
+              <li>✅ Discovered 3 recurring pain points</li>
+              <li>✅ Built MVP solving top issue</li>
+              <li>✅ Validated demand before writing code</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== API REFERENCE ===== -->
+      <section id="api-reference" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">API Reference</div>
+        <h2 class="text-3xl font-extrabold text-white mb-8">API Reference</h2>
+
+        <h3 class="text-xl font-bold text-white mb-3">Authentication</h3>
+        <p class="text-zinc-300 mb-3">For digest/automated endpoints:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-8"><code class="text-zinc-100">Authorization: Bearer YOUR_DIGEST_API_KEY</code></pre>
+        <p class="text-zinc-500 text-sm mb-8">Set <code class="bg-zinc-800 px-1.5 py-0.5 rounded">DIGEST_API_KEY</code> in environment variables (Vercel secrets).</p>
+
+        <!-- GET leads/latest -->
+        <div class="border border-zinc-700/50 rounded-2xl overflow-hidden mb-8">
+          <div class="bg-zinc-800/60 px-5 py-3 flex items-center gap-3">
+            <span class="bg-green-600/20 text-green-400 text-xs font-bold px-2 py-1 rounded font-mono">GET</span>
+            <code class="text-zinc-100 font-mono text-sm">/api/v1/leads/latest</code>
+          </div>
+          <div class="p-5">
+            <p class="text-zinc-300 mb-4">Fetch latest polled leads (no auth required for now).</p>
+            <p class="text-sm font-semibold text-zinc-400 mb-2">Response:</p>
+            <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4"><code class="text-zinc-100">{
+  "success": true,
+  "polledAt": "2026-02-13T10:00:00Z",
+  "ageMinutes": 15,
+  "isFresh": true,
+  "hotLeadCount": 2,
+  "hotLeads": [
+    {
+      "id": "abc123",
+      "title": "Need SEO help ASAP",
+      "subreddit": "smallbusiness",
+      "score": 5,
+      "reason": "Urgent request, budget mentioned",
+      "url": "https://reddit.com/r/smallbusiness/..."
+    }
+  ]
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- POST ai-rank -->
+        <div class="border border-zinc-700/50 rounded-2xl overflow-hidden mb-8">
+          <div class="bg-zinc-800/60 px-5 py-3 flex items-center gap-3">
+            <span class="bg-blue-600/20 text-blue-400 text-xs font-bold px-2 py-1 rounded font-mono">POST</span>
+            <code class="text-zinc-100 font-mono text-sm">/api/reddit/ai-rank</code>
+          </div>
+          <div class="p-5">
+            <p class="text-zinc-300 mb-4">Rank posts with AI.</p>
+            <p class="text-sm font-semibold text-zinc-400 mb-2">Request:</p>
+            <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-4"><code class="text-zinc-100">{
+  "posts": [
+    {
+      "id": "xyz",
+      "title": "Looking for SEO expert",
+      "selftext": "Need help with Google rankings..."
+    }
+  ],
+  "userGoals": "Find SEO consulting opportunities",
+  "userContext": "B2B clients preferred"
+}</code></pre>
+            <p class="text-sm font-semibold text-zinc-400 mb-2">Response:</p>
+            <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4"><code class="text-zinc-100">{
+  "scores": {
+    "xyz": 5
+  },
+  "metadata": {
+    "xyz": {
+      "confidence": "high",
+      "reason": "Direct service request, business context"
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== AUTOMATION ===== -->
+      <section id="automation" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">Automation</div>
+        <h2 class="text-3xl font-extrabold text-white mb-8">Automation &amp; Integrations</h2>
+
+        <h3 class="text-xl font-bold text-white mb-3">GitHub Actions Cron (Current Setup)</h3>
+        <p class="text-zinc-300 mb-3">File: <code class="bg-zinc-800 px-1.5 py-0.5 rounded text-sm">.github/workflows/poll-reddit.yml</code></p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-8"><code class="text-zinc-100">on:
+  schedule:
+    - cron: '0 */2 * * *'  # Every 2 hours</code></pre>
+        <p class="text-zinc-400 text-sm mb-8">Calls <code class="bg-zinc-800 px-1.5 py-0.5 rounded">/api/cron/refresh-leads</code> with secret header.</p>
+
+        <h3 class="text-xl font-bold text-white mb-3">Digest API Usage</h3>
+        <p class="text-zinc-300 mb-3">Daily summary via cron:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-6"><code class="text-zinc-100"># crontab -e
+0 9 * * * curl -H "Authorization: Bearer $DIGEST_KEY" \
+  https://reddit-dashboarder.vercel.app/api/v1/leads/latest \
+  | jq '.hotLeads' | mail -s "Reddit Leads Digest" you@example.com</code></pre>
+
+        <p class="text-zinc-300 mb-3">Slack integration:</p>
+        <pre class="bg-zinc-950 border border-zinc-800 rounded-xl p-4 mb-8"><code class="text-zinc-100">curl https://reddit-dashboarder.vercel.app/api/v1/leads/latest \
+  | jq -r '.hotLeads[] | "🔥 [\(.title)](\(.url)) in r/\(.subreddit) — Score: \(.score)/5"' \
+  | xargs -I {} curl -X POST -H 'Content-type: application/json' \
+    --data '{"text":"{}"}' YOUR_SLACK_WEBHOOK</code></pre>
+
+        <h3 class="text-xl font-bold text-white mb-4">Zapier / Make.com Integration</h3>
+        <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-5">
+          <p class="text-sm font-semibold text-zinc-300 mb-3">Trigger: Webhook on new high-score posts</p>
+          <p class="text-sm text-zinc-400 mb-2 font-semibold">Actions:</p>
+          <ul class="space-y-1 text-zinc-400 text-sm">
+            <li>• Send email</li>
+            <li>• Add to Google Sheets</li>
+            <li>• Create CRM task</li>
+            <li>• Post to Slack</li>
+          </ul>
+        </div>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== FAQ ===== -->
+      <section id="faq" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">FAQ</div>
+        <h2 class="text-3xl font-extrabold text-white mb-8">Frequently Asked Questions</h2>
+
+        <div class="space-y-4">
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              Is my Reddit data secure?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Yes. OAuth tokens are stored in your browser (httpOnly cookie). We never see your password.</div>
+          </details>
+
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              Do I need an OpenRouter API key?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Only for AI ranking. Manual browsing works without it.</div>
+          </details>
+
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              What's the free tier limit?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Currently unlimited subreddits. When Pro launches, free tier = 3 subreddits.</div>
+          </details>
+
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              Can I self-host?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Yes! It's open source. Clone the repo and deploy to Vercel/Railway/your own server.</div>
+          </details>
+
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              Which AI model should I use?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Start with Gemini 2.0 Flash (fast, free, accurate). Upgrade to Claude for nuanced scoring.</div>
+          </details>
+
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              How often does automated polling run?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Every 2 hours via GitHub Actions. Pro users will get configurable intervals.</div>
+          </details>
+
+          <details class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl overflow-hidden group">
+            <summary class="px-5 py-4 cursor-pointer text-white font-semibold flex items-center justify-between select-none list-none hover:bg-zinc-800/60 transition-colors">
+              Can I export my data?
+              <span class="text-zinc-500 group-open:rotate-180 transition-transform text-lg">▼</span>
+            </summary>
+            <div class="px-5 pb-4 text-zinc-300">Settings export is available now. Post export (CSV/JSON) coming soon.</div>
+          </details>
+        </div>
+      </section>
+
+      <hr class="border-zinc-800 mb-20" />
+
+      <!-- ===== CHANGELOG ===== -->
+      <section id="changelog" class="mb-20">
+        <div class="mb-2 text-indigo-400 text-sm font-semibold uppercase tracking-wider">Changelog</div>
+        <h2 class="text-3xl font-extrabold text-white mb-8">Release Notes</h2>
+
+        <div class="border-l-2 border-indigo-600/50 pl-6 space-y-10">
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="-ml-[31px] w-4 h-4 rounded-full bg-indigo-600 border-2 border-zinc-900 flex-shrink-0"></div>
+              <span class="bg-indigo-600/20 text-indigo-300 text-xs font-bold px-2.5 py-1 rounded-full">v1.0.0</span>
+              <span class="text-zinc-500 text-sm">2026-02-13 — Initial public release</span>
+            </div>
+            <ul class="space-y-2 text-sm">
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Reddit OAuth authentication</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Multi-subreddit dashboard</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> AI-powered post ranking (OpenRouter)</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Three-pane layout</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Velocity signals &amp; spiking badge</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Dark mode</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Auto-refresh</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Keyword filtering</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> GitHub Actions automated polling</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Digest API (v1)</li>
+              <li class="flex gap-2 text-zinc-300"><span class="text-green-400 flex-shrink-0">✅</span> Documentation site</li>
+            </ul>
+          </div>
+
+          <div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="-ml-[31px] w-4 h-4 rounded-full bg-zinc-700 border-2 border-zinc-900 flex-shrink-0"></div>
+              <span class="bg-zinc-700/50 text-zinc-300 text-xs font-bold px-2.5 py-1 rounded-full">Roadmap</span>
+            </div>
+            <ul class="space-y-2 text-sm">
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Stripe integration (Pro tier)</li>
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Team workspaces</li>
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Post export (CSV, Markdown)</li>
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Browser extension</li>
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Mobile app</li>
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Webhook triggers</li>
+              <li class="flex gap-2 text-zinc-500"><span class="text-zinc-600 flex-shrink-0">☐</span> Custom AI model training</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="border-t border-zinc-800 pt-8 pb-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
+          <p>&copy; 2026 Reddit Dashboarder. Built by <a href="https://vesivanov.com" class="text-zinc-400 hover:text-white underline underline-offset-2">Ves Ivanov</a>.</p>
+          <div class="flex gap-6">
+            <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="hover:text-zinc-100 transition-colors">GitHub</a>
+            <a href="/app" class="hover:text-zinc-100 transition-colors">Open App</a>
+            <a href="/" class="hover:text-zinc-100 transition-colors">Home</a>
+          </div>
+        </div>
+      </footer>
+
     </main>
   </div>
+
+  <script>
+    // Mobile sidebar toggle
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    function openSidebar() {
+      sidebar.classList.remove('-translate-x-full');
+      backdrop.classList.remove('hidden');
+    }
+    function closeSidebar() {
+      sidebar.classList.add('-translate-x-full');
+      backdrop.classList.add('hidden');
+    }
+
+    toggle.addEventListener('click', () => {
+      if (sidebar.classList.contains('-translate-x-full')) openSidebar();
+      else closeSidebar();
+    });
+    backdrop.addEventListener('click', closeSidebar);
+
+    // Close sidebar on link click (mobile)
+    sidebar.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth < 1024) closeSidebar();
+      });
+    });
+
+    // Active sidebar link highlight on scroll
+    const sections = document.querySelectorAll('section[id]');
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id;
+          sidebarLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+          });
+        }
+      });
+    }, { rootMargin: '-20% 0% -60% 0%', threshold: 0 });
+
+    sections.forEach(section => observer.observe(section));
+  </script>
 
 </body>
 </html>

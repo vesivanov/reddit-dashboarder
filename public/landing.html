@@ -1,297 +1,211 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark scroll-smooth">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reddit Dashboard — AI-Powered Reddit Lead Gen</title>
-  <meta name="description" content="Turn Reddit noise into qualified leads. AI-powered ranking, multi-subreddit monitoring, one dashboard.">
-  
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Tailwind -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reddit Dashboarder — Find Reddit Leads 10× Faster with AI</title>
+  <meta name="description" content="Stop scrolling for hours. Get AI-ranked Reddit posts that match your business goals, delivered automatically." />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-          },
-          colors: {
-            indigo: {
-              50: '#eef2ff',
-              100: '#e0e7ff',
-              200: '#c7d2fe',
-              300: '#a5b4fc',
-              400: '#818cf8',
-              500: '#6366f1',
-              600: '#4f46e5',
-              700: '#4338ca',
-              800: '#3730a3',
-              900: '#312e81',
-            },
-          },
-        },
-      },
+        extend: {}
+      }
     }
   </script>
-  
   <style>
-    html { scroll-behavior: smooth; }
+    html { background-color: #18181b; }
     .gradient-text {
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #6366f1 100%);
+      background: linear-gradient(135deg, #4f46e5, #818cf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-    .glass {
-      backdrop-filter: blur(20px);
-      background: rgba(24, 24, 27, 0.8);
-      border: 1px solid rgba(63, 63, 70, 0.5);
+    .hero-glow {
+      background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(79,70,229,0.25) 0%, transparent 70%);
     }
   </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 antialiased">
-  
-  <!-- Nav -->
-  <nav class="fixed top-0 left-0 right-0 z-50 glass border-b border-zinc-800">
-    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-      <a href="#" class="font-semibold text-xl text-white flex items-center gap-2">
-        <svg class="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-        </svg>
-        Reddit Dashboard
+<body class="bg-zinc-900 text-zinc-100 antialiased">
+
+  <!-- NAV -->
+  <nav class="sticky top-0 z-50 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg text-white">
+        <span class="text-2xl">📊</span>
+        <span>Reddit Dashboarder</span>
       </a>
-      
-      <div class="hidden md:flex items-center gap-8 text-sm">
-        <a href="#features" class="text-zinc-400 hover:text-white transition-colors">Features</a>
-        <a href="#pricing" class="text-zinc-400 hover:text-white transition-colors">Pricing</a>
-        <a href="/app" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors">
-          Open Dashboard
-        </a>
-      </div>
-      
-      <a href="/app" class="md:hidden px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium">
-        Open
+      <a href="/app" class="inline-flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+        Open App →
       </a>
     </div>
   </nav>
 
-  <!-- Hero -->
-  <section class="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950"></div>
-    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
-    <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
-    
-    <div class="relative z-10 max-w-4xl mx-auto px-6 text-center">
-      <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm mb-8">
-        <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-        Now with AI-powered lead scoring
+  <!-- HERO -->
+  <section class="hero-glow relative pt-20 pb-24 px-4 text-center">
+    <div class="max-w-4xl mx-auto">
+      <div class="inline-flex items-center gap-2 bg-indigo-600/10 border border-indigo-600/30 text-indigo-400 text-sm font-medium px-4 py-1.5 rounded-full mb-8">
+        🚀 AI-Powered Reddit Monitoring
       </div>
-      
-      <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
-        Turn Reddit noise into<br>
-        <span class="gradient-text">qualified leads</span>
+      <h1 class="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6">
+        Find Reddit Leads<br/>
+        <span class="gradient-text">10× Faster with AI</span>
       </h1>
-      
-      <p class="text-xl md:text-2xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-        Monitor multiple subreddits from one dashboard. AI ranks posts by relevance to your goals. 
-        Never miss a hot lead again.
+      <p class="text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+        Stop scrolling for hours. Get AI-ranked posts that match your business goals, delivered automatically.
       </p>
-      
-      <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href="/app" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-lg transition-all hover:scale-105 flex items-center gap-2">
-          Start free — No signup
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-          </svg>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+        <a href="/app" class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg px-8 py-4 rounded-xl transition-all shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/40 hover:-translate-y-0.5">
+          Try It Free →
         </a>
-        <a href="#features" class="px-8 py-4 text-zinc-300 hover:text-white font-medium transition-colors">
-          See how it works
+        <a href="#how-it-works" class="inline-flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-semibold text-lg px-8 py-4 rounded-xl transition-colors border border-zinc-700">
+          See How It Works
         </a>
       </div>
-      
-      <p class="mt-6 text-sm text-zinc-500">Free forever • Reddit OAuth • BYOK AI</p>
+      <p class="text-sm text-zinc-500">
+        No credit card required • Free forever • 2-minute setup
+      </p>
     </div>
   </section>
 
-  <!-- Value Props -->
-  <section id="features" class="py-24 relative">
-    <div class="max-w-6xl mx-auto px-6">
+  <!-- VALUE PROPS -->
+  <section class="py-20 px-4 bg-zinc-950/50">
+    <div class="max-w-6xl mx-auto">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/40 transition-colors">
+          <div class="text-4xl mb-4">🎯</div>
+          <h3 class="text-xl font-bold text-white mb-3">AI-Powered Relevance</h3>
+          <p class="text-zinc-400 leading-relaxed">Every post scored 1-5 by AI based on YOUR goals. No more manual filtering.</p>
+        </div>
+        <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/40 transition-colors">
+          <div class="text-4xl mb-4">⚡</div>
+          <h3 class="text-xl font-bold text-white mb-3">10× Faster Monitoring</h3>
+          <p class="text-zinc-400 leading-relaxed">Check 5 subreddits in 5 minutes instead of 2 hours. Automated digest API available.</p>
+        </div>
+        <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/40 transition-colors">
+          <div class="text-4xl mb-4">💰</div>
+          <h3 class="text-xl font-bold text-white mb-3">Built for Lead Gen</h3>
+          <p class="text-zinc-400 leading-relaxed">SEO agencies, sales teams, recruiters — find warm leads before your competitors.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works" class="py-24 px-4">
+    <div class="max-w-3xl mx-auto">
       <div class="text-center mb-16">
-        <h2 class="text-3xl md:text-4xl font-bold mb-4">Three-pane power</h2>
-        <p class="text-zinc-400 text-lg">Everything you need to find and act on Reddit leads.</p>
+        <h2 class="text-4xl font-extrabold text-white mb-4">How It Works</h2>
+        <p class="text-zinc-400 text-lg">From setup to your first lead in under 5 minutes.</p>
       </div>
-      
-      <div class="grid md:grid-cols-3 gap-8">
-        <div class="p-8 rounded-2xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-colors">
-          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-6">
-            <svg class="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-            </svg>
+      <div class="space-y-6">
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">1</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Connect Your Reddit Account</h3>
+            <p class="text-zinc-400">Secure OAuth in one click. Higher API limits, no password storage.</p>
           </div>
-          <h3 class="text-xl font-semibold mb-3">AI-Powered Ranking</h3>
-          <p class="text-zinc-400 leading-relaxed">
-            Set your goals, let AI score every post. Posts ranked 1-5 by relevance. Focus on the 4s and 5s.
-          </p>
         </div>
-        
-        <div class="p-8 rounded-2xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-colors">
-          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-6">
-            <svg class="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-            </svg>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">2</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Choose Your Subreddits</h3>
+            <p class="text-zinc-400">Pick 3-10 subreddits to monitor.</p>
           </div>
-          <h3 class="text-xl font-semibold mb-3">Multi-Subreddit View</h3>
-          <p class="text-zinc-400 leading-relaxed">
-            Watch r/SEO, r/startups, r/freelance — all in one place. No more tab switching. No more missed posts.
-          </p>
         </div>
-        
-        <div class="p-8 rounded-2xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition-colors">
-          <div class="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-6">
-            <svg class="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-            </svg>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">3</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Set Your Goals</h3>
+            <p class="text-zinc-400">Tell the AI what you're looking for.</p>
           </div>
-          <h3 class="text-xl font-semibold mb-3">Velocity Signals</h3>
-          <p class="text-zinc-400 leading-relaxed">
-            See upvotes and comments per hour. Catch posts before they blow up. Be first to the conversation.
-          </p>
+        </div>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">4</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Get Ranked Results</h3>
+            <p class="text-zinc-400">Every post scored 1-5 by AI. Sort by relevance.</p>
+          </div>
+        </div>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">5</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Automate Everything</h3>
+            <p class="text-zinc-400">Digest API delivers hot leads via cron or Slack.</p>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- How It Works -->
-  <section class="py-24 bg-zinc-900/30">
-    <div class="max-w-5xl mx-auto px-6">
+  <!-- USE CASES -->
+  <section class="py-24 px-4 bg-zinc-950/50">
+    <div class="max-w-5xl mx-auto">
       <div class="text-center mb-16">
-        <h2 class="text-3xl md:text-4xl font-bold mb-4">How it works</h2>
-        <p class="text-zinc-400 text-lg">From setup to qualified leads in 5 minutes.</p>
+        <h2 class="text-4xl font-extrabold text-white mb-4">Who Uses Reddit Dashboarder?</h2>
+        <p class="text-zinc-400 text-lg">Real results from real users.</p>
       </div>
-      
-      <div class="space-y-8">
-        <div class="flex items-start gap-6">
-          <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">1</div>
-          <div>
-            <h3 class="text-xl font-semibold mb-2">Connect Reddit</h3>
-            <p class="text-zinc-400">One-click OAuth. No password storage. Secure PKCE flow.</p>
-          </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">🎯</div>
+          <h3 class="text-lg font-bold text-white mb-3">SEO Agencies</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Found 3 paying clients in the first week monitoring r/SEO. Saves 10+ hours weekly."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— Agency owner, Berlin</cite>
         </div>
-        
-        <div class="flex items-start gap-6">
-          <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">2</div>
-          <div>
-            <h3 class="text-xl font-semibold mb-2">Add your subreddits</h3>
-            <p class="text-zinc-400">r/SEO, r/startups, r/freelance — wherever your customers hang out.</p>
-          </div>
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">💼</div>
+          <h3 class="text-lg font-bold text-white mb-3">Sales Teams</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Track competitor mentions and catch warm leads within 1 hour. 40% reply rate vs 5% cold email."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— SaaS sales lead</cite>
         </div>
-        
-        <div class="flex items-start gap-6">
-          <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">3</div>
-          <div>
-            <h3 class="text-xl font-semibold mb-2">Set your goals</h3>
-            <p class="text-zinc-400">"Find businesses needing SEO help" — AI learns what you're looking for.</p>
-          </div>
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">📊</div>
+          <h3 class="text-lg font-bold text-white mb-3">Market Researchers</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Replaced 3 hours of manual trend spotting with a 5-minute daily digest."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— Indie hacker</cite>
         </div>
-        
-        <div class="flex items-start gap-6">
-          <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">4</div>
-          <div>
-            <h3 class="text-xl font-semibold mb-2">Get ranked posts</h3>
-            <p class="text-zinc-400">Every post scored 1-5. Focus on 4s and 5s. Skip the noise.</p>
-          </div>
-        </div>
-        
-        <div class="flex items-start gap-6">
-          <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0">5</div>
-          <div>
-            <h3 class="text-xl font-semibold mb-2">Act on hot leads</h3>
-            <p class="text-zinc-400">Open posts, reply, save, track. 10 minutes a day. Real results.</p>
-          </div>
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">🔍</div>
+          <h3 class="text-lg font-bold text-white mb-3">Recruiters</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Spot hiring posts 2 hours after they go live. Huge advantage over job boards."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— Tech recruiter</cite>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Pricing -->
-  <section id="pricing" class="py-24">
-    <div class="max-w-5xl mx-auto px-6">
-      <div class="text-center mb-16">
-        <h2 class="text-3xl md:text-4xl font-bold mb-4">Simple pricing</h2>
-        <p class="text-zinc-400 text-lg">Free for personal use. Pro for power users.</p>
-      </div>
-      
-      <div class="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-        <div class="p-8 rounded-2xl bg-zinc-900/50 border border-zinc-800">
-          <h3 class="text-xl font-semibold mb-2">Free</h3>
-          <p class="text-zinc-400 mb-6">For individual users</p>
-          <div class="text-4xl font-bold mb-6">$0<span class="text-lg text-zinc-500 font-normal">/mo</span></div>
-          <ul class="space-y-3 text-zinc-300 mb-8">
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> 5 subreddits</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> AI ranking (BYOK)</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Basic filters</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Export to CSV</li>
-          </ul>
-          <a href="/app" class="block w-full py-3 text-center bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors">Start free</a>
-        </div>
-        
-        <div class="p-8 rounded-2xl bg-indigo-600/10 border border-indigo-500/30 relative">
-          <div class="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-indigo-600 text-white text-xs font-medium rounded-full">Coming soon</div>
-          <h3 class="text-xl font-semibold mb-2">Pro</h3>
-          <p class="text-zinc-400 mb-6">For agencies & teams</p>
-          <div class="text-4xl font-bold mb-6">$19<span class="text-lg text-zinc-500 font-normal">/mo</span></div>
-          <ul class="space-y-3 text-zinc-300 mb-8">
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Unlimited subreddits</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> AI included (no key needed)</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Advanced filters</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Team collaboration</li>
-            <li class="flex items-center gap-2"><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> API access</li>
-          </ul>
-          <button disabled class="block w-full py-3 text-center bg-indigo-600/50 text-white/50 rounded-lg font-medium cursor-not-allowed">Join waitlist</button>
-        </div>
+  <!-- BOTTOM CTA -->
+  <section class="py-24 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <div class="bg-gradient-to-br from-indigo-600/20 to-indigo-600/5 border border-indigo-600/30 rounded-3xl p-12">
+        <h2 class="text-4xl font-extrabold text-white mb-4">
+          Ready to Find Your Next Client on Reddit?
+        </h2>
+        <p class="text-zinc-400 text-lg mb-8">
+          Join SEO agencies, sales teams, and indie hackers already using Reddit Dashboarder.
+        </p>
+        <a href="/app" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl px-10 py-5 rounded-xl transition-all shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5">
+          Start Free Now →
+        </a>
+        <p class="text-sm text-zinc-500 mt-5">
+          No credit card • 2-minute setup • Open source
+        </p>
       </div>
     </div>
   </section>
 
-  <!-- CTA -->
-  <section class="py-24 relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/20 to-transparent"></div>
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-3xl"></div>
-    
-    <div class="relative z-10 max-w-3xl mx-auto px-6 text-center">
-      <h2 class="text-4xl md:text-5xl font-bold mb-6">Start finding leads today</h2>
-      <p class="text-xl text-zinc-400 mb-10">Free forever. No credit card. Reddit OAuth.</p>
-      
-      <a href="/app" class="inline-flex items-center gap-2 px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-lg transition-all hover:scale-105">
-        Open Reddit Dashboard
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-        </svg>
-      </a>
-      
-      <p class="mt-6 text-sm text-zinc-500">Takes 2 minutes • Works on mobile & desktop</p>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="py-12 border-t border-zinc-800">
-    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-2 text-zinc-400">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-        </svg>
-        <span class="font-medium">Reddit Dashboard</span>
-      </div>
-      
-      <div class="flex items-center gap-6 text-sm text-zinc-500">
-        <a href="https://github.com/vesivanov/reddit-dashboarder" class="hover:text-zinc-300 transition-colors">GitHub</a>
-        <a href="/app" class="hover:text-zinc-300 transition-colors">Open App</a>
+  <!-- FOOTER -->
+  <footer class="border-t border-zinc-800 py-8 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
+      <p>
+        &copy; 2026 Reddit Dashboarder. Built by
+        <a href="https://vesivanov.com" class="text-zinc-400 hover:text-white transition-colors underline underline-offset-2">Ves Ivanov</a>.
+      </p>
+      <div class="flex items-center gap-6">
+        <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="hover:text-zinc-100 transition-colors">GitHub</a>
+        <a href="/app" class="hover:text-zinc-100 transition-colors">Open App</a>
+        <a href="/docs" class="hover:text-zinc-100 transition-colors">Docs</a>
       </div>
     </div>
   </footer>

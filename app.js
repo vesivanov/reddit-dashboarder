@@ -116,7 +116,11 @@ function createApp() {
     app.get('/api/auth/verify-reddit-settings', generalLimiter, authVerifyRedditSettingsHandler);
   }
 
-  // Serve index.html for all other routes (SPA routing)
+  // Landing page at root
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+  });
+  // Dashboard at /app (and SPA sub-routes)
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
