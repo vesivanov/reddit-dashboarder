@@ -5,8 +5,13 @@
 
 const { withCORS } = require('../../lib/cors');
 const { RedditPoller } = require('../../lib/poller');
+const storage = require('../../lib/storage');
 
 const DEFAULT_SUBREDDITS = ['SEO', 'webdev', 'startups', 'freelance', 'marketing'];
+const DEFAULT_SETTINGS = {
+  aiGoals: 'Find SEO and AI search consulting clients',
+  aiContext: 'Helping businesses improve visibility in traditional and AI-powered search (ChatGPT, Perplexity)',
+};
 
 async function handler(req, res) {
   // Handle CORS
@@ -37,13 +42,26 @@ async function handler(req, res) {
       });
     }
 
-    // Get settings from KV or use defaults
-    const poller = new RedditPoller();
-    const subreddits = DEFAULT_SUBREDDITS;
+    // Get user's config from shared KV or use defaults
+    let userConfig;
+    try {
+      userConfig = await storage.get('cron-user-config');
+      if (userConfig?.subreddits?.length > 0) {
+        console.log('[cron] Using user config:', userConfig.subreddits.length, 'subreddits');
+      } else {
+        console.log('[cron] No user config found, using defaults');
+      }
+    } catch (err) {
+      console.error('[cron] Failed to read user config:', err.message);
+    }
+
+    const subreddits = userConfig?.subreddits || DEFAULT_SUBREDDITS;
     const settings = {
-      aiGoals: 'Find SEO and AI search consulting clients',
-      aiContext: 'Helping businesses improve visibility in traditional and AI-powered search (ChatGPT, Perplexity)',
+      aiGoals: userConfig?.aiGoals || DEFAULT_SETTINGS.aiGoals,
+      aiContext: userConfig?.aiContext || DEFAULT_SETTINGS.aiContext,
     };
+
+    const poller = new RedditPoller();
 
     // Run the poll
     const result = await poller.poll(subreddits, settings);
@@ -54,6 +72,9 @@ async function handler(req, res) {
       postsFetched: result.postCount,
       hotLeadsFound: result.hotLeadCount,
       subreddits: result.subreddits,
+      subredditCount: result.subreddits.length,
+      usingUserConfig: !!userConfig?.subreddits?.length,
+      configSource: userConfig?.subreddits?.length ? 'user-settings' : 'defaults',
       nextPoll: 'In 2 hours (set via cron-job.org)',
     });
   } catch (error) {
