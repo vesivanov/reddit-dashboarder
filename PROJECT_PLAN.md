@@ -1,12 +1,12 @@
 # Reddit Dashboarder — Project Plan (Approved 2026-02-17)
 
-**Status:** Phase 1 in progress  
+**Status:** Phase 2 in progress  
 **Blockers:** Domain decision pending (Ves handling)  
 **Completed:** CRON_SECRET_KEY added, Vercel KV setup done
 
 ---
 
-## Phase 1: Security Hardening (ACTIVE)
+## Phase 1: Security Hardening ✅
 
 ### 1.1 Rate Limiting Middleware ✅
 - [x] Rate limiting already exists with three tiers:
@@ -31,7 +31,7 @@
 - [x] Supports custom domain via `APP_DOMAIN` env var
 - [x] Blocks requests from unexpected origins
 
-### 1.5 Input Validation
+### 1.5 Input Validation ✅
 - [x] Add sanitization to waitlist endpoint
 - [x] Add email format validation
 - [x] Add max waitlist size limit
@@ -48,25 +48,10 @@
 - [x] Check data persistence in KV — Confirmed working
 - [x] Test hot lead detection accuracy — 15 hot leads detected
 
-### 2.2 OAuth Edge Cases
-- [ ] Token refresh flow
-- [ ] Expired session handling
-- [ ] Logout cleanup
-
-### 2.3 Mobile Responsive
-- [ ] Test three-pane layout on mobile
-- [ ] Fix touch interactions
-- [ ] Verify sidebar behavior
-
-### 2.4 Error Handling
-- [ ] Graceful Reddit API failures
-- [ ] OpenRouter timeout handling
-- [ ] Network error recovery
-
-### 2.2 OAuth Edge Cases
-- [ ] Token refresh flow
-- [ ] Expired session handling
-- [ ] Logout cleanup
+### 2.2 OAuth Edge Cases ✅
+- [x] Token refresh flow — Added `/api/auth/refresh` endpoint
+- [x] Expired session handling — Clear cookies on refresh failure
+- [x] Logout cleanup — Already handled in logout handler
 
 ### 2.3 Mobile Responsive
 - [ ] Test three-pane layout on mobile
@@ -131,5 +116,7 @@
 
 ### 2026-02-17
 - [x] Plan approved and saved
-- [ ] Phase 1.1: Rate limiting middleware (in progress)
+- [x] Phase 1 complete — Security hardening pushed
+- [x] Phase 2.1 complete — Polling verified working
+- [x] Phase 2.2 complete — OAuth refresh endpoint added
 
