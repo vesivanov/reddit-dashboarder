@@ -9,6 +9,7 @@ const authStartHandler = require('./lib/api-handlers/auth/start');
 const authCallbackHandler = require('./lib/api-handlers/auth/callback');
 const authLogoutHandler = require('./lib/api-handlers/auth/logout');
 const authStatusHandler = require('./lib/api-handlers/auth/status');
+const authRefreshHandler = require('./lib/api-handlers/auth/refresh');
 const openrouterKeyHandler = require('./lib/api-handlers/settings/openrouter-key');
 const serverOpenrouterKeyHandler = require('./lib/api-handlers/settings/server-openrouter-key');
 const settingsImportHandler = require('./lib/api-handlers/settings/import');
@@ -59,6 +60,7 @@ function createApp() {
   app.get('/api/auth/callback', generalLimiter, authCallbackHandler);
   app.get('/api/auth/logout', generalLimiter, authLogoutHandler);
   app.get('/api/auth/status', generalLimiter, authStatusHandler);
+  app.get('/api/auth/refresh', generalLimiter, authRefreshHandler);
 
   // Settings routes (secure API key storage)
   app.get('/api/settings/openrouter-key', generalLimiter, openrouterKeyHandler);
