@@ -5,10 +5,9 @@
   },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
-    { "src": "/$", "dest": "/landing.html" },
-    { "src": "/pricing", "dest": "/pricing.html" },
-    { "src": "/docs", "dest": "/docs.html" },
     { "src": "/app", "dest": "/index.html" },
+    { "src": "/app/(.*)", "dest": "/index.html" },
+    { "src": "/$", "dest": "/landing.html" },
     { "src": "/(.*)", "dest": "/api/index.js" }
   ]
 }
