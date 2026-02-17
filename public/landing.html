@@ -273,8 +273,31 @@
       <p class="text-xl mb-10 opacity-90">
         Join agencies, sales teams, and indie hackers already using Reddit Dashboarder.
       </p>
-      <a href="/app" class="inline-block bg-white text-purple-600 px-12 py-5 rounded-lg font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
-        Start Free Now →
+
+      <!-- Notify Me — email waitlist for Pro -->
+      <div class="mb-8">
+        <p class="text-base font-medium mb-3 opacity-90">Get notified when Pro launches:</p>
+        <form id="cta-waitlist-form" class="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+          <input
+            type="email"
+            id="cta-email-input"
+            placeholder="your@email.com"
+            required
+            class="flex-1 px-5 py-3 rounded-lg text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-white text-base"
+          >
+          <button
+            type="submit"
+            id="cta-notify-btn"
+            class="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition shadow whitespace-nowrap"
+          >
+            Notify Me
+          </button>
+        </form>
+        <p id="cta-waitlist-message" class="text-sm mt-3 min-h-[1.25rem]"></p>
+      </div>
+
+      <a href="/app" class="inline-block bg-white/20 border border-white/40 text-white px-12 py-5 rounded-lg font-semibold text-lg hover:bg-white/30 transition shadow-lg">
+        Try It Free →
       </a>
       <p class="mt-6 text-sm opacity-75">
         No credit card • 2-minute setup • Cancel anytime
@@ -335,38 +358,53 @@
   </footer>
   
   <script>
-    // Waitlist form handler
-    document.getElementById('waitlist-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email-input').value;
-      const button = e.target.querySelector('button');
-      const message = document.getElementById('waitlist-message');
-      
+    // Shared notify-me submit helper
+    async function submitWaitlist(email, messageEl, button, originalLabel) {
       button.disabled = true;
       button.textContent = '...';
-      
+      messageEl.textContent = '';
+
       try {
         const res = await fetch('/api/notify-me', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email })
         });
-        
+
         const data = await res.json();
-        
-        message.classList.remove('hidden', 'text-red-400');
-        message.classList.add('text-green-400');
-        message.textContent = data.message || 'Thanks! We'll notify you when Pro launches.';
-        
-        e.target.reset();
-      } catch (error) {
-        message.classList.remove('hidden', 'text-green-400');
-        message.classList.add('text-red-400');
-        message.textContent = 'Failed to subscribe. Please try again.';
+
+        messageEl.style.color = res.ok ? '#4ade80' : '#f87171';
+        messageEl.textContent = data.message || (res.ok
+          ? "You're on the list! We'll notify you when Pro launches."
+          : 'Something went wrong. Please try again.');
+      } catch {
+        messageEl.style.color = '#f87171';
+        messageEl.textContent = 'Failed to subscribe. Please try again.';
       } finally {
         button.disabled = false;
-        button.textContent = '→';
+        button.textContent = originalLabel;
       }
+    }
+
+    // CTA section waitlist form
+    document.getElementById('cta-waitlist-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('cta-email-input').value;
+      const button = document.getElementById('cta-notify-btn');
+      const message = document.getElementById('cta-waitlist-message');
+      await submitWaitlist(email, message, button, 'Notify Me');
+      if (!message.style.color.includes('f87171')) e.target.reset();
+    });
+
+    // Footer waitlist form handler
+    document.getElementById('waitlist-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email-input').value;
+      const button = e.target.querySelector('button');
+      const message = document.getElementById('waitlist-message');
+      message.classList.remove('hidden');
+      await submitWaitlist(email, message, button, '→');
+      if (!message.style.color.includes('f87171')) e.target.reset();
     });
     
     // Smooth scroll
