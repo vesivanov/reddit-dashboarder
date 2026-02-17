@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ — Reddit Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }
+  </script>
+  <style>
+    .prose { max-width: 65ch; }
+    .prose h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; }
+    .prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2rem; margin-bottom: 1rem; }
+    .prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    .prose p { margin-bottom: 1rem; line-height: 1.7; }
+    .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+    .prose a { color: #6366f1; text-decoration: underline; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 antialiased">
+  
+  <div class="flex min-h-screen">
+    <aside class="w-64 bg-zinc-900 border-r border-zinc-800 p-6 hidden lg:block">
+      <a href="/" class="flex items-center gap-2 text-xl font-semibold mb-8">
+        <svg class="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+        </svg>
+        Dashboard
+      </a>
+      <nav class="space-y-1">
+        <a href="/docs" class="block px-3 py-2 rounded-lg hover:bg-zinc-800 text-zinc-400">Getting Started</a>
+        <a href="/docs/api.html" class="block px-3 py-2 rounded-lg hover:bg-zinc-800 text-zinc-400">API Reference</a>
+        <a href="/docs/faq.html" class="block px-3 py-2 rounded-lg bg-indigo-600/20 text-indigo-300">FAQ</a>
+      </nav>
+    </aside>
+    
+    <main class="flex-1 p-8 lg:p-12">
+      <div class="max-w-3xl mx-auto prose">
+        <h1>FAQ</h1>
+        
+        <h2>General</h2>
+        
+        <h3>Is this free?</h3>
+        <p>Yes, the core features are free forever. You bring your own Reddit account and OpenRouter API key. A Pro tier with included AI and team features is coming soon.</p>
+        
+        <h3>Do you store my Reddit password?</h3>
+        <p>No. We use OAuth, which means you authorize the app through Reddit's official login. We never see your password.</p>
+        
+        <h3>Is my data private?</h3>
+        <p>Your Reddit data stays in your browser and in encrypted storage. We don't sell or share your data.</p>
+        
+        <h2>AI & Ranking</h2>
+        
+        <h3>How does the AI ranking work?</h3>
+        <p>You tell the AI your goals (e.g., "find businesses needing SEO help"). It analyzes post titles and content, then scores each post 1-5 for relevance.</p>
+        
+        <h3>Do I need an OpenRouter API key?</h3>
+        <p>Yes, for now. This keeps costs transparent — you pay OpenRouter directly for AI usage. Pro tier will include AI credits.</p>
+        
+        <h3>Which AI model should I use?</h3>
+        <p>Free options: <code>google/gemini-2.5-flash:free</code> or <code>meta-llama/llama-3.3-70b-instruct:free</code>. Paid options: <code>anthropic/claude-3.5-sonnet</code> for higher accuracy.</p>
+        
+        <h3>Why is a post scored low when it looks relevant?</h3>
+        <p>The AI is conservative. Posts scored 3+ are worth checking. If you disagree with scores, refine your goals text to be more specific.</p>
+        
+        <h2>Technical</h2>
+        
+        <h3>How often does it refresh?</h3>
+        <p>You choose: 5, 10, 15, 30, or 60 minutes. Auto-refresh is off by default.</p>
+        
+        <h3>Can I export my data?</h3>
+        <p>Yes. Export to CSV from the sidebar menu. Use the API for programmatic access.</p>
+        
+        <h3>Does it work on mobile?</h3>
+        <p>Yes. The interface adapts to mobile with a bottom navigation bar for switching between subreddits, posts, and detail views.</p>
+        
+        <h3>What are rate limits?</h3>
+        <p>Reddit API limits: 30 requests per 5 minutes. AI ranking: 10 requests per 15 minutes. These protect you from accidental overuse.</p>
+        
+        <h2>Troubleshooting</h2>
+        
+        <h3>Posts aren't loading</h3>
+        <ul>
+          <li>Check your Reddit connection (Settings → Reconnect)</li>
+          <li>Verify the subreddit name is correct (case-sensitive)</li>
+          <li>Check if the subreddit is private or banned</li>
+        </ul>
+        
+        <h3>AI ranking is slow</h3>
+        <ul>
+          <li>Use a faster model (Gemini Flash is quickest)</li>
+          <li>Reduce the number of posts per batch in settings</li>
+          <li>Check your OpenRouter credits</li>
+        </ul>
+        
+        <h3>Getting 401 errors</h3>
+        <ul>
+          <li>Your Reddit OAuth may have expired. Reconnect in Settings.</li>
+          <li>Your OpenRouter API key may be invalid. Check the key in AI Settings.</li>
+        </ul>
+        
+        <h2>Account</h2>
+        
+        <h3>How do I delete my account?</h3>
+        <p>Go to Settings → Delete Account. This removes all your data from our servers.</p>
+        
+        <h3>Can I use this for multiple Reddit accounts?</h3>
+        <p>Yes, but you'll need to log out and reconnect with a different account. Each browser session can only be connected to one Reddit account at a time.</p>
+        
+        <h2>Still have questions?</h2>
+        <p>Open an issue on <a href="https://github.com/vesivanov/reddit-dashboarder">GitHub</a> or check the <a href="/docs/api.html">API Reference</a> for advanced usage.</p>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>

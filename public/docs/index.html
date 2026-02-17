@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation — Reddit Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }
+  </script>
+  <style>
+    .prose { max-width: 65ch; }
+    .prose h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; }
+    .prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2rem; margin-bottom: 1rem; }
+    .prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    .prose p { margin-bottom: 1rem; line-height: 1.7; }
+    .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+    .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+    .prose code { background: rgba(99, 102, 241, 0.1); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; }
+    .prose pre { background: #18181b; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; }
+    .prose pre code { background: none; padding: 0; }
+    .prose a { color: #6366f1; text-decoration: underline; }
+    .prose blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; font-style: italic; margin-bottom: 1rem; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 antialiased">
+  
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-zinc-900 border-r border-zinc-800 p-6 hidden lg:block">
+      <a href="/" class="flex items-center gap-2 text-xl font-semibold mb-8">
+        <svg class="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+        </svg>
+        Dashboard
+      </a>
+      
+      <nav class="space-y-1">
+        <a href="/docs" class="block px-3 py-2 rounded-lg bg-indigo-600/20 text-indigo-300">Getting Started</a>
+        <a href="/docs/api.html" class="block px-3 py-2 rounded-lg hover:bg-zinc-800 text-zinc-400">API Reference</a>
+        <a href="/docs/faq.html" class="block px-3 py-2 rounded-lg hover:bg-zinc-800 text-zinc-400">FAQ</a>
+      </nav>
+    </aside>
+    
+    <!-- Content -->
+    <main class="flex-1 p-8 lg:p-12">
+      <div class="max-w-3xl mx-auto prose">
+        <h1>Getting Started</h1>
+        
+        <p>Reddit Dashboard turns Reddit noise into qualified leads. Connect your Reddit account, add subreddits, and let AI rank posts by relevance to your goals.</p>
+        
+        <h2>Quick Start (2 minutes)</h2>
+        
+        <ol>
+          <li><strong>Connect Reddit</strong> — Click "Connect Reddit" and authorize the app</li>
+          <li><strong>Add subreddits</strong> — Enter subreddits where your customers hang out (e.g., SEO, startups, freelance)</li>
+          <li><strong>Set your goals</strong> — Tell the AI what you're looking for (e.g., "businesses needing SEO help")</li>
+          <li><strong>Get ranked posts</strong> — Posts scored 1-5. Focus on 4s and 5s.</li>
+        </ol>
+        
+        <h2>Understanding AI Rankings</h2>
+        
+        <p>Each post gets a relevance score from 1-5:</p>
+        
+        <ul>
+          <li><strong>5</strong> — Perfect match, strong buying intent, ideal client</li>
+          <li><strong>4</strong> — Good match, relevant problem, likely to convert</li>
+          <li><strong>3</strong> — Somewhat relevant, might need help</li>
+          <li><strong>2</strong> — Weak match, tangential connection</li>
+          <li><strong>1</strong> — Not relevant</li>
+        </ul>
+        
+        <h2>Velocity Signals</h2>
+        
+        <p>Posts show upvotes and comments per hour. High velocity + high relevance = act fast.</p>
+        
+        <h2>Auto-Refresh</h2>
+        
+        <p>The dashboard can auto-refresh every 5-60 minutes. Enable it in settings to always see fresh posts.</p>
+        
+        <h2>Keyboard Shortcuts</h2>
+        
+        <ul>
+          <li><code>?</code> — Show keyboard shortcuts</li>
+          <li><code>j/k</code> — Navigate posts</li>
+          <li><code>o</code> — Open selected post</li>
+          <li><code>s</code> — Star/unstar post</li>
+          <li><code>r</code> — Refresh posts</li>
+        </ul>
+        
+        <h2>Exporting Data</h2>
+        
+        <p>Export your filtered posts to CSV for further analysis or import into your CRM.</p>
+        
+        <h2>Need Help?</h2>
+        
+        <p>Check the <a href="/docs/faq.html">FAQ</a> or <a href="/docs/api.html">API Reference</a> for advanced usage.</p>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>
