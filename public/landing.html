@@ -1,422 +1,214 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reddit Dashboarder — Find Leads 10× Faster with AI</title>
-  <meta name="description" content="AI-powered Reddit monitoring for agencies, sales teams, and indie hackers. Stop scrolling for hours. Get ranked posts that match your goals, delivered automatically.">
-  
-  <!-- Open Graph -->
-  <meta property="og:title" content="Reddit Dashboarder — Find Leads 10× Faster with AI">
-  <meta property="og:description" content="Stop scrolling Reddit for hours. AI ranks posts by relevance to your business goals.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://reddit-dashboarder.vercel.app">
-  
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reddit Dashboarder — Find Reddit Leads 10× Faster with AI</title>
+  <meta name="description" content="Stop scrolling for hours. Get AI-ranked Reddit posts that match your business goals, delivered automatically." />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-          },
-        },
-      },
-    };
+        extend: {}
+      }
+    }
   </script>
-  
   <style>
-    body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    }
-    
-    .gradient-bg {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
+    html { background-color: #18181b; }
     .gradient-text {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #4f46e5, #818cf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-    
-    .glass {
-      background: rgba(255, 255, 255, 0.9);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-    }
-    
-    .dark .glass {
-      background: rgba(24, 24, 27, 0.9);
+    .hero-glow {
+      background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(79,70,229,0.25) 0%, transparent 70%);
     }
   </style>
 </head>
-<body class="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-  
-  <!-- Navigation -->
-  <nav class="glass sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800">
-    <div class="max-w-7xl mx-auto px-6 py-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-          </svg>
-          <span class="text-xl font-bold">Reddit Dashboarder</span>
-        </div>
-        
-        <div class="hidden md:flex items-center gap-8">
-          <a href="#features" class="hover:text-purple-600 transition">Features</a>
-          <a href="#use-cases" class="hover:text-purple-600 transition">Use Cases</a>
-          <a href="/pricing" class="hover:text-purple-600 transition">Pricing</a>
-          <a href="/docs" class="hover:text-purple-600 transition">Docs</a>
-          <a href="/app" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition font-medium">
-            Try It Free →
-          </a>
-        </div>
-      </div>
+<body class="bg-zinc-900 text-zinc-100 antialiased">
+
+  <!-- NAV -->
+  <nav class="sticky top-0 z-50 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg text-white">
+        <span class="text-2xl">📊</span>
+        <span>Reddit Dashboarder</span>
+      </a>
+      <a href="/app" class="inline-flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+        Open App →
+      </a>
     </div>
   </nav>
-  
-  <!-- Hero Section -->
-  <section class="gradient-bg text-white py-20 px-6">
-    <div class="max-w-5xl mx-auto text-center">
-      <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-        Find Reddit Leads<br/>10× Faster with AI
+
+  <!-- HERO -->
+  <section class="hero-glow relative pt-20 pb-24 px-4 text-center">
+    <div class="max-w-4xl mx-auto">
+      <div class="inline-flex items-center gap-2 bg-indigo-600/10 border border-indigo-600/30 text-indigo-400 text-sm font-medium px-4 py-1.5 rounded-full mb-8">
+        🚀 AI-Powered Reddit Monitoring
+      </div>
+      <h1 class="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight mb-6">
+        Find Reddit Leads<br/>
+        <span class="gradient-text">10× Faster with AI</span>
       </h1>
-      <p class="text-xl md:text-2xl mb-8 opacity-90 max-w-3xl mx-auto">
+      <p class="text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
         Stop scrolling for hours. Get AI-ranked posts that match your business goals, delivered automatically.
       </p>
-      <div class="flex gap-4 justify-center flex-wrap">
-        <a href="/app" class="bg-white text-purple-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+        <a href="/app" class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg px-8 py-4 rounded-xl transition-all shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/40 hover:-translate-y-0.5">
           Try It Free →
         </a>
-        <a href="#demo" class="border-2 border-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white/10 transition">
+        <a href="#how-it-works" class="inline-flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-semibold text-lg px-8 py-4 rounded-xl transition-colors border border-zinc-700">
           See How It Works
         </a>
       </div>
-      <p class="mt-6 text-sm opacity-75">
+      <p class="text-sm text-zinc-500">
         No credit card required • Free forever • 2-minute setup
       </p>
     </div>
   </section>
-  
-  <!-- Stats Section -->
-  <section class="py-12 bg-zinc-50 dark:bg-zinc-800 border-y border-zinc-200 dark:border-zinc-700">
-    <div class="max-w-6xl mx-auto px-6">
-      <div class="grid md:grid-cols-3 gap-8 text-center">
-        <div>
-          <div class="text-4xl font-bold gradient-text mb-2">15 hot leads</div>
-          <p class="text-zinc-600 dark:text-zinc-400">Found in last hour</p>
-        </div>
-        <div>
-          <div class="text-4xl font-bold gradient-text mb-2">90% time saved</div>
-          <p class="text-zinc-600 dark:text-zinc-400">10 min vs 2 hours daily</p>
-        </div>
-        <div>
-          <div class="text-4xl font-bold gradient-text mb-2">125 posts</div>
-          <p class="text-zinc-600 dark:text-zinc-400">Analyzed by AI every hour</p>
-        </div>
-      </div>
-    </div>
-  </section>
-  
-  <!-- Value Props -->
-  <section id="features" class="py-20 px-6">
+
+  <!-- VALUE PROPS -->
+  <section class="py-20 px-4 bg-zinc-950/50">
     <div class="max-w-6xl mx-auto">
-      <h2 class="text-4xl font-bold text-center mb-4">Why Reddit Dashboarder?</h2>
-      <p class="text-center text-zinc-600 dark:text-zinc-400 mb-16 text-lg max-w-2xl mx-auto">
-        Built for agencies, sales teams, and indie hackers who need to monitor Reddit efficiently.
-      </p>
-      
-      <div class="grid md:grid-cols-3 gap-10">
-        <!-- Prop 1 -->
-        <div class="text-center">
-          <div class="text-6xl mb-6">🎯</div>
-          <h3 class="text-2xl font-semibold mb-3">AI-Powered Relevance</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 text-lg leading-relaxed">
-            Every post scored 1-5 by AI based on YOUR goals. No more manual filtering through noise.
-          </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/40 transition-colors">
+          <div class="text-4xl mb-4">🎯</div>
+          <h3 class="text-xl font-bold text-white mb-3">AI-Powered Relevance</h3>
+          <p class="text-zinc-400 leading-relaxed">Every post scored 1-5 by AI based on YOUR goals. No more manual filtering.</p>
         </div>
-        
-        <!-- Prop 2 -->
-        <div class="text-center">
-          <div class="text-6xl mb-6">⚡</div>
-          <h3 class="text-2xl font-semibold mb-3">10× Faster Monitoring</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 text-lg leading-relaxed">
-            Check 5 subreddits in 5 minutes instead of 2 hours. Automated digest API available.
-          </p>
+        <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/40 transition-colors">
+          <div class="text-4xl mb-4">⚡</div>
+          <h3 class="text-xl font-bold text-white mb-3">10× Faster Monitoring</h3>
+          <p class="text-zinc-400 leading-relaxed">Check 5 subreddits in 5 minutes instead of 2 hours. Automated digest API available.</p>
         </div>
-        
-        <!-- Prop 3 -->
-        <div class="text-center">
-          <div class="text-6xl mb-6">💰</div>
-          <h3 class="text-2xl font-semibold mb-3">Built for Lead Gen</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 text-lg leading-relaxed">
-            Find warm leads before competitors. Perfect for SEO agencies, SaaS sales, recruiters.
-          </p>
+        <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/40 transition-colors">
+          <div class="text-4xl mb-4">💰</div>
+          <h3 class="text-xl font-bold text-white mb-3">Built for Lead Gen</h3>
+          <p class="text-zinc-400 leading-relaxed">SEO agencies, sales teams, recruiters — find warm leads before your competitors.</p>
         </div>
       </div>
     </div>
   </section>
-  
-  <!-- How It Works -->
-  <section class="py-20 px-6 bg-zinc-50 dark:bg-zinc-800">
-    <div class="max-w-4xl mx-auto">
-      <h2 class="text-4xl font-bold text-center mb-16">How It Works</h2>
-      
-      <div class="space-y-12">
-        <div class="flex gap-6 items-start">
-          <div class="flex-shrink-0 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-2xl">1</div>
-          <div>
-            <h3 class="text-2xl font-semibold mb-2">Connect Your Reddit Account</h3>
-            <p class="text-zinc-600 dark:text-zinc-400 text-lg">Secure OAuth in one click. Higher API limits, no password storage.</p>
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works" class="py-24 px-4">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl font-extrabold text-white mb-4">How It Works</h2>
+        <p class="text-zinc-400 text-lg">From setup to your first lead in under 5 minutes.</p>
+      </div>
+      <div class="space-y-6">
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">1</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Connect Your Reddit Account</h3>
+            <p class="text-zinc-400">Secure OAuth in one click. Higher API limits, no password storage.</p>
           </div>
         </div>
-        
-        <div class="flex gap-6 items-start">
-          <div class="flex-shrink-0 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-2xl">2</div>
-          <div>
-            <h3 class="text-2xl font-semibold mb-2">Choose Your Subreddits</h3>
-            <p class="text-zinc-600 dark:text-zinc-400 text-lg">Pick 3-10 subreddits to monitor. Use starter packs or go custom.</p>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">2</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Choose Your Subreddits</h3>
+            <p class="text-zinc-400">Pick 3-10 subreddits to monitor.</p>
           </div>
         </div>
-        
-        <div class="flex gap-6 items-start">
-          <div class="flex-shrink-0 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-2xl">3</div>
-          <div>
-            <h3 class="text-2xl font-semibold mb-2">Set Your Goals</h3>
-            <p class="text-zinc-600 dark:text-zinc-400 text-lg">Tell the AI what you're looking for. Example: "Find SEO consulting opportunities"</p>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">3</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Set Your Goals</h3>
+            <p class="text-zinc-400">Tell the AI what you're looking for.</p>
           </div>
         </div>
-        
-        <div class="flex gap-6 items-start">
-          <div class="flex-shrink-0 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-2xl">4</div>
-          <div>
-            <h3 class="text-2xl font-semibold mb-2">Get Ranked Results</h3>
-            <p class="text-zinc-600 dark:text-zinc-400 text-lg">Every post scored 1-5 by AI. Sort by relevance, browse top matches first.</p>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">4</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Get Ranked Results</h3>
+            <p class="text-zinc-400">Every post scored 1-5 by AI. Sort by relevance.</p>
           </div>
         </div>
-        
-        <div class="flex gap-6 items-start">
-          <div class="flex-shrink-0 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold text-2xl">5</div>
-          <div>
-            <h3 class="text-2xl font-semibold mb-2">Automate Everything</h3>
-            <p class="text-zinc-600 dark:text-zinc-400 text-lg">Digest API delivers hot leads via cron, Slack, or email. Set it and forget it.</p>
+        <div class="flex gap-5 items-start">
+          <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-lg">5</div>
+          <div class="pt-1">
+            <h3 class="text-lg font-bold text-white mb-1">Automate Everything</h3>
+            <p class="text-zinc-400">Digest API delivers hot leads via cron or Slack.</p>
           </div>
         </div>
       </div>
     </div>
   </section>
-  
-  <!-- Use Cases -->
-  <section id="use-cases" class="py-20 px-6">
-    <div class="max-w-6xl mx-auto">
-      <h2 class="text-4xl font-bold text-center mb-16">Who Uses Reddit Dashboarder?</h2>
-      
-      <div class="grid md:grid-cols-2 gap-8">
-        <!-- Use Case 1 -->
-        <div class="bg-white dark:bg-zinc-800 p-8 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700">
-          <h3 class="text-2xl font-semibold mb-3">🎯 SEO Agencies</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 mb-4 text-lg leading-relaxed">
-            "Found 3 paying clients in the first week by monitoring r/SEO and r/smallbusiness. 
-            Saves me 10+ hours weekly."
-          </p>
-          <p class="text-sm text-zinc-500 dark:text-zinc-500 italic">— Agency owner, Berlin</p>
+
+  <!-- USE CASES -->
+  <section class="py-24 px-4 bg-zinc-950/50">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-4xl font-extrabold text-white mb-4">Who Uses Reddit Dashboarder?</h2>
+        <p class="text-zinc-400 text-lg">Real results from real users.</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">🎯</div>
+          <h3 class="text-lg font-bold text-white mb-3">SEO Agencies</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Found 3 paying clients in the first week monitoring r/SEO. Saves 10+ hours weekly."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— Agency owner, Berlin</cite>
         </div>
-        
-        <!-- Use Case 2 -->
-        <div class="bg-white dark:bg-zinc-800 p-8 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700">
-          <h3 class="text-2xl font-semibold mb-3">💼 Sales Teams</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 mb-4 text-lg leading-relaxed">
-            "Track competitor mentions and catch warm leads within 1 hour. 
-            40% reply rate vs 5% with cold email."
-          </p>
-          <p class="text-sm text-zinc-500 dark:text-zinc-500 italic">— SaaS sales lead</p>
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">💼</div>
+          <h3 class="text-lg font-bold text-white mb-3">Sales Teams</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Track competitor mentions and catch warm leads within 1 hour. 40% reply rate vs 5% cold email."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— SaaS sales lead</cite>
         </div>
-        
-        <!-- Use Case 3 -->
-        <div class="bg-white dark:bg-zinc-800 p-8 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700">
-          <h3 class="text-2xl font-semibold mb-3">📊 Market Researchers</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 mb-4 text-lg leading-relaxed">
-            "Replaced 3 hours of manual trend spotting with a 5-minute daily digest. 
-            Found 3 product ideas in a month."
-          </p>
-          <p class="text-sm text-zinc-500 dark:text-zinc-500 italic">— Indie hacker</p>
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">📊</div>
+          <h3 class="text-lg font-bold text-white mb-3">Market Researchers</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Replaced 3 hours of manual trend spotting with a 5-minute daily digest."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— Indie hacker</cite>
         </div>
-        
-        <!-- Use Case 4 -->
-        <div class="bg-white dark:bg-zinc-800 p-8 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700">
-          <h3 class="text-2xl font-semibold mb-3">🔍 Recruiters</h3>
-          <p class="text-zinc-600 dark:text-zinc-400 mb-4 text-lg leading-relaxed">
-            "Spot hiring posts and freelance opportunities 2 hours after they go live. 
-            Huge advantage over job boards."
-          </p>
-          <p class="text-sm text-zinc-500 dark:text-zinc-500 italic">— Tech recruiter</p>
+        <div class="bg-zinc-800/60 border border-zinc-700/50 rounded-2xl p-8 hover:border-indigo-600/30 transition-colors">
+          <div class="text-3xl mb-4">🔍</div>
+          <h3 class="text-lg font-bold text-white mb-3">Recruiters</h3>
+          <blockquote class="text-zinc-400 italic mb-4 leading-relaxed">"Spot hiring posts 2 hours after they go live. Huge advantage over job boards."</blockquote>
+          <cite class="text-zinc-500 text-sm not-italic">— Tech recruiter</cite>
         </div>
       </div>
     </div>
   </section>
-  
-  <!-- CTA Section -->
-  <section class="gradient-bg text-white py-20 px-6">
+
+  <!-- BOTTOM CTA -->
+  <section class="py-24 px-4">
     <div class="max-w-3xl mx-auto text-center">
-      <h2 class="text-4xl md:text-5xl font-bold mb-6">
-        Ready to Find Your Next Client on Reddit?
-      </h2>
-      <p class="text-xl mb-10 opacity-90">
-        Join agencies, sales teams, and indie hackers already using Reddit Dashboarder.
-      </p>
-
-      <!-- Notify Me — email waitlist for Pro -->
-      <div class="mb-8">
-        <p class="text-base font-medium mb-3 opacity-90">Get notified when Pro launches:</p>
-        <form id="cta-waitlist-form" class="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
-          <input
-            type="email"
-            id="cta-email-input"
-            placeholder="your@email.com"
-            required
-            class="flex-1 px-5 py-3 rounded-lg text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-white text-base"
-          >
-          <button
-            type="submit"
-            id="cta-notify-btn"
-            class="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition shadow whitespace-nowrap"
-          >
-            Notify Me
-          </button>
-        </form>
-        <p id="cta-waitlist-message" class="text-sm mt-3 min-h-[1.25rem]"></p>
+      <div class="bg-gradient-to-br from-indigo-600/20 to-indigo-600/5 border border-indigo-600/30 rounded-3xl p-12">
+        <h2 class="text-4xl font-extrabold text-white mb-4">
+          Ready to Find Your Next Client on Reddit?
+        </h2>
+        <p class="text-zinc-400 text-lg mb-8">
+          Join SEO agencies, sales teams, and indie hackers already using Reddit Dashboarder.
+        </p>
+        <a href="/app" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl px-10 py-5 rounded-xl transition-all shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5">
+          Start Free Now →
+        </a>
+        <p class="text-sm text-zinc-500 mt-5">
+          No credit card • 2-minute setup • Open source
+        </p>
       </div>
-
-      <a href="/app" class="inline-block bg-white/20 border border-white/40 text-white px-12 py-5 rounded-lg font-semibold text-lg hover:bg-white/30 transition shadow-lg">
-        Try It Free →
-      </a>
-      <p class="mt-6 text-sm opacity-75">
-        No credit card • 2-minute setup • Cancel anytime
-      </p>
     </div>
   </section>
-  
-  <!-- Footer -->
-  <footer class="bg-zinc-900 text-zinc-300 py-16 px-6">
-    <div class="max-w-6xl mx-auto grid md:grid-cols-4 gap-10">
-      <div>
-        <h3 class="font-semibold text-white mb-4 text-lg">Product</h3>
-        <ul class="space-y-3">
-          <li><a href="#features" class="hover:text-white transition">Features</a></li>
-          <li><a href="/pricing" class="hover:text-white transition">Pricing</a></li>
-          <li><a href="/docs" class="hover:text-white transition">Documentation</a></li>
-          <li><a href="/docs/api" class="hover:text-white transition">API</a></li>
-        </ul>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-zinc-800 py-8 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
+      <p>
+        &copy; 2026 Reddit Dashboarder. Built by
+        <a href="https://vesivanov.com" class="text-zinc-400 hover:text-white transition-colors underline underline-offset-2">Ves Ivanov</a>.
+      </p>
+      <div class="flex items-center gap-6">
+        <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="hover:text-zinc-100 transition-colors">GitHub</a>
+        <a href="/app" class="hover:text-zinc-100 transition-colors">Open App</a>
+        <a href="/docs" class="hover:text-zinc-100 transition-colors">Docs</a>
       </div>
-      
-      <div>
-        <h3 class="font-semibold text-white mb-4 text-lg">Resources</h3>
-        <ul class="space-y-3">
-          <li><a href="/docs/getting-started" class="hover:text-white transition">Getting Started</a></li>
-          <li><a href="/docs/use-cases" class="hover:text-white transition">Use Cases</a></li>
-          <li><a href="/changelog" class="hover:text-white transition">Changelog</a></li>
-          <li><a href="https://github.com/vesivanov/reddit-dashboarder" class="hover:text-white transition">GitHub</a></li>
-        </ul>
-      </div>
-      
-      <div>
-        <h3 class="font-semibold text-white mb-4 text-lg">Company</h3>
-        <ul class="space-y-3">
-          <li><a href="https://vesivanov.com" class="hover:text-white transition">About</a></li>
-          <li><a href="mailto:vesivanov48@gmail.com" class="hover:text-white transition">Contact</a></li>
-          <li><a href="/privacy" class="hover:text-white transition">Privacy</a></li>
-          <li><a href="/terms" class="hover:text-white transition">Terms</a></li>
-        </ul>
-      </div>
-      
-      <div>
-        <h3 class="font-semibold text-white mb-4 text-lg">Stay Updated</h3>
-        <p class="text-sm mb-4">Get notified when Pro launches</p>
-        <form id="waitlist-form" class="flex gap-2">
-          <input type="email" id="email-input" placeholder="your@email.com" required
-            class="px-4 py-3 rounded-lg bg-zinc-800 text-white flex-1 border border-zinc-700 focus:outline-none focus:border-purple-500">
-          <button type="submit" class="bg-purple-600 px-6 py-3 rounded-lg hover:bg-purple-700 transition font-medium">
-            →
-          </button>
-        </form>
-        <p id="waitlist-message" class="text-sm mt-3 hidden"></p>
-      </div>
-    </div>
-    
-    <div class="max-w-6xl mx-auto mt-12 pt-8 border-t border-zinc-800 text-center text-sm">
-      <p>© 2026 Reddit Dashboarder. Built with ❤️ by <a href="https://vesivanov.com" class="text-purple-400 hover:text-purple-300">Ves Ivanov</a></p>
     </div>
   </footer>
-  
-  <script>
-    // Shared notify-me submit helper
-    async function submitWaitlist(email, messageEl, button, originalLabel) {
-      button.disabled = true;
-      button.textContent = '...';
-      messageEl.textContent = '';
 
-      try {
-        const res = await fetch('/api/notify-me', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-
-        const data = await res.json();
-
-        messageEl.style.color = res.ok ? '#4ade80' : '#f87171';
-        messageEl.textContent = data.message || (res.ok
-          ? "You're on the list! We'll notify you when Pro launches."
-          : 'Something went wrong. Please try again.');
-      } catch {
-        messageEl.style.color = '#f87171';
-        messageEl.textContent = 'Failed to subscribe. Please try again.';
-      } finally {
-        button.disabled = false;
-        button.textContent = originalLabel;
-      }
-    }
-
-    // CTA section waitlist form
-    document.getElementById('cta-waitlist-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('cta-email-input').value;
-      const button = document.getElementById('cta-notify-btn');
-      const message = document.getElementById('cta-waitlist-message');
-      await submitWaitlist(email, message, button, 'Notify Me');
-      if (!message.style.color.includes('f87171')) e.target.reset();
-    });
-
-    // Footer waitlist form handler
-    document.getElementById('waitlist-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email-input').value;
-      const button = e.target.querySelector('button');
-      const message = document.getElementById('waitlist-message');
-      message.classList.remove('hidden');
-      await submitWaitlist(email, message, button, '→');
-      if (!message.style.color.includes('f87171')) e.target.reset();
-    });
-    
-    // Smooth scroll
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
-    });
-  </script>
 </body>
 </html>
