@@ -4,7 +4,7 @@ process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456
 process.env.NODE_ENV = 'test';
 
 const { makeSignedCookie } = require('../../../lib/cookies');
-const openrouterKeyHandler = require('../../../api/settings/openrouter-key');
+const openrouterKeyHandler = require('../../../lib/api-handlers/settings/openrouter-key');
 
 describe('OpenRouter Key Settings Endpoint', () => {
   let mockReq, mockRes;

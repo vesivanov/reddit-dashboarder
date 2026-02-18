@@ -6,8 +6,8 @@ process.env.REDDIT_CLIENT_SECRET = 'client-secret';
 process.env.REDDIT_USER_AGENT = 'reddit-dashboarder-test/1.0';
 
 const { runHandler } = require('../helpers/run-handler');
-const redditHandler = require('../../api/reddit');
-const aiRankHandler = require('../../api/reddit/ai-rank');
+const redditHandler = require('../../lib/api-handlers/reddit');
+const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
 const { makeSignedCookie } = require('../../lib/cookies');
 
 function mockJsonResponse(body, status = 200) {

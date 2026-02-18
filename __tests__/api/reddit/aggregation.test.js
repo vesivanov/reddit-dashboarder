@@ -1,7 +1,7 @@
 const nock = require('nock');
 
 const { runHandler } = require('../../helpers/run-handler');
-const redditHandler = require('../../../api/reddit');
+const redditHandler = require('../../../lib/api-handlers/reddit');
 const { makeSignedCookie } = require('../../../lib/cookies');
 
 function authCookie() {

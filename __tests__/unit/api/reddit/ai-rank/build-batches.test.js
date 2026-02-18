@@ -1,6 +1,6 @@
 const { describe, test, expect } = require('@jest/globals');
 
-const aiRankHandler = require('../../../../../api/reddit/ai-rank');
+const aiRankHandler = require('../../../../../lib/api-handlers/reddit/ai-rank');
 const { buildBatches } = aiRankHandler;
 
 describe('buildBatches', () => {

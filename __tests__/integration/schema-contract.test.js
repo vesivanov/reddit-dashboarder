@@ -1,8 +1,8 @@
 const nock = require('nock');
 
 const { runHandler } = require('../helpers/run-handler');
-const redditHandler = require('../../api/reddit');
-const aiRankHandler = require('../../api/reddit/ai-rank');
+const redditHandler = require('../../lib/api-handlers/reddit');
+const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
 const { makeSignedCookie } = require('../../lib/cookies');
 
 function expectRedditResponseSchema(body) {

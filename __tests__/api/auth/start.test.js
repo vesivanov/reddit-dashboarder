@@ -4,7 +4,7 @@ process.env.REDDIT_CLIENT_ID = 'test_client_id';
 process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
 process.env.NODE_ENV = 'test';
 
-const authStartHandler = require('../../../api/auth/start');
+const authStartHandler = require('../../../lib/api-handlers/auth/start');
 
 describe('Auth Start Endpoint', () => {
   let mockReq, mockRes;

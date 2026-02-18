@@ -4,7 +4,7 @@ process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456
 process.env.NODE_ENV = 'test';
 
 const { makeSignedCookie } = require('../../../lib/cookies');
-const authStatusHandler = require('../../../api/auth/status');
+const authStatusHandler = require('../../../lib/api-handlers/auth/status');
 
 describe('Auth Status Endpoint', () => {
   let mockReq, mockRes;

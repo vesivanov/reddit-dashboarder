@@ -16,8 +16,8 @@ process.env.REDDIT_CLIENT_SECRET = 'test_client_secret';
 process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
 process.env.NODE_ENV = 'test';
 
-const redditHandler = require('../../api/reddit');
-const aiRankHandler = require('../../api/reddit/ai-rank');
+const redditHandler = require('../../lib/api-handlers/reddit');
+const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
 
 describe('Resilience: Error Handling', () => {
   let mockReq, mockRes;
