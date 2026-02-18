@@ -35,8 +35,8 @@
 - [x] Add sanitization to waitlist endpoint
 - [x] Add email format validation
 - [x] Add max waitlist size limit
-- [ ] Validate Reddit API parameters (if needed)
-- [ ] Check OpenRouter request payload limits
+- [x] Validate Reddit API parameters (subreddit name regex: `/^[A-Za-z0-9_]{2,21}$/`)
+- [x] Check OpenRouter request payload limits (max 100 posts, max 1MB body)
 
 ---
 
