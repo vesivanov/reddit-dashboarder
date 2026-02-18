@@ -4,7 +4,7 @@ process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456
 process.env.REDDIT_CLIENT_ID = 'client_id';
 process.env.REDDIT_CLIENT_SECRET = 'client_secret';
 
-const redditHandler = require('../../../../api/reddit');
+const redditHandler = require('../../../../lib/api-handlers/reddit');
 const { createTokenManager } = redditHandler;
 const { makeSignedCookie } = require('../../../../lib/cookies');
 

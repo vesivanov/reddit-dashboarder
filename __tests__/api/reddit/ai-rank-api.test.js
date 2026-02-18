@@ -2,7 +2,7 @@ const nock = require('nock');
 
 const { runHandler } = require('../../helpers/run-handler');
 const { makeSignedCookie } = require('../../../lib/cookies');
-const aiRankHandler = require('../../../api/reddit/ai-rank');
+const aiRankHandler = require('../../../lib/api-handlers/reddit/ai-rank');
 
 describe('/api/reddit/ai-rank', () => {
   beforeAll(() => {
@@ -31,7 +31,15 @@ describe('/api/reddit/ai-rank', () => {
   };
 
   test('requires API key from body, cookie, or env', async () => {
-    const res = await runHandler(aiRankHandler, {
+    // Clear env var to simulate no API key configured
+    const originalEnvKey = process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    
+    // Need to reload the module to pick up the new env var
+    jest.resetModules();
+    const freshHandler = require('../../../lib/api-handlers/reddit/ai-rank');
+    
+    const res = await runHandler(freshHandler, {
       method: 'POST',
       url: '/api/reddit/ai-rank',
       body: basePayload,
@@ -40,6 +48,11 @@ describe('/api/reddit/ai-rank', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('OpenRouter API key required');
+    
+    // Restore env var
+    if (originalEnvKey) {
+      process.env.OPENROUTER_API_KEY = originalEnvKey;
+    }
   });
 
   test('sends payload to OpenRouter and maps scores', async () => {

@@ -1,6 +1,6 @@
 const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals');
 
-const redditHandler = require('../../../../api/reddit');
+const redditHandler = require('../../../../lib/api-handlers/reddit');
 const { createFetchJSON } = redditHandler;
 
 function mockResponse({ status = 200, body = '{}', ok = true, statusText = 'OK' } = {}) {

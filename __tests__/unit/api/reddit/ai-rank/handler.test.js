@@ -2,7 +2,7 @@ const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals
 
 process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
 
-const handler = require('../../../../../api/reddit/ai-rank');
+const handler = require('../../../../../lib/api-handlers/reddit/ai-rank');
 const { makeSignedCookie } = require('../../../../../lib/cookies');
 
 function createMockRes() {

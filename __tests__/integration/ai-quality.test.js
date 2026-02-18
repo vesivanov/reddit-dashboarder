@@ -14,7 +14,7 @@ global.fetch = jest.fn();
 process.env.OPENROUTER_API_KEY = 'test_key';
 process.env.NODE_ENV = 'test';
 
-const aiRankHandler = require('../../api/reddit/ai-rank');
+const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
 
 describe('AI Ranking Quality', () => {
   let mockReq, mockRes;

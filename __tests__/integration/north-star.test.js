@@ -25,10 +25,10 @@ process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456
 process.env.OPENROUTER_API_KEY = 'test_openrouter_key';
 process.env.NODE_ENV = 'test';
 
-const redditHandler = require('../../api/reddit');
-const aiRankHandler = require('../../api/reddit/ai-rank');
-const authStartHandler = require('../../api/auth/start');
-const authStatusHandler = require('../../api/auth/status');
+const redditHandler = require('../../lib/api-handlers/reddit');
+const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
+const authStartHandler = require('../../lib/api-handlers/auth/start');
+const authStatusHandler = require('../../lib/api-handlers/auth/status');
 
 describe('North Star: Complete User Journey', () => {
   let mockReq, mockRes;

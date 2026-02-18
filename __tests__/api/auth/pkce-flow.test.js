@@ -1,10 +1,10 @@
 const nock = require('nock');
 
 const { runHandler } = require('../../helpers/run-handler');
-const authStartHandler = require('../../../api/auth/start');
-const authCallbackHandler = require('../../../api/auth/callback');
-const authStatusHandler = require('../../../api/auth/status');
-const authLogoutHandler = require('../../../api/auth/logout');
+const authStartHandler = require('../../../lib/api-handlers/auth/start');
+const authCallbackHandler = require('../../../lib/api-handlers/auth/callback');
+const authStatusHandler = require('../../../lib/api-handlers/auth/status');
+const authLogoutHandler = require('../../../lib/api-handlers/auth/logout');
 const { makeSignedCookie } = require('../../../lib/cookies');
 
 function updateCookieJar(jar, res) {
