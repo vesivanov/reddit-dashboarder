@@ -279,6 +279,7 @@
       const [sortOrder, setSortOrder] = useState('desc');
       const [nextRefreshAt, setNextRefreshAt] = useState(null);
       const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState(null);
+      const [rateLimitPauseUntil, setRateLimitPauseUntil] = useState(null);
       const [detailCollapsed, setDetailCollapsed] = useState(false);
       const [darkMode, setDarkMode] = useState(() => {
         try {
@@ -1301,6 +1302,7 @@
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);
+        const forceRefresh = Boolean(options.force);
         if (!subs.length) {
           setNeedsAuth(false);
           setError('Add at least one subreddit to get started.');
@@ -1309,6 +1311,19 @@
           setNextRefreshAt(null);
           return;
         }
+
+        const subsCount = subs.length;
+        let effectiveLimit = limit;
+        let effectiveMaxPages = maxPages;
+        if (subsCount >= 12) {
+          effectiveLimit = Math.min(25, effectiveLimit);
+          effectiveMaxPages = Math.min(1, effectiveMaxPages);
+        } else if (subsCount >= 6) {
+          effectiveLimit = Math.min(25, effectiveLimit);
+          effectiveMaxPages = Math.min(2, effectiveMaxPages);
+        }
+
+        let localPauseUntil = rateLimitPauseUntil;
 
         setLoading(true);
         setError('');
@@ -1323,23 +1338,43 @@
             mode,
             time,
             days: String(days),
-            limit: String(subs.length > 6 ? Math.min(50, limit) : limit)
+            limit: String(effectiveLimit)
           });
           if (mode === 'new') {
-            const effMaxPages = subs.length > 6 ? Math.min(10, maxPages) : maxPages;
-            params.set('max_pages', String(effMaxPages));
+            params.set('max_pages', String(effectiveMaxPages));
+          }
+          if (forceRefresh) {
+            params.set('_ts', String(Date.now()));
           }
 
           setFetchMethod('server');
-          const response = await fetch(`${DEFAULT_API_URL}?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
+          const requestUrl = `${DEFAULT_API_URL}?${params.toString()}`;
+          const response = await fetch(requestUrl, {
+            signal: controller.signal,
+            ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
+          });
 
           if (response.status === 401) {
             setNeedsAuth(true);
             setAuthenticated(false);
             setAuthChecking(false);
             setError('Sign in with Reddit to fetch your dashboard.');
-            setData([]);
-            setFetchedAt(null);
+            return;
+          }
+
+          if (response.status === 429) {
+            let responseBody = null;
+            try { responseBody = await response.json(); } catch (e) {}
+            const retryHeader = Number(response.headers.get('Retry-After')) || 0;
+            const retryAfterSeconds = Number(responseBody?.retryAfter) || retryHeader || 0;
+            if (retryAfterSeconds > 0) {
+              localPauseUntil = Date.now() + retryAfterSeconds * 1000;
+              setRateLimitPauseUntil(localPauseUntil);
+            }
+            const isAppLimit = responseBody?.source === 'app';
+            const sourceLabel = isAppLimit ? '⚡ App throttle' : '🔒 Rate limit';
+            const sourceMessage = responseBody?.message || (isAppLimit ? 'Too many requests from this browser.' : 'Dashboard request limit reached.');
+            setError(`${sourceLabel}: ${sourceMessage}${retryAfterSeconds > 0 ? ` Retry in ~${retryAfterSeconds}s.` : ''}`);
             return;
           }
 
@@ -1347,20 +1382,62 @@
 
           const rateLimitedHeader = response.headers.get('X-Rate-Limited') === '1';
           const payload = await response.json();
+          const retryAfterHeader = Number(response.headers.get('Retry-After')) || 0;
+          const retryAfterSeconds = Number(payload?.retry_after_seconds) || retryAfterHeader || 0;
           if (rateLimitedHeader || payload.rate_limited) {
-            setError('Reddit is rate limiting. Try fewer subreddits or wait a minute.');
+            if (retryAfterSeconds > 0) {
+              localPauseUntil = Date.now() + retryAfterSeconds * 1000;
+              setRateLimitPauseUntil(localPauseUntil);
+            }
+            const affected = Array.isArray(payload.rate_limited_subreddits) ? payload.rate_limited_subreddits.length : 0;
+            const affectedMsg = affected ? ` on ${affected} subreddit${affected === 1 ? '' : 's'}` : '';
+            const cooldownMsg = retryAfterSeconds > 0 ? `Cooling down ~${retryAfterSeconds}s.` : 'Try fewer subs or smaller fetch depth.';
+            setError(`🔒 Reddit rate limit${affectedMsg}. ${cooldownMsg}`);
+          } else {
+            localPauseUntil = null;
+            setRateLimitPauseUntil(null);
           }
           const results = Array.isArray(payload.results) ? payload.results : [];
+          const previousBySub = new Map((data || []).map(item => [String(item.subreddit || '').toLowerCase(), item]));
           const perSub = subs.map(sub => {
-            const match = results.find(r => (r.subreddit || '').toLowerCase() === sub.toLowerCase());
-            if (match) return {
-              subreddit: match.subreddit,
-              meta: match.meta || null,
-              posts: match.posts || [],
-              partial: Boolean(match.partial),
-              error: match.error || null,
+            const subKey = sub.toLowerCase();
+            const match = results.find(r => (r.subreddit || '').toLowerCase() === subKey);
+            const previous = previousBySub.get(subKey);
+
+            if (!match && previous) {
+              return { ...previous, subreddit: sub, stale: true, stale_reason: 'missing_result' };
+            }
+
+            if (match?.error && previous) {
+              return {
+                ...previous,
+                subreddit: sub,
+                stale: true,
+                stale_reason: match.error_code || 'fetch_error',
+                error: match.error || null,
+              };
+            }
+
+            if (match) {
+              return {
+                subreddit: match.subreddit,
+                meta: match.meta || previous?.meta || null,
+                posts: Array.isArray(match.posts) ? match.posts : [],
+                partial: Boolean(match.partial),
+                error: match.error || null,
+                stale: false,
+              };
+            }
+
+            return {
+              subreddit: sub,
+              posts: previous?.posts || [],
+              meta: previous?.meta || null,
+              partial: false,
+              error: null,
+              stale: Boolean(previous),
+              stale_reason: previous ? 'fallback_previous' : null,
             };
-            return { subreddit: sub, posts: [], meta: null, partial: false, error: null };
           });
           setNeedsAuth(false);
           setAuthenticated(true);
@@ -1410,8 +1487,6 @@
           } else {
             setError(fetchError.message || 'Failed to fetch');
           }
-          setData([]);
-          setFetchedAt(null);
         } finally {
           clearTimeout(timeoutId);
           setLoading(false);
@@ -1422,10 +1497,11 @@
             now: Date.now(),
             minMinutes: MIN_AUTO_REFRESH_MINUTES,
           });
-          setNextRefreshAt(plan.nextRefreshAt);
+          const pausedNext = localPauseUntil && localPauseUntil > Date.now() ? localPauseUntil : null;
+          setNextRefreshAt(pausedNext || plan.nextRefreshAt);
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit, data, rateLimitPauseUntil]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1435,11 +1511,22 @@
       }, [autoRefreshEnabled]);
 
       useEffect(() => {
+        const now = Date.now();
+        const isPaused = rateLimitPauseUntil && rateLimitPauseUntil > now;
+
+        if (isPaused) {
+          setNextRefreshAt(rateLimitPauseUntil);
+          const unpauseId = setTimeout(() => {
+            setRateLimitPauseUntil((prev) => (prev && prev <= Date.now() ? null : prev));
+          }, Math.max(250, rateLimitPauseUntil - now + 100));
+          return () => clearTimeout(unpauseId);
+        }
+
         const plan = getAutoRefreshPlan({
           autoRefreshEnabled,
           subsLength: subs.length,
           intervalMinutes: autoRefreshInterval,
-          now: Date.now(),
+          now,
           minMinutes: MIN_AUTO_REFRESH_MINUTES,
         });
         if (!plan.shouldSchedule) {
@@ -1450,12 +1537,13 @@
         let cancelled = false;
         const triggerRefresh = () => {
           if (cancelled || loadingRef.current || !subs.length) return;
+          if (rateLimitPauseUntil && rateLimitPauseUntil > Date.now()) return;
           refreshRef.current({ triggeredByAuto: true });
         };
         // Only use interval - no immediate kickoff to avoid race conditions
         const intervalId = setInterval(triggerRefresh, plan.intervalMs);
         return () => { cancelled = true; clearInterval(intervalId); };
-      }, [autoRefreshEnabled, autoRefreshInterval, subs.length]);
+      }, [autoRefreshEnabled, autoRefreshInterval, subs.length, rateLimitPauseUntil]);
 
       const handleAddSub = useCallback((name) => {
         const normalized = normalizeSubredditName(name);
@@ -1719,6 +1807,7 @@
       };
 
       const filtersActive = minUpvoteFilter || minCommentFilter || minAiRelevance || keyword;
+      const staleSubCount = (data || []).filter(group => group?.stale).length;
 
       return h('div', { 
         className: 'h-screen flex flex-col',
@@ -1784,6 +1873,8 @@
                         : subs.length > 0 ? 'No posts found' : 'Add subreddits to start'
                     ),
             fetchedAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `Updated ${timeAgo(fetchedAt / 1000)}`),
+            staleSubCount > 0 && h('span', { className: 'text-amber-700 dark:text-amber-300 text-xs font-medium' }, `• ${staleSubCount} stale subreddit${staleSubCount === 1 ? '' : 's'}`),
+            rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && h('span', { className: 'text-amber-700 dark:text-amber-300 text-xs font-medium' }, `• Cooldown ${formatTimeUntil(rateLimitPauseUntil)}`),
             autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `• Next ${formatTimeUntil(nextRefreshAt)}`),
             aiRankingLoading && h('span', { className: 'text-emerald-700 dark:text-emerald-300 font-medium' }, '• AI Ranking...'),
             !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-emerald-700 dark:text-emerald-300' }, '• AI Active'),
@@ -1798,15 +1889,22 @@
               className: 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
             }, '• Alerts')
           ),
-          h('button', {
-            onClick: () => refresh(),
-            disabled: loading,
-            className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-indigo-600 text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-          },
-            h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+          h('div', { className: 'flex items-center gap-2' },
+            h('button', {
+              onClick: () => refresh(),
+              disabled: loading,
+              className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-indigo-600 text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+            },
+              h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
+              ),
+              'Refresh'
             ),
-            'Refresh'
+            h('button', {
+              onClick: () => refresh({ force: true }),
+              disabled: loading,
+              className: 'px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+            }, 'Force')
           )
         ),
 
