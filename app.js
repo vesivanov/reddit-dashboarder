@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const redditHandler = require('./lib/api-handlers/reddit');
+const redditSnapshotHandler = require('./lib/api-handlers/reddit/snapshot');
 const aiRankHandler = require('./lib/api-handlers/reddit/ai-rank');
 const digestHandler = require('./lib/api-handlers/reddit/digest');
 const authStartHandler = require('./lib/api-handlers/auth/start');
@@ -44,6 +45,7 @@ function createApp() {
 
   // API routes (with rate limiting)
   app.get('/api/reddit', redditLimiter, redditHandler);
+  app.get('/api/reddit/snapshot', redditLimiter, redditSnapshotHandler);
   if (redditTestHandler) {
     app.get('/api/reddit-test', redditLimiter, redditTestHandler);
   }
