@@ -1351,10 +1351,23 @@
 
           setFetchMethod('server');
           const requestUrl = `${DEFAULT_API_URL}?${params.toString()}`;
-          const response = await fetch(requestUrl, {
+          let response = await fetch(requestUrl, {
             signal: controller.signal,
             ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
           });
+
+          // Forced fresh fetch can exceed backend limits for large subreddit sets.
+          // Fall back to snapshot cache instead of surfacing a hard 500 to the UI.
+          if (forceRefresh && response.status >= 500) {
+            const fallbackParams = new URLSearchParams(params);
+            fallbackParams.delete('_ts');
+            fallbackParams.delete('fresh');
+            const fallbackUrl = `${DEFAULT_API_URL}?${fallbackParams.toString()}`;
+            const fallbackResponse = await fetch(fallbackUrl, { signal: controller.signal });
+            if (fallbackResponse.ok) {
+              response = fallbackResponse;
+            }
+          }
 
           if (response.status === 401) {
             setNeedsAuth(true);
