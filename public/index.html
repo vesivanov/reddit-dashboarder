@@ -82,7 +82,7 @@
       getAutoRefreshPlan,
     } = helpers;
 
-    const DEFAULT_API_URL = "/api/reddit";
+    const DEFAULT_API_URL = "/api/reddit/snapshot";
     const DEFAULT_SUBS = [];
     fetch('/api/root-info').catch(function() {});
     const STARTER_PACKS = [
@@ -1345,6 +1345,7 @@
           }
           if (forceRefresh) {
             params.set('_ts', String(Date.now()));
+            params.set('fresh', '1');
           }
 
           setFetchMethod('server');
