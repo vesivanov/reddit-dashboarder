@@ -5,9 +5,10 @@
   },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/$", "dest": "/landing.html" },
     { "src": "/app", "dest": "/index.html" },
     { "src": "/app/(.*)", "dest": "/index.html" },
-    { "src": "/$", "dest": "/landing.html" },
-    { "src": "/(.*)", "dest": "/api/index.js" }
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
