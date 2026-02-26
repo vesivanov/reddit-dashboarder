@@ -78,7 +78,6 @@
       extractGoalKeywords,
       computeHeuristicScore,
       computeHeuristicDetails,
-      calibrateScores,
       getAutoRefreshPlan,
     } = helpers;
 
@@ -363,18 +362,8 @@
       const [aiLlmPostLimit, setAiLlmPostLimit] = useState(() => {
         try { return Number(localStorage.getItem('dashboard_ai_llm_limit')) || DEFAULT_LLM_POST_LIMIT; } catch { return DEFAULT_LLM_POST_LIMIT; }
       });
-      const [aiTemperature, setAiTemperature] = useState(() => {
-        try {
-          const raw = Number(localStorage.getItem('dashboard_ai_temperature'));
-          return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
-        } catch { return 0; }
-      });
-      const [aiTopP, setAiTopP] = useState(() => {
-        try {
-          const raw = Number(localStorage.getItem('dashboard_ai_top_p'));
-          return Number.isFinite(raw) ? Math.max(0.1, Math.min(1, raw)) : 1;
-        } catch { return 1; }
-      });
+      const AI_FIXED_TEMPERATURE = 0;
+      const AI_FIXED_TOP_P = 1;
       const [showAiAdvancedMain, setShowAiAdvancedMain] = useState(() => {
         try { return localStorage.getItem('dashboard_show_ai_advanced_main') === '1'; } catch { return false; }
       });
@@ -555,11 +544,9 @@
               });
               
               if (rawScores.size > 0) {
-                // Calibrate scores based on current feed
-                const calibratedScores = calibrateScoresSmart(rawScores, metadata);
-                const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-                console.log(`Restored and calibrated ${calibratedScores.size} AI scores from cache (${highRelevanceCount} posts scored >= 4)`);
-                setPostRelevanceScores(calibratedScores);
+                const highRelevanceCount = Array.from(rawScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+                console.log(`Restored ${rawScores.size} AI scores from cache (${highRelevanceCount} posts scored >= 4)`);
+                setPostRelevanceScores(rawScores);
                 setPostRelevanceMetadata(metadata);
                 setScoresVersion(v => v + 1);
                 setAiScoresStale(Boolean(cacheVersionMismatch || staleByAge));
@@ -1059,8 +1046,8 @@
                       // Only send key in body if not stored securely (fallback for migration)
                       openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
                       openRouterModel: openRouterModel.trim(), // Always required - has default in useState
-                      modelTemperature: aiTemperature,
-                      modelTopP: aiTopP
+                      modelTemperature: AI_FIXED_TEMPERATURE,
+                      modelTopP: AI_FIXED_TOP_P
                     }),
                   });
 
@@ -1237,25 +1224,20 @@
                 }
               });
               
-              // Apply percentile-based calibration to all scores
-              const calibratedScores = calibrateScoresSmart(allScores, allMetadata);
-              
-              const highRelevanceCount = Array.from(calibratedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-              console.log(`AI Ranking: Complete! ${calibratedScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4 after calibration`);
-              
-              setPostRelevanceScores(calibratedScores);
+              const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+              console.log(`AI Ranking: Complete! ${allScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4`);
+
+              setPostRelevanceScores(allScores);
               setPostRelevanceMetadata(allMetadata);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
               setAiScoresStale(false);
-              scoresForHighRelevance = calibratedScores;
+              scoresForHighRelevance = allScores;
             } catch (aiError) {
               console.error('Error in AI ranking batch processing:', aiError);
-              // Use cached scores on error (with calibration)
-              const calibratedCached = calibrateScoresSmart(cachedScores, cachedMetadata);
-              setPostRelevanceScores(calibratedCached);
+              setPostRelevanceScores(cachedScores);
               setPostRelevanceMetadata(cachedMetadata);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-              scoresForHighRelevance = calibratedCached;
+              scoresForHighRelevance = cachedScores;
             } finally {
               setAiRankingLoading(false);
             }
@@ -1282,21 +1264,20 @@
               }
             }
           } else {
-            // All posts are cached, use cached scores with calibration
+            // All posts are cached, use cached scores directly
             console.log('AI Ranking: All posts already cached, using cached scores');
-            const calibratedCached = calibrateScoresSmart(cachedScores, cachedMetadata);
-            const highRelevanceCount = Array.from(calibratedCached.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-            console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 4 after calibration`);
-            setPostRelevanceScores(calibratedCached);
+            const highRelevanceCount = Array.from(cachedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
+            console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 4`);
+            setPostRelevanceScores(cachedScores);
             setPostRelevanceMetadata(cachedMetadata);
             setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
             setAiScoresStale(false);
             // High-relevance notifications (use freshly computed scores)
-            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && calibratedCached && calibratedCached.size > 0) {
+            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && cachedScores && cachedScores.size > 0) {
               const threshold = Number(highRelevanceThreshold) || 4;
               const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
               const toNotify = [];
-              for (const [postId, score] of calibratedCached.entries()) {
+              for (const [postId, score] of cachedScores.entries()) {
                 if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
                   toNotify.push({ postId, post: idToPost.get(postId) });
                 }
@@ -1318,7 +1299,7 @@
           console.error('Error in AI ranking integration:', aiError);
           setAiRankingLoading(false);
         }
-      }, [aiEnabled, aiGoals, aiContext, aiLlmPostLimit, aiTemperature, aiTopP, data, extractGoalKeywords, computeHeuristicScore, calibrateScores, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
+      }, [aiEnabled, aiGoals, aiContext, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);
@@ -2153,41 +2134,13 @@
                   className: 'px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                 }, showAiAdvancedMain ? 'Hide advanced' : 'Advanced')
               ),
-              showAiAdvancedMain && h('div', { className: 'mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3' },
-                h('label', { className: 'block' },
-                  h('div', { className: 'flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-300 mb-1' },
-                    h('span', null, 'Temperature'),
-                    h('span', { className: 'font-mono' }, aiTemperature.toFixed(2))
-                  ),
-                  h('input', {
-                    type: 'range',
-                    min: 0,
-                    max: 1,
-                    step: 0.05,
-                    value: aiTemperature,
-                    onChange: (e) => setAiTemperature(Number(e.target.value)),
-                    disabled: !aiEnabled,
-                    className: 'w-full'
-                  })
+              showAiAdvancedMain && h('div', { className: 'mt-2 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 space-y-2' },
+                h('div', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-200' }, 'Scoring mode: Stable (fixed)'),
+                h('p', { className: 'text-[11px] text-zinc-600 dark:text-zinc-300' },
+                  `Temperature is fixed at ${AI_FIXED_TEMPERATURE.toFixed(1)} and Top-P at ${AI_FIXED_TOP_P.toFixed(1)} for consistent ranking.`
                 ),
-                h('label', { className: 'block' },
-                  h('div', { className: 'flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-300 mb-1' },
-                    h('span', null, 'Top-P'),
-                    h('span', { className: 'font-mono' }, aiTopP.toFixed(2))
-                  ),
-                  h('input', {
-                    type: 'range',
-                    min: 0.1,
-                    max: 1,
-                    step: 0.05,
-                    value: aiTopP,
-                    onChange: (e) => setAiTopP(Number(e.target.value)),
-                    disabled: !aiEnabled,
-                    className: 'w-full'
-                  })
-                ),
-                h('p', { className: 'sm:col-span-2 text-[11px] text-zinc-500 dark:text-zinc-400' },
-                  'Tip: keep Temperature low (0.0–0.2) for stable scoring. Raise only if relevance feels too rigid.'
+                h('p', { className: 'text-[11px] text-zinc-500 dark:text-zinc-400' },
+                  'This avoids random score swings and keeps results easier to reason about.'
                 )
               )
             ),
@@ -2805,6 +2758,16 @@
                     })
                   ),
                   h('div', { className: 'block' },
+                    h('div', { className: 'flex items-center justify-between gap-2 mb-1' },
+                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Prompt preview'),
+                      h('span', { className: 'text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' }, 'v3.1')
+                    ),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'This is the scoring instruction sent to the model (posts JSON omitted for brevity).'),
+                    h('pre', { className: 'max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
+                      buildScoringPromptPreview(aiGoals, aiContext)
+                    )
+                  ),
+                  h('div', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'OpenRouter API Key'),
                     h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Optional: Your own OpenRouter API key (get one at ', h('a', { href: 'https://openrouter.ai/keys', target: '_blank', className: 'text-indigo-600 dark:text-indigo-400 hover:underline' }, 'openrouter.ai/keys'), ')'),
                     // Show secure key status
@@ -3290,32 +3253,7 @@
       if (bestScore < 4) return null;
       return best;
     }
-
-    function calibrateScoresSmart(scoresMap, metaMap) {
-      if (!scoresMap || typeof scoresMap.size !== 'number' || scoresMap.size === 0) {
-        return scoresMap;
-      }
-      const hasLlm = metaMap && typeof metaMap.size === 'number'
-        ? Array.from(metaMap.values()).some(meta => meta?.source === 'llm')
-        : false;
-      if (!hasLlm) return calibrateScores(scoresMap);
-
-      const calibrated = new Map();
-      scoresMap.forEach((score, postId) => {
-        if (score === null || score === undefined) {
-          calibrated.set(postId, score);
-          return;
-        }
-        const meta = metaMap?.get(postId);
-        if (meta && meta.source === 'heuristic') {
-          const capped = Math.max(0, Math.min(3, Math.round(score)));
-          calibrated.set(postId, capped);
-          return;
-        }
-        calibrated.set(postId, Math.max(0, Math.min(5, Math.round(score))));
-      });
-      return calibrated;
-    }
+    // Calibration removed: show raw model scores for transparency.
 
     function percentileValue(sortedValues, percentile) {
       if (!Array.isArray(sortedValues) || sortedValues.length === 0) return 0;
@@ -3330,6 +3268,27 @@
       if (num >= 100) return String(Math.round(num));
       if (num >= 10) return num.toFixed(1);
       return num.toFixed(2);
+    }
+
+    function buildScoringPromptPreview(goals, context) {
+      const goalLine = (goals || '').trim() || '[Add your goals above]';
+      const contextLine = (context || '').trim() || 'none provided';
+      return [
+        'You highlight only the most relevant Reddit posts for the user's stated goal.',
+        '',
+        `Primary goal: ${goalLine}`,
+        `Additional context or constraints: ${contextLine}`,
+        '',
+        'Scoring rubric (0-5):',
+        '0 = irrelevant',
+        '1 = barely related',
+        '2 = tangential',
+        '3 = somewhat helpful',
+        '4 = strong match',
+        '5 = must-read',
+        '',
+        'Return only JSON: [{"postId":"...","score":4,"confidence":"high","reason":"..."}]',
+      ].join('\n');
     }
 
     function buildWhyLine({ post, relevanceMeta, upvotesPerHour, commentsPerHour }) {
