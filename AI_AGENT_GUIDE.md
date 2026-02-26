@@ -7,9 +7,9 @@ This guide explains how AI agents (like Rudi) can collaborate with users through
 The Reddit Dashboarder provides a simple, stateless sync mechanism for AI agents to:
 1. Access user's current Reddit data and settings
 2. Identify hot leads (high-opportunity posts)
-3. Provide recommendations for outreach
+3. Provide recommendations for outreach 
 
-## API Endpoints
+## API Endpoints ..
 
 ### GET `/api/sync/:token`
 
