@@ -1893,7 +1893,7 @@
           ),
           h('div', { className: 'flex items-center gap-2' },
             h('button', {
-              onClick: () => refresh(),
+              onClick: () => refresh({ force: true }),
               disabled: loading,
               className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-indigo-600 text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
             },
