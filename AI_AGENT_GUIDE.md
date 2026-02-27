@@ -9,7 +9,7 @@ The Reddit Dashboarder provides a simple, stateless sync mechanism for AI agents
 2. Identify hot leads (high-opportunity posts)
 3. Provide recommendations for outreach 
 
-## API Endpoints ..
+## API Endpoints .. wew
 
 ### GET `/api/sync/:token`
 
