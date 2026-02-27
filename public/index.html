@@ -339,6 +339,18 @@
       const [aiContext, setAiContext] = useState(() => {
         try { return localStorage.getItem('dashboard_ai_context') || ''; } catch { return ''; }
       });
+      const [aiAvoid, setAiAvoid] = useState(() => {
+        try { return localStorage.getItem('dashboard_ai_avoid') || ''; } catch { return ''; }
+      });
+      const [aiExamplePerfect, setAiExamplePerfect] = useState(() => {
+        try { return localStorage.getItem('dashboard_ai_example_perfect') || ''; } catch { return ''; }
+      });
+      const [aiExampleStrong, setAiExampleStrong] = useState(() => {
+        try { return localStorage.getItem('dashboard_ai_example_strong') || ''; } catch { return ''; }
+      });
+      const [aiExampleReject, setAiExampleReject] = useState(() => {
+        try { return localStorage.getItem('dashboard_ai_example_reject') || ''; } catch { return ''; }
+      });
       const [aiEnabled, setAiEnabled] = useState(() => {
         try {
           const saved = localStorage.getItem('dashboard_ai_enabled');
@@ -451,6 +463,18 @@
       useEffect(() => {
         try { localStorage.setItem('dashboard_ai_context', aiContext); } catch {}
       }, [aiContext]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_ai_avoid', aiAvoid); } catch {}
+      }, [aiAvoid]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_ai_example_perfect', aiExamplePerfect); } catch {}
+      }, [aiExamplePerfect]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_ai_example_strong', aiExampleStrong); } catch {}
+      }, [aiExampleStrong]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_ai_example_reject', aiExampleReject); } catch {}
+      }, [aiExampleReject]);
       useEffect(() => {
         try { localStorage.setItem('dashboard_ai_enabled', aiEnabled ? '1' : '0'); } catch {}
       }, [aiEnabled]);
@@ -1043,6 +1067,15 @@
                       })),
                       userGoals: aiGoals.trim(),
                       userContext: aiContext && aiContext.trim() ? aiContext.trim() : undefined,
+                      scoringConfig: {
+                        lookingFor: aiGoals.trim(),
+                        avoid: aiAvoid && aiAvoid.trim() ? aiAvoid.trim() : undefined,
+                        examples: {
+                          perfect: aiExamplePerfect && aiExamplePerfect.trim() ? aiExamplePerfect.trim() : undefined,
+                          strong: aiExampleStrong && aiExampleStrong.trim() ? aiExampleStrong.trim() : undefined,
+                          reject: aiExampleReject && aiExampleReject.trim() ? aiExampleReject.trim() : undefined,
+                        },
+                      },
                       // Only send key in body if not stored securely (fallback for migration)
                       openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
                       openRouterModel: openRouterModel.trim(), // Always required - has default in useState
@@ -1299,7 +1332,7 @@
           console.error('Error in AI ranking integration:', aiError);
           setAiRankingLoading(false);
         }
-      }, [aiEnabled, aiGoals, aiContext, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
+      }, [aiEnabled, aiGoals, aiContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel]);
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);
@@ -1715,16 +1748,7 @@
         if (!preset) return;
         setAiEnabled(true);
         setAiGoals(preset.goals || '');
-        const avoidLine = preset.avoid && preset.avoid.length
-          ? `Avoid: ${preset.avoid.join(', ')}`
-          : '';
-        setAiContext(prev => {
-          const trimmed = (prev || '').trim();
-          if (!avoidLine) return trimmed;
-          if (!trimmed) return avoidLine;
-          if (trimmed.toLowerCase().includes(avoidLine.toLowerCase())) return trimmed;
-          return `${trimmed} | ${avoidLine}`;
-        });
+        setAiAvoid(Array.isArray(preset.avoid) ? preset.avoid.join(', ') : '');
         setAiPresetId(preset.id || '');
         setAiPresetDismissed(true);
       }, []);
@@ -2266,7 +2290,7 @@
                                       'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                                     }`,
                                     title: relevanceMeta ? `AI Relevance: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/5`
-                                  }, `AI ${relevanceScore}`)
+                                  }, `${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
                                 ),
                                 h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
                                 showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
@@ -2405,7 +2429,7 @@
                               detailRelevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                               'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                             }`
-                          }, `AI ${detailRelevanceScore}/5`),
+                          }, `${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
                           h('div', { 
                             className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
                           },
@@ -2760,28 +2784,75 @@
                     })
                   ),
                   h('label', { className: 'block mt-4' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Must include / avoid (optional)'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Add quick clarifiers like "prefer fresh launches, avoid memes"'),
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Additional context (optional)'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Extra constraints like “prefer fresh launches”.'),
                     h('input', {
                       type: 'text',
                       value: aiContext,
                       onChange: (e) => setAiContext(e.target.value),
-                      placeholder: 'e.g., prefer launch posts, avoid memes',
+                      placeholder: 'e.g., prioritize recent posts with active comments',
                       disabled: !aiEnabled,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     })
                   ),
-                  h('div', { className: 'block' },
-                    h('div', { className: 'flex items-center justify-between gap-2 mb-1' },
-                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Prompt preview'),
-                      h('span', { className: 'text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' }, 'v3.1')
+                  h('label', { className: 'block mt-3' },
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Avoid / exclude (optional)'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'What should score low? (jobs, memes, generic chatter, etc.)'),
+                    h('input', {
+                      type: 'text',
+                      value: aiAvoid,
+                      onChange: (e) => setAiAvoid(e.target.value),
+                      placeholder: 'e.g., job postings, memes, generic questions without intent',
+                      disabled: !aiEnabled,
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                    })
+                  ),
+                  h('div', { className: 'grid gap-2 mt-3 sm:grid-cols-3' },
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Example score 5 (perfect)'),
+                      h('textarea', {
+                        value: aiExamplePerfect,
+                        onChange: (e) => setAiExamplePerfect(e.target.value),
+                        rows: 2,
+                        disabled: !aiEnabled,
+                        placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
+                        className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                      })
                     ),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'This is the scoring instruction sent to the model (posts JSON omitted for brevity).'),
-                    h('pre', { className: 'max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
-                      buildScoringPromptPreview(aiGoals, aiContext)
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Example score 4 (strong)'),
+                      h('textarea', {
+                        value: aiExampleStrong,
+                        onChange: (e) => setAiExampleStrong(e.target.value),
+                        rows: 2,
+                        disabled: !aiEnabled,
+                        placeholder: 'How can we improve local rankings?',
+                        className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                      })
+                    ),
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Example score 0-1 (reject)'),
+                      h('textarea', {
+                        value: aiExampleReject,
+                        onChange: (e) => setAiExampleReject(e.target.value),
+                        rows: 2,
+                        disabled: !aiEnabled,
+                        placeholder: 'Hiring SEO specialist, $20/hr',
+                        className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                      })
                     )
                   ),
                   h('div', { className: 'block' },
+                    h('div', { className: 'flex items-center justify-between gap-2 mb-1' },
+                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Prompt preview'),
+                      h('span', { className: 'text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' }, 'v4.0')
+                    ),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'This is the scoring instruction sent to the model (posts JSON omitted for brevity).'),
+                    h('pre', { className: 'max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
+                      buildScoringPromptPreview({ goals: aiGoals, context: aiContext, avoid: aiAvoid, examples: { perfect: aiExamplePerfect, strong: aiExampleStrong, reject: aiExampleReject } })
+                    )
+                  ),
+                                    h('div', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'OpenRouter API Key'),
                     h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Optional: Your own OpenRouter API key (get one at ', h('a', { href: 'https://openrouter.ai/keys', target: '_blank', className: 'text-indigo-600 dark:text-indigo-400 hover:underline' }, 'openrouter.ai/keys'), ')'),
                     // Show secure key status
@@ -3004,7 +3075,7 @@
                   h('div', { className: 'flex gap-2' },
                     h('button', {
                       onClick: async () => {
-                        const settings = { subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiEnabled, openRouterModel, aiLlmPostLimit };
+                        const settings = { subs, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds: Array.from(notifiedHighRelevancePostIds), aiGoals, aiContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiEnabled, openRouterModel, aiLlmPostLimit };
                         const backup = JSON.stringify(settings);
                         navigator.clipboard.writeText(backup);
                         try {
@@ -3048,6 +3119,10 @@
                               if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
                               if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
                               if (parsed.aiContext !== undefined) setAiContext(parsed.aiContext);
+                              if (parsed.aiAvoid !== undefined) setAiAvoid(parsed.aiAvoid);
+                              if (parsed.aiExamplePerfect !== undefined) setAiExamplePerfect(parsed.aiExamplePerfect);
+                              if (parsed.aiExampleStrong !== undefined) setAiExampleStrong(parsed.aiExampleStrong);
+                              if (parsed.aiExampleReject !== undefined) setAiExampleReject(parsed.aiExampleReject);
                               if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
                               if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);
                               if (parsed.aiLlmPostLimit !== undefined) setAiLlmPostLimit(Number(parsed.aiLlmPostLimit) || DEFAULT_LLM_POST_LIMIT);
@@ -3074,6 +3149,10 @@
                             if (Array.isArray(parsed.notifiedHighRelevancePostIds)) setNotifiedHighRelevancePostIds(new Set(parsed.notifiedHighRelevancePostIds));
                             if (parsed.aiGoals !== undefined) setAiGoals(parsed.aiGoals);
                             if (parsed.aiContext !== undefined) setAiContext(parsed.aiContext);
+                              if (parsed.aiAvoid !== undefined) setAiAvoid(parsed.aiAvoid);
+                              if (parsed.aiExamplePerfect !== undefined) setAiExamplePerfect(parsed.aiExamplePerfect);
+                              if (parsed.aiExampleStrong !== undefined) setAiExampleStrong(parsed.aiExampleStrong);
+                              if (parsed.aiExampleReject !== undefined) setAiExampleReject(parsed.aiExampleReject);
                             if (typeof parsed.aiEnabled === 'boolean') setAiEnabled(parsed.aiEnabled);
                             if (parsed.openRouterApiKey !== undefined) setOpenRouterApiKey(parsed.openRouterApiKey);
                             if (parsed.openRouterModel !== undefined) setOpenRouterModel(parsed.openRouterModel);
@@ -3284,25 +3363,46 @@
       return num.toFixed(2);
     }
 
-    function buildScoringPromptPreview(goals, context) {
+    function buildScoringPromptPreview(config = {}) {
+      const goals = config.goals || '';
+      const context = config.context || '';
+      const avoid = config.avoid || '';
+      const examples = config.examples || {};
       const goalLine = (goals || '').trim() || '[Add your goals above]';
       const contextLine = (context || '').trim() || 'none provided';
+      const avoidLine = (avoid || '').trim() || 'none provided';
       return [
-        "You highlight only the most relevant Reddit posts for the user's stated goal.",
+        'You are a Reddit post evaluator. Follow the rubric strictly.',
         '',
-        `Primary goal: ${goalLine}`,
-        `Additional context or constraints: ${contextLine}`,
+        `USER GOAL: ${goalLine}`,
+        `ADDITIONAL CONTEXT: ${contextLine}`,
+        `AVOID: ${avoidLine}`,
         '',
         'Scoring rubric (0-5):',
-        '0 = irrelevant',
-        '1 = barely related',
-        '2 = tangential',
-        '3 = somewhat helpful',
-        '4 = strong match',
-        '5 = must-read',
+        '5 = Perfect Match (high intent + actionable)',
+        '4 = Strong Match',
+        '3 = Maybe',
+        '2 = Weak',
+        '1 = Mostly irrelevant',
+        '0 = Reject',
+        '',
+        examples.perfect ? `Example 5: ${examples.perfect}` : 'Example 5: [optional]',
+        examples.strong ? `Example 4: ${examples.strong}` : 'Example 4: [optional]',
+        examples.reject ? `Example 0-1: ${examples.reject}` : 'Example 0-1: [optional]',
         '',
         'Return only JSON: [{"postId":"...","score":4,"confidence":"high","reason":"..."}]',
       ].join('\n');
+    }
+
+    function aiScoreLabel(score) {
+      const n = Number(score);
+      if (!Number.isFinite(n)) return 'Unscored';
+      if (n >= 5) return '🔥 Perfect Match';
+      if (n >= 4) return '🎯 Strong Lead';
+      if (n >= 3) return '⚡ Maybe';
+      if (n >= 2) return '😐 Weak';
+      if (n >= 1) return '❌ Noise';
+      return '🚫 Reject';
     }
 
     function buildWhyLine({ post, relevanceMeta, upvotesPerHour, commentsPerHour }) {
