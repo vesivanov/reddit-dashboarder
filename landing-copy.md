@@ -233,7 +233,7 @@ Use this copy to create a banner at the top of index.html or a separate landing 
       <h3 class="font-semibold text-white mb-3">Company</h3>
       <ul class="space-y-2">
         <li><a href="#about" class="hover:text-white">About</a></li>
-        <li><a href="mailto:vesivanov48@gmail.com" class="hover:text-white">Contact</a></li>
+        <li><a href="mailto:contact@example.com" class="hover:text-white">Contact</a></li>
         <li><a href="#privacy" class="hover:text-white">Privacy</a></li>
         <li><a href="#terms" class="hover:text-white">Terms</a></li>
       </ul>
@@ -250,7 +250,7 @@ Use this copy to create a banner at the top of index.html or a separate landing 
   </div>
   
   <div class="max-w-6xl mx-auto mt-8 pt-8 border-t border-gray-800 text-center text-sm">
-    <p>© 2026 Reddit Dashboarder. Built with ❤️ by <a href="https://vesivanov.com" class="text-blue-400 hover:text-blue-300">Ves Ivanov</a></p>
+    <p>© 2026 Reddit Dashboarder. Built with ❤️ by <a href="https://vesivanov.com" class="text-blue-400 hover:text-blue-300">Developer</a></p>
   </div>
 </footer>
 ```
