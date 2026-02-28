@@ -16,7 +16,7 @@ jobs:
             "https://reddit-dashboarder.vercel.app/api/cron/refresh-leads" \
             -H "X-Cron-Secret: ${{ secrets.CRON_SECRET_KEY }}" \
             -H "Content-Type: application/json" \
-            --fail \
+            --max-time 90 \
             --silent \
             --show-error
         timeout-minutes: 5
