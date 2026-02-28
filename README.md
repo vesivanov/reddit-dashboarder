@@ -748,3 +748,22 @@ This project is open source and available under the [MIT License](LICENSE).
 - [Vercel](https://vercel.com/), [Cloudflare Workers](https://workers.cloudflare.com/)
 - [Reddit API](https://www.reddit.com/dev/api/), [OpenRouter](https://openrouter.ai/)
 - [PKCE](https://oauth.net/2/pkce/) for OAuth
+
+## 🔄 Automated Lead Polling (Optional)
+
+Set up GitHub Actions to automatically poll for hot leads during business hours:
+
+### GitHub Actions Setup
+
+1. Add secrets to your GitHub repo:
+   - `CRON_SECRET_KEY` - A random secret for cron authentication
+   - Set the same secret as `CRON_SECRET_KEY` env var on Vercel
+
+2. The workflow runs weekdays 9 AM - 6 PM (hourly) via `.github/workflows/poll-reddit.yml`
+
+3. Access leads via API:
+   ```bash
+   curl https://your-app.vercel.app/api/v1/leads/latest
+   ```
+
+**Note:** GitHub Actions free tier gives 2,000 minutes/month for public repos, 500 for private.
