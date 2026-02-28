@@ -233,7 +233,7 @@ Use this copy to create a banner at the top of index.html or a separate landing 
       <h3 class="font-semibold text-white mb-3">Company</h3>
       <ul class="space-y-2">
         <li><a href="#about" class="hover:text-white">About</a></li>
-        <li><a href="mailto:vesivanov48@gmail.com" class="hover:text-white">Contact</a></li>
+        <li><a href="mailto:contact@example.com" class="hover:text-white">Contact</a></li>
         <li><a href="#privacy" class="hover:text-white">Privacy</a></li>
         <li><a href="#terms" class="hover:text-white">Terms</a></li>
       </ul>
