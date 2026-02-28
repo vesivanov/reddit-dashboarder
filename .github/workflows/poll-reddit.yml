@@ -2,8 +2,8 @@ name: Reddit Leads Poller
 
 on:
   schedule:
-    # Run every hour
-    - cron: '0 * * * *'
+    # Weekdays 9 AM - 6 PM (hourly during business hours)
+    - cron: '0 9-18 * * 1-5'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
