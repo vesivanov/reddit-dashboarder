@@ -27,16 +27,19 @@ describe('OpenRouter Key Settings Endpoint', () => {
   });
 
   test('GET: returns hasKey=false when no key stored', async () => {
+    delete process.env.OPENROUTER_API_KEY;
     await openrouterKeyHandler(mockReq, mockRes);
 
     expect(mockRes.status).toHaveBeenCalledWith(200);
     expect(mockRes.json).toHaveBeenCalledWith({
       hasKey: false,
+      source: 'none',
       keyPreview: null
     });
   });
 
   test('GET: returns hasKey=true with preview when key stored', async () => {
+    delete process.env.OPENROUTER_API_KEY;
     const keyCookie = makeSignedCookie('openrouter_key', 'sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890');
     const cookieValue = keyCookie.split(';')[0].split('=')[1];
     mockReq.headers.cookie = `rdd_openrouter_key=${cookieValue}`;
@@ -45,7 +48,20 @@ describe('OpenRouter Key Settings Endpoint', () => {
 
     expect(mockRes.json).toHaveBeenCalledWith({
       hasKey: true,
+      source: 'cookie',
       keyPreview: expect.stringContaining('sk-or...')
+    });
+  });
+
+  test('GET: returns env source when only server env key exists', async () => {
+    process.env.OPENROUTER_API_KEY = 'sk-or-v1-envkey12345678901234567890';
+
+    await openrouterKeyHandler(mockReq, mockRes);
+
+    expect(mockRes.json).toHaveBeenCalledWith({
+      hasKey: true,
+      source: 'env',
+      keyPreview: 'Server env key configured'
     });
   });
 
