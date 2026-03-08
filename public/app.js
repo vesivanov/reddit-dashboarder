@@ -1144,13 +1144,11 @@ const {
 
         const subsCount = subs.length;
         let effectiveLimit = limit;
-        let effectiveMaxPages = maxPages;
+        const effectiveMaxPages = maxPages;
         if (subsCount >= 12) {
           effectiveLimit = Math.min(25, effectiveLimit);
-          effectiveMaxPages = Math.min(1, effectiveMaxPages);
         } else if (subsCount >= 6) {
           effectiveLimit = Math.min(25, effectiveLimit);
-          effectiveMaxPages = Math.min(2, effectiveMaxPages);
         }
 
         let localPauseUntil = rateLimitPauseUntil;
