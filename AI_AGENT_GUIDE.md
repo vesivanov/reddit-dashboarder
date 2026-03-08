@@ -1,157 +1,216 @@
-# AI Agent Guide for Reddit Dashboarder
+# AI Agent Guide
 
-This guide explains how AI agents (like Rudi) can collaborate with users through the Reddit Dashboarder sync API.
+This repo exposes two agent-facing integration patterns:
 
-## Overview
+- sync-token access for a user-synced snapshot
+- API-key access for the `/api/v1/*` surface
 
-The Reddit Dashboarder provides a simple, stateless sync mechanism for AI agents to:
-1. Access user's current Reddit data and settings
-2. Identify hot leads (high-opportunity posts)
-3. Provide recommendations for outreach 
+Use sync when an agent needs the exact bundle the user just saw in the dashboard. Use `/api/v1/*` when the agent should read config, update config, or trigger async analysis jobs against a materialized server-owned snapshot/config model.
 
-## API Endpoints .. wew
+## 1. Sync Flow
 
-### GET `/api/sync/:token`
+The dashboard posts a snapshot to `POST /api/sync` and receives back a token. That token can then be used to fetch or delete the synced bundle.
 
-Retrieve the user's current dashboard data including hot leads analysis.
+Important:
+- sync is snapshot transport, not the canonical backend config store
+- backend scoring/poller config is controlled through `/api/v1/config`
 
-**Response:**
+### `POST /api/sync`
+
+Stores the current frontend state for 24 hours.
+
+Request body:
+
+```json
+{
+  "token": "sync_token_here",
+  "posts": [],
+  "settings": {},
+  "filters": {},
+  "timestamp": "2026-03-08T12:00:00.000Z"
+}
+```
+
+Response:
+
 ```json
 {
   "success": true,
-  "token": "abc123...",
-  "syncedAt": "2026-02-10T14:30:00Z",
-  "expiresAt": "2026-02-11T14:30:00Z",
-  "data": {
-    "posts": [...],
-    "settings": {
-      "subs": ["smallbusiness", "SEO", "startups"],
-      "aiGoals": "Find leads for SEO consulting",
-      ...
-    },
-    "filters": {...},
-    "timestamp": "2026-02-10T14:25:00Z"
-  },
-  "analysis": {
-    "hotLeads": [
-      {
-        "id": "t3_abc123",
-        "title": "Looking for SEO help for my e-commerce site",
-        "subreddit": "smallbusiness",
-        "score": 45,
-        "num_comments": 12,
-        "age_hours": 3.5,
-        "url": "https://reddit.com/r/smallbusiness/comments/abc123/...",
-        "hot_score": 18,
-        "signals": ["intent: looking for, help", "service match: seo, marketing", "fresh (< 24h)", "active discussion"],
-        "match_reason": "Intent detected + service match"
-      }
-    ],
-    "totalPosts": 150,
-    "hotLeadCount": 8
-  }
+  "token": "sync_token_here",
+  "postCount": 42,
+  "expiresAt": "2026-03-09T12:00:00.000Z"
 }
 ```
 
-### POST `/api/sync`
+### `GET /api/sync/:token`
 
-Store dashboard data (called by frontend). Not typically used by AI agents.
+Returns the synced posts, settings, filters, and derived hot-lead analysis.
 
-### DELETE `/api/sync/:token`
-
-Clear stored data. Called when user wants to revoke AI access.
-
-## Hot Leads Scoring
-
-The API automatically identifies "hot leads" - posts with high potential value based on:
-
-| Signal | Weight | Description |
-|--------|--------|-------------|
-| Intent keywords | 2x per match | "looking for", "need", "hire", "budget" |
-| Service match | 3x per match | "seo", "search", "marketing", "traffic" |
-| Freshness | 2-5 pts | < 24h = 5pts, < 48h = 2pts |
-| Upvote velocity | 3 pts | > 10 upvotes/hour |
-| Discussion activity | 3 pts | > 2 comments/hour |
-| High engagement | 2-4 pts | Score > 50, Comments > 10 |
-| AI relevance | 5 pts | User's AI scoring >= 4/5 |
-
-**Threshold:** Score >= 8 to be considered a "hot lead"
-
-## Workflow for AI Agents
-
-### 1. Receive Token from User
-
-User clicks "Sync with AI" in the dashboard. Token is copied to clipboard.
-
-### 2. Fetch Data
+Example:
 
 ```bash
-curl https://reddit-dashboarder.vercel.app/api/sync/TOKEN_HERE
+curl https://your-app.example/api/sync/SYNC_TOKEN
 ```
 
-### 3. Analyze Hot Leads
+Response shape:
 
-Focus on leads with:
-- High `hot_score` (15+)
-- Fresh posts (`age_hours` < 12)
-- Strong intent signals
-- Service relevance
-
-### 4. Report to User
-
-Provide a summary like:
-
-> **🔥 Hot Leads Found: 8**
-> 
-> **Top 3:**
-> 1. "Looking for SEO help..." (r/smallbusiness, 3.5h ago, score: 18)
->    - Signals: Intent detected, service match, fresh, active discussion
-> 2. "E-commerce traffic dropped 50%..." (r/SEO, 5h ago, score: 16)
-> 3. "Need consultant for site audit..." (r/startups, 2h ago, score: 15)
->
-> **Recommendation:** Focus outreach on posts #1 and #3 - both show urgent intent and are very fresh.
-
-## Example Integration
-
-```javascript
-async function checkForLeads(token) {
-  const response = await fetch(`/api/sync/${token}`);
-  if (!response.ok) throw new Error('Sync failed');
-  
-  const { analysis } = await response.json();
-  
-  // Filter for very hot leads
-  const veryHot = analysis.hotLeads.filter(l => l.hot_score >= 15 && l.age_hours < 6);
-  
-  if (veryHot.length > 0) {
-    // Notify user of high-priority opportunities
-    notifyUserOfHotLeads(veryHot);
+```json
+{
+  "success": true,
+  "token": "SYNC_TOKEN",
+  "syncedAt": "2026-03-08T12:00:00.000Z",
+  "expiresAt": "2026-03-09T12:00:00.000Z",
+  "data": {
+    "posts": [],
+    "settings": {},
+    "filters": {},
+    "timestamp": "2026-03-08T11:58:00.000Z"
+  },
+  "analysis": {
+    "hotLeads": [],
+    "totalPosts": 42,
+    "hotLeadCount": 5
   }
-  
-  return analysis;
 }
 ```
 
-## Best Practices
+### `DELETE /api/sync/:token`
 
-1. **Check regularly but not excessively** - Every 30-60 minutes is sufficient
-2. **Respect expiry** - Tokens expire after 24h; users must re-sync
-3. **Focus on quality** - Prioritize leads with hot_score >= 15 for immediate attention
-4. **Consider timing** - Fresh posts (< 6h) have higher response rates
-5. **Match user goals** - Check `settings.aiGoals` to align recommendations
+Deletes the synced bundle.
 
-## Token Lifecycle
+## 2. Digest Endpoint
 
-1. **Created:** When user clicks "Sync with AI"
-2. **Active:** 24 hours from creation
-3. **Expired:** Returns 410 Gone
-4. **Revoked:** User can delete at any time
+`GET /api/reddit/digest` is a protected proxy over the sync payload. It does not fetch Reddit again and does not rerun ranking. It returns the same synced data plus digest metadata.
 
-## Error Handling
+Auth:
 
-| Status | Meaning | Action |
-|--------|---------|--------|
-| 200 | Success | Process data |
-| 404 | Token not found | Ask user to re-sync |
-| 410 | Token expired | Ask user to re-sync |
-| 500 | Server error | Retry with backoff |
+```text
+Authorization: Bearer <DIGEST_API_KEY>
+```
+
+Usage:
+
+```bash
+curl -H "Authorization: Bearer $DIGEST_API_KEY" \
+  "https://your-app.example/api/reddit/digest?token=SYNC_TOKEN"
+```
+
+Notes:
+
+- `token` may also come from `DIGEST_SYNC_TOKEN`
+- this is the safest endpoint to use when you want the latest user-approved bundle
+
+## 3. Agent API v1
+
+The `/api/v1/*` endpoints require `AGENT_API_KEY` in the `Authorization` header.
+
+Auth:
+
+```text
+Authorization: Bearer <AGENT_API_KEY>
+```
+
+### `GET /api/v1/snapshot`
+
+Returns normalized posts plus config and explicit analysis state.
+
+Optional token source:
+
+- `?token=SYNC_TOKEN`
+- fallback to `DIGEST_SYNC_TOKEN`
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer $AGENT_API_KEY" \
+  "https://your-app.example/api/v1/snapshot?token=SYNC_TOKEN"
+```
+
+### `GET /api/v1/config`
+
+Returns the current materialized agent config. If no persisted backend config exists yet, the response can be derived from the synced snapshot for read purposes.
+
+```bash
+curl -H "Authorization: Bearer $AGENT_API_KEY" \
+  "https://your-app.example/api/v1/config?token=SYNC_TOKEN"
+```
+
+### `PATCH /api/v1/config`
+
+Updates materialized agent config after validation.
+
+Operational effect:
+- this is the canonical backend config write path
+- successful updates also select the active backend workspace used by `/api/cron/refresh-leads`
+
+Concurrency:
+- send `If-Match: <version>` or `version` in the JSON body
+- stale writes are rejected with `409 VERSION_CONFLICT`
+
+Supported fields:
+
+- `subreddits`
+- `filters`
+- `goals`
+- `aiPrompt`
+- `threshold`
+- `model`
+
+Example:
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"threshold":4,"goals":"Find B2B SEO leads"}' \
+  "https://your-app.example/api/v1/config?token=SYNC_TOKEN"
+```
+
+### `POST /api/v1/analyze`
+
+Creates an async AI analysis job against the current materialized snapshot and pinned config version.
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  "https://your-app.example/api/v1/analyze?token=SYNC_TOKEN"
+```
+
+### `GET /api/v1/jobs/:jobId`
+
+Polls an async job until it is `completed` or `failed`. Jobs are pinned to a `snapshotId` and `configVersion`.
+
+### `POST /api/v1/jobs/drain`
+
+Drains one queued or recoverable job. Use this from a worker, scheduler, or operational hook. `GET /api/v1/jobs/:jobId` is read-only and no longer triggers execution.
+
+```bash
+curl -H "Authorization: Bearer $AGENT_API_KEY" \
+  "https://your-app.example/api/v1/jobs/JOB_ID"
+```
+
+## 4. Settings Endpoints
+
+Two helpers are useful for automation:
+
+- `GET|POST|DELETE /api/settings/openrouter-key`
+
+`/api/settings/openrouter-key` stores the user OpenRouter key in a secure cookie for browser-driven sessions.
+
+## 5. Storage and Expiry
+
+- sync bundles use a 24 hour TTL
+- agent snapshots inherit sync expiry
+- agent config, audit state, and active poller workspace are server-owned and persist independently
+- job storage depends on the configured backend
+- persistence is only reliable when Redis or Vercel KV is configured
+
+If the app is running on in-memory storage, synced data and jobs disappear on process restart or serverless cold replacement.
+
+## 6. Operational Notes
+
+- `/api/v1/leads/latest` is currently a public read endpoint for the latest stored polled leads
+- `/api/cron/refresh-leads` is intended for scheduled refreshes and uses the active backend workspace
+- `/api/v1/jobs/drain` must be wired into a worker/scheduler in production or queued analysis jobs will never execute
+- rate limiting is applied in `app.js` across sync, Reddit, auth, and v1 routes
+- the authoritative v1 contract draft lives in [docs/agent-api/SPEC.md](./docs/agent-api/SPEC.md)

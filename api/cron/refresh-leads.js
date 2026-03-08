@@ -5,13 +5,7 @@
 
 const { withCORS } = require('../../lib/cors');
 const { RedditPoller } = require('../../lib/poller');
-const storage = require('../../lib/storage');
-
-const DEFAULT_SUBREDDITS = ['SEO', 'webdev', 'startups', 'freelance', 'marketing'];
-const DEFAULT_SETTINGS = {
-  aiGoals: 'Find SEO and AI search consulting clients',
-  aiContext: 'Helping businesses improve visibility in traditional and AI-powered search (ChatGPT, Perplexity)',
-};
+const { loadPollerRuntimeConfig } = require('../../lib/services/poller-config');
 
 async function handler(req, res) {
   // Handle CORS
@@ -42,29 +36,33 @@ async function handler(req, res) {
       });
     }
 
-    // Get user's config from shared KV or use defaults
-    let userConfig;
+    let runtimeConfig;
     try {
-      userConfig = await storage.get('cron-user-config');
-      if (userConfig?.subreddits?.length > 0) {
-        console.log('[cron] Using user config:', userConfig.subreddits.length, 'subreddits');
+      runtimeConfig = await loadPollerRuntimeConfig();
+      if (runtimeConfig.source === 'agent-config') {
+        console.log('[cron] Using', runtimeConfig.source, 'with', runtimeConfig.subreddits.length, 'subreddits');
       } else {
-        console.log('[cron] No user config found, using defaults');
+        console.log('[cron] No persisted config found, using defaults');
       }
     } catch (err) {
-      console.error('[cron] Failed to read user config:', err.message);
+      console.error('[cron] Failed to resolve poller config:', err.message);
+      runtimeConfig = {
+        source: 'defaults',
+        subreddits: ['SEO', 'webdev', 'startups', 'freelance', 'marketing'],
+        settings: {
+          aiGoals: 'Find SEO and AI search consulting clients',
+          aiContext: 'Helping businesses improve visibility in traditional and AI-powered search (ChatGPT, Perplexity)',
+          aiThreshold: 4,
+          openRouterModel: process.env.POLLER_OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
+          scoringConfig: null,
+        },
+      };
     }
-
-    const subreddits = userConfig?.subreddits || DEFAULT_SUBREDDITS;
-    const settings = {
-      aiGoals: userConfig?.aiGoals || DEFAULT_SETTINGS.aiGoals,
-      aiContext: userConfig?.aiContext || DEFAULT_SETTINGS.aiContext,
-    };
 
     const poller = new RedditPoller();
 
     // Run the poll
-    const result = await poller.poll(subreddits, settings);
+    const result = await poller.poll(runtimeConfig.subreddits, runtimeConfig.settings);
 
     return withCORS(req, res).status(200).json({
       success: true,
@@ -73,8 +71,8 @@ async function handler(req, res) {
       hotLeadsFound: result.hotLeadCount,
       subreddits: result.subreddits,
       subredditCount: result.subreddits.length,
-      usingUserConfig: !!userConfig?.subreddits?.length,
-      configSource: userConfig?.subreddits?.length ? 'user-settings' : 'defaults',
+      usingUserConfig: runtimeConfig.source !== 'defaults',
+      configSource: runtimeConfig.source,
       nextPoll: 'In 2 hours (set via cron-job.org)',
     });
   } catch (error) {
