@@ -16,11 +16,11 @@ test.describe('Landing page', () => {
   });
 
   test('renders hero headline', async ({ page }) => {
-    await expect(page.locator('h1').first()).toContainText('Find Reddit leads');
+    await expect(page.locator('h1').first()).toContainText('Monitor Reddit');
   });
 
   test('hero CTA links to app', async ({ page }) => {
-    const cta = page.getByRole('link', { name: /Try It Free/i });
+    const cta = page.getByRole('link', { name: /Open The App/i });
     await expect(cta).toBeVisible();
     await expect(cta).toHaveAttribute('href', '/app');
   });
@@ -38,14 +38,12 @@ test.describe('Landing page', () => {
     await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
   });
 
-  test('value props section is present', async ({ page }) => {
-    // Sections use scroll-reveal (opacity: 0 until IntersectionObserver fires),
-    // so scroll into view before asserting visibility
-    const relevance = page.getByText('Relevance').first();
-    await relevance.scrollIntoViewIfNeeded();
-    await expect(relevance).toBeVisible();
-    await expect(page.getByText('Speed').first()).toBeVisible();
-    await expect(page.getByText('Edge').first()).toBeVisible();
+  test('proof-led positioning sections are present', async ({ page }) => {
+    const proof = page.getByText('Proof').first();
+    await proof.scrollIntoViewIfNeeded();
+    await expect(proof).toBeVisible();
+    await expect(page.getByText('Why It Helps').first()).toBeVisible();
+    await expect(page.getByText('Ideal For').first()).toBeVisible();
   });
 
   test('how it works section is present', async ({ page }) => {

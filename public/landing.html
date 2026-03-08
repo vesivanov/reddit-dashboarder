@@ -4,8 +4,20 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reddit Dashboarder — Find Reddit Leads 10× Faster with AI</title>
-  <meta name="description" content="Stop scrolling for hours. Get AI-ranked Reddit posts that match your business goals, delivered automatically." />
+  <title>Reddit Dashboarder — Monitor Reddit Threads With AI Ranking</title>
+  <meta name="description" content="Monitor subreddits, rank Reddit threads with AI, and review the posts most relevant to your goals." />
+  <link rel="canonical" href="https://reddit-dashboarder.vercel.app/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Reddit Dashboarder" />
+  <meta property="og:title" content="Reddit Dashboarder — Monitor Reddit Threads With AI Ranking" />
+  <meta property="og:description" content="Track subreddits, rank Reddit threads with AI, and review the posts most relevant to your goals." />
+  <meta property="og:url" content="https://reddit-dashboarder.vercel.app/" />
+  <meta property="og:image" content="https://reddit-dashboarder.vercel.app/dashboard-feed.png" />
+  <meta property="og:image:alt" content="Reddit Dashboarder feed showing ranked Reddit posts and AI scoring" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Reddit Dashboarder — Monitor Reddit Threads With AI Ranking" />
+  <meta name="twitter:description" content="Track subreddits, rank Reddit threads with AI, and review the posts most relevant to your goals." />
+  <meta name="twitter:image" content="https://reddit-dashboarder.vercel.app/dashboard-feed.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,8 +27,9 @@
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {            sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
-            mono:  ['"JetBrains Mono"', 'monospace'],
+          fontFamily: {
+            sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
           }
         }
       }
@@ -24,27 +37,23 @@
   </script>
   <style>
     :root {
-      --signal:        #0284C7;
-      --signal-hover:  #0369A1;
+      --signal: #0284C7;
+      --signal-hover: #0369A1;
       --signal-active: #075985;
-      --bg:            #0C0C0D;
-      --surface:       #161618;
-      --surface-2:     #1E1E21;
-      --border:        rgba(255,255,255,0.07);
-      --border-mid:    rgba(255,255,255,0.12);
+      --bg: #0C0C0D;
+      --surface: #161618;
+      --surface-2: #1E1E21;
+      --surface-3: #111114;
+      --border: rgba(255,255,255,0.07);
+      --border-mid: rgba(255,255,255,0.12);
     }
 
     html { background-color: var(--bg); }
     body { font-family: 'DM Sans', system-ui, sans-serif; }
 
-    /* ── Entrance animations ── */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(18px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes expandX {
-      from { transform: scaleX(0); }
-      to   { transform: scaleX(1); }
+      to { opacity: 1; transform: translateY(0); }
     }
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
@@ -56,12 +65,10 @@
       animation: fadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
     .d1 { animation-delay: 0.08s; }
-    .d2 { animation-delay: 0.2s;  }
+    .d2 { animation-delay: 0.2s; }
     .d3 { animation-delay: 0.34s; }
     .d4 { animation-delay: 0.48s; }
-    .d5 { animation-delay: 0.62s; }
 
-    /* ── Scroll reveal ── */
     .sr {
       opacity: 0;
       transform: translateY(22px);
@@ -76,87 +83,50 @@
     .sr-d3 { transition-delay: 0.19s; }
     .sr-d4 { transition-delay: 0.26s; }
 
-    /* ── Top accent bar ── */
     .top-bar {
       height: 2px;
-      background: linear-gradient(90deg, var(--signal) 0%, rgba(2,132,199,0.3) 50%, transparent 100%);
+      background: linear-gradient(90deg, var(--signal) 0%, rgba(2,132,199,0.35) 40%, transparent 100%);
     }
-
-    /* ── Nav ── */
     .nav-blur {
       background: rgba(12, 12, 13, 0.88);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
     }
-
-    /* ── Hero glow ── */
     .hero-glow {
-      background: radial-gradient(ellipse 75% 55% at 50% -5%,
-        rgba(2, 132, 199, 0.14) 0%,
-        transparent 65%);
+      background:
+        radial-gradient(ellipse 75% 55% at 50% -5%, rgba(2, 132, 199, 0.14) 0%, transparent 65%),
+        linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
     }
-
-    /* ── Italic serif accent ── */
-
-    /* ── Score pill ── */
+    .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--signal);
+    }
+    .divider { border-color: var(--border); }
     .score-pill {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
       background: rgba(2, 132, 199, 0.1);
       border: 1px solid rgba(2, 132, 199, 0.28);
-      border-radius: 6px;
-      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      padding: 0.3rem 0.75rem;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.7rem;
+      font-size: 0.72rem;
       font-weight: 500;
       color: #38BDF8;
       letter-spacing: 0.02em;
     }
     .score-dot {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
       background: #0284C7;
       animation: pulse-dot 2s ease-in-out infinite;
     }
-
-    /* ── Feature strip (left-border cards) ── */
-    .feature-item {
-      border-left: 2px solid var(--signal);
-      padding-left: 1.25rem;
-    }
-
-    /* ── Step number decoration ── */
-    .step-ghost {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 5rem;
-      line-height: 1;
-      color: rgba(2, 132, 199, 0.09);
-      position: absolute;
-      top: -1.25rem;
-      left: -0.75rem;
-      user-select: none;
-      pointer-events: none;
-    }
-
-    /* ── Testimonial card ── */
-    .t-card {
-      background: var(--surface);
-      border: 1px solid var(--border-mid);
-      border-radius: 14px;
-      padding: 1.75rem 1.75rem 1.5rem;
-      position: relative;
-    }
-
-    /* ── CTA glow ── */
-    .cta-glow {
-      background: radial-gradient(ellipse 65% 55% at 50% 105%,
-        rgba(2, 132, 199, 0.18) 0%,
-        transparent 70%);
-    }
-
-    /* ── Primary button ── */
     .btn-primary {
       background: var(--signal);
       color: #fff;
@@ -172,8 +142,6 @@
       background: var(--signal-active);
       transform: translateY(0);
     }
-
-    /* ── Ghost button ── */
     .btn-ghost {
       background: rgba(255,255,255,0.05);
       border: 1px solid var(--border-mid);
@@ -184,27 +152,143 @@
       background: rgba(255,255,255,0.09);
       color: #fff;
     }
-
-    /* ── Divider line ── */
-    .divider { border-color: var(--border); }
-
-    /* ── Label mono ── */
-    .label {
+    .surface-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%);
+      border: 1px solid var(--border-mid);
+      border-radius: 18px;
+    }
+    .trust-pill {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      border-radius: 999px;
+      padding: 0.65rem 0.9rem;
+      color: #a1a1aa;
+      font-size: 0.8rem;
+      line-height: 1.1;
+    }
+    .metric-card {
+      background: var(--surface-3);
+      border: 1px solid var(--border-mid);
+      border-radius: 16px;
+      padding: 1rem;
+    }
+    .proof-row {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+      border-radius: 14px;
+      padding: 1rem;
+    }
+    .mock-shell {
+      background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      padding: 1rem;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.42);
+    }
+    .mock-window {
+      background: #111114;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+    .mock-toolbar {
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+    }
+    .mock-post {
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      border-radius: 14px;
+      padding: 0.9rem;
+    }
+    .mock-post.active {
+      border-color: rgba(2,132,199,0.45);
+      background: rgba(2,132,199,0.1);
+    }
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
+      font-size: 0.68rem;
       font-weight: 500;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--signal);
+    }
+    .ai-badge.high {
+      background: rgba(16, 185, 129, 0.16);
+      color: #6EE7B7;
+      border: 1px solid rgba(16, 185, 129, 0.24);
+    }
+    .ai-badge.low {
+      background: rgba(244, 63, 94, 0.12);
+      color: #FDA4AF;
+      border: 1px solid rgba(244, 63, 94, 0.18);
+    }
+    .annot-card {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 18px;
+      padding: 1.25rem;
+    }
+    .annot-line {
+      border-left: 2px solid rgba(2,132,199,0.6);
+      padding-left: 0.9rem;
+    }
+    .step-card {
+      position: relative;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-mid);
+      border-radius: 18px;
+      padding: 1.5rem;
+    }
+    .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      color: #38BDF8;
+    }
+    .icp-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+      border: 1px solid var(--border-mid);
+      border-radius: 18px;
+      padding: 1.5rem;
+    }
+    .use-case-strip {
+      background:
+        linear-gradient(135deg, rgba(2,132,199,0.12) 0%, rgba(255,255,255,0.02) 55%),
+        rgba(255,255,255,0.02);
+      border: 1px solid rgba(2,132,199,0.2);
+      border-radius: 22px;
+    }
+    .screen-frame {
+      background: #0f1012;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .screen-shot {
+      width: 100%;
+      display: block;
+      transform: scale(1.02);
+      transform-origin: top center;
+    }
+    .screen-shot.feed {
+      object-fit: cover;
+      object-position: top center;
+      aspect-ratio: 16 / 10;
+    }
+    .screen-shot.detail {
+      object-fit: cover;
+      object-position: top center;
+      aspect-ratio: 16 / 10;
     }
   </style>
 </head>
 <body class="bg-[#0C0C0D] text-zinc-100 antialiased">
-
-  <!-- Top bar -->
   <div class="top-bar"></div>
 
-  <!-- ── NAV ── -->
   <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
       <a href="/" class="flex items-center gap-0">
@@ -220,220 +304,432 @@
     </div>
   </nav>
 
-  <!-- ── HERO ── -->
-  <section class="hero-glow relative pt-24 pb-28 px-4 overflow-hidden">
-    <div class="max-w-4xl mx-auto text-center">
+  <section class="hero-glow relative overflow-hidden px-4 pt-20 pb-20 sm:pt-24 sm:pb-24">
+    <div class="max-w-6xl mx-auto grid gap-14 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+      <div class="text-center lg:text-left">
+        <div class="reveal d1 inline-flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+          <span class="score-pill">
+            <span class="score-dot"></span>
+            ranked Reddit threads
+          </span>
+          <span class="text-zinc-600 text-xs font-mono uppercase tracking-[0.2em]">agencies · consultants · founders</span>
+        </div>
 
-      <!-- Eyebrow -->
-      <div class="reveal d1 inline-flex items-center gap-3 mb-10">
-        <span class="score-pill">
-          <span class="score-dot"></span>
-          AI score 4.8 / 5.0
-        </span>
-        <span class="text-zinc-600 text-xs font-mono">ranked · filtered · ready</span>
+        <h1 class="reveal d2 mt-8 font-bold text-5xl sm:text-6xl lg:text-[4.35rem] text-white leading-[1.02] tracking-tighter">
+          Monitor Reddit
+          <span class="block text-sky-400">without scanning it manually.</span>
+        </h1>
+
+        <p class="reveal d3 mt-6 text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+          Reddit Dashboarder gives you one place to follow subreddits, rank posts against a goal, and review the threads that matter first.
+        </p>
+
+        <div class="reveal d4 mt-10 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+          <a href="/app" class="btn-primary inline-flex items-center justify-center gap-2 font-semibold text-base px-8 py-4 rounded-xl">
+            Open The App →
+          </a>
+          <a href="#proof" class="btn-ghost inline-flex items-center justify-center gap-2 font-medium text-base px-8 py-4 rounded-xl">
+            See Examples
+          </a>
+        </div>
+
+        <div class="reveal d4 mt-10 grid gap-3 sm:grid-cols-3">
+          <div class="metric-card text-left">
+            <p class="font-mono text-xs text-sky-400">Outcome</p>
+            <p class="mt-2 text-sm text-zinc-300">Review the posts that matter without checking multiple Reddit tabs.</p>
+          </div>
+          <div class="metric-card text-left">
+            <p class="font-mono text-xs text-sky-400">Proof</p>
+            <p class="mt-2 text-sm text-zinc-300">See the score and the reason behind it before you open a thread.</p>
+          </div>
+          <div class="metric-card text-left">
+            <p class="font-mono text-xs text-sky-400">Speed</p>
+            <p class="mt-2 text-sm text-zinc-300">Set up a few subreddits and start reviewing ranked posts quickly.</p>
+          </div>
+        </div>
       </div>
 
-      <!-- Headline -->
-      <h1 class="reveal d2 font-bold text-5xl sm:text-6xl lg:text-[4.5rem] text-white leading-[1.08] tracking-tighter mb-7">
-        Find Reddit leads<br/>
-        <span class="font-bold" style="color:#38BDF8;">10× faster</span> with AI.
-      </h1>
+      <div class="reveal d4">
+        <div class="mock-shell">
+          <div class="mock-window">
+            <div class="mock-toolbar px-4 py-3 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span class="text-xs font-medium text-zinc-300">AI active</span>
+                <span class="text-xs text-zinc-500 hidden sm:inline">Goal: find buyer-intent SEO threads</span>
+              </div>
+              <span class="text-[11px] font-mono text-zinc-500">5 strong / 24 reviewed</span>
+            </div>
 
-      <!-- Sub -->
-      <p class="reveal d3 text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-11 leading-relaxed">
-        Stop scrolling for hours. Get AI-ranked posts that match your business goals —
-        delivered automatically.
-      </p>
+            <div class="grid lg:grid-cols-[0.9fr_1.1fr] gap-0">
+              <div class="border-b lg:border-b-0 lg:border-r border-white/[0.06] p-4 space-y-3">
+                <div class="mock-post active">
+                  <div class="flex items-center justify-between gap-2 text-[11px] text-zinc-500 font-mono">
+                    <span>r/seo • 17m ago</span>
+                    <span class="ai-badge high">5 / 5</span>
+                  </div>
+                  <h3 class="mt-2 text-sm font-semibold text-white leading-snug">Need help finding an SEO consultant for a local services business</h3>
+                  <p class="mt-2 text-xs text-zinc-400">Why: clear need, likely budget, active thread.</p>
+                </div>
 
-      <!-- CTAs -->
-      <div class="reveal d4 flex flex-col sm:flex-row gap-4 justify-center mb-8">
-        <a href="/app" class="btn-primary inline-flex items-center justify-center gap-2 font-semibold text-base px-8 py-4 rounded-xl">
-          Try It Free →
-        </a>
-        <a href="#how-it-works" class="btn-ghost inline-flex items-center justify-center gap-2 font-medium text-base px-8 py-4 rounded-xl">
-          See How It Works
-        </a>
-      </div>
+                <div class="mock-post">
+                  <div class="flex items-center justify-between gap-2 text-[11px] text-zinc-500 font-mono">
+                    <span>r/marketing • 31m ago</span>
+                    <span class="ai-badge high">4 / 5</span>
+                  </div>
+                  <h3 class="mt-2 text-sm font-semibold text-white leading-snug">What agency would you trust for technical content and search growth?</h3>
+                  <p class="mt-2 text-xs text-zinc-400">Why: active evaluation, clear intent.</p>
+                </div>
 
-      <!-- Trust -->
-      <p class="reveal d5 label" style="color: rgba(255,255,255,0.2);">
-        No credit card &nbsp;·&nbsp; Free forever &nbsp;·&nbsp; 2-min setup
-      </p>
-    </div>
-  </section>
+                <div class="mock-post">
+                  <div class="flex items-center justify-between gap-2 text-[11px] text-zinc-500 font-mono">
+                    <span>r/entrepreneur • 42m ago</span>
+                    <span class="ai-badge low">1 / 5</span>
+                  </div>
+                  <h3 class="mt-2 text-sm font-semibold text-white leading-snug">Share your favorite marketing meme</h3>
+                  <p class="mt-2 text-xs text-zinc-400">Ignored: low intent.</p>
+                </div>
+              </div>
 
-  <!-- ── VALUE PROPS ── -->
-  <section class="py-20 px-4 border-y divider">
-    <div class="max-w-5xl mx-auto">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-14 sr">
-        <div class="feature-item">
-          <div class="label mb-3">Relevance</div>
-          <h3 class="text-[0.95rem] font-semibold text-white mb-2 leading-snug">AI-scored for your goals</h3>
-          <p class="text-zinc-500 text-sm leading-relaxed">Every post scored 1–5 by AI based on what you're looking for. No more manual filtering through noise.</p>
-        </div>
-        <div class="feature-item">
-          <div class="label mb-3">Speed</div>
-          <h3 class="text-[0.95rem] font-semibold text-white mb-2 leading-snug">10× faster monitoring</h3>
-          <p class="text-zinc-500 text-sm leading-relaxed">5 subreddits in 5 minutes instead of 2 hours. Digest API for Slack, Cron, or any webhook.</p>
-        </div>
-        <div class="feature-item">
-          <div class="label mb-3">Edge</div>
-          <h3 class="text-[0.95rem] font-semibold text-white mb-2 leading-snug">Built for lead gen</h3>
-          <p class="text-zinc-500 text-sm leading-relaxed">SEO agencies, sales teams, recruiters — find warm leads before your competitors even open a tab.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── HOW IT WORKS ── -->
-  <section id="how-it-works" class="py-28 px-4">
-    <div class="max-w-3xl mx-auto">
-      <div class="mb-18 sr" style="margin-bottom:4.5rem;">
-        <div class="label mb-5">Process</div>
-        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.1] tracking-tighter">
-          Setup to first lead<br/>
-          in five minutes.
-        </h2>
-      </div>
-
-      <div class="space-y-10">
-
-        <div class="flex gap-7 items-start relative sr sr-d1">
-          <div class="relative flex-shrink-0 w-10">
-            <span class="step-ghost">1</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7] flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#0284C7] font-medium">01</span>
+              <div class="p-4">
+                <div class="annot-card">
+                  <p class="label">Why This Post Matters</p>
+                  <h3 class="mt-3 text-lg font-semibold text-white leading-snug">Need help finding an SEO consultant for a local services business</h3>
+                  <div class="mt-4 space-y-4">
+                    <div class="annot-line">
+                      <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Matched signals</p>
+                      <p class="mt-1 text-sm text-zinc-300">need help, consultant, local business, budget-ready</p>
+                    </div>
+                    <div class="annot-line">
+                      <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Momentum</p>
+                      <p class="mt-1 text-sm text-zinc-300">82 upvotes/h • 11 comments/h • fresh thread</p>
+                    </div>
+                    <div class="annot-line">
+                      <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Next action</p>
+                      <p class="mt-1 text-sm text-zinc-300">Open the thread and decide whether to reply or save it.</p>
+                    </div>
+                  </div>
+                  <div class="mt-5 flex flex-wrap gap-2">
+                    <span class="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 border border-white/10">Copy link</span>
+                    <span class="rounded-lg bg-sky-500/15 px-3 py-1.5 text-xs font-medium text-sky-300 border border-sky-500/20">Reply</span>
+                    <span class="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 border border-white/10">Save</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="pt-0.5">
-            <h3 class="text-sm font-semibold text-white mb-1">Connect your Reddit account</h3>
-            <p class="text-zinc-500 text-sm leading-relaxed">Secure OAuth in one click. Higher API limits, no password storage.</p>
         </div>
-
-        <div class="flex gap-7 items-start relative sr sr-d2">
-          <div class="relative flex-shrink-0 w-10">
-            <span class="step-ghost">2</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">02</span>
-            </div>
-          </div>
-          <div class="pt-0.5">
-            <h3 class="text-sm font-semibold text-white mb-1">Choose your subreddits</h3>
-            <p class="text-zinc-500 text-sm leading-relaxed">Pick 3–10 subreddits to monitor. We handle the polling.</p>
-        </div>
-
-        <div class="flex gap-7 items-start relative sr sr-d3">
-          <div class="relative flex-shrink-0 w-10">
-            <span class="step-ghost">3</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">03</span>
-            </div>
-          </div>
-          <div class="pt-0.5">
-            <h3 class="text-sm font-semibold text-white mb-1">Tell the AI your goals</h3>
-            <p class="text-zinc-500 text-sm leading-relaxed">One sentence is enough. "Find people asking about SEO tools for small businesses."</p>
-        </div>
-
-        <div class="flex gap-7 items-start relative sr sr-d4">
-          <div class="relative flex-shrink-0 w-10">
-            <span class="step-ghost">4</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">04</span>
-            </div>
-          </div>
-          <div class="pt-0.5">
-            <h3 class="text-sm font-semibold text-white mb-1">Get ranked results</h3>
-            <p class="text-zinc-500 text-sm leading-relaxed">Every post scored 1–5. Sort by relevance. Stop wasting time on noise.</p>
-        </div>
-
-        <div class="flex gap-7 items-start relative sr">
-          <div class="relative flex-shrink-0 w-10">
-            <span class="step-ghost">5</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">05</span>
-            </div>
-          </div>
-          <div class="pt-0.5">
-            <h3 class="text-sm font-semibold text-white mb-1">Automate everything</h3>
-            <p class="text-zinc-500 text-sm leading-relaxed">Digest API delivers hot leads via cron or Slack. Set it and forget it.</p>
-        </div>
-
       </div>
     </div>
   </section>
 
-  <!-- ── TESTIMONIALS ── -->
+  <section class="px-4 pb-10">
+    <div class="max-w-6xl mx-auto flex flex-wrap gap-3 justify-center">
+      <div class="trust-pill">Open source</div>
+      <div class="trust-pill">Reddit OAuth</div>
+      <div class="trust-pill">AI ranking with reasons</div>
+      <div class="trust-pill">No credit card</div>
+      <div class="trust-pill">2-minute setup</div>
+      <div class="trust-pill">Manual or automated workflows</div>
+    </div>
+  </section>
+
+  <section class="px-4 pb-20">
+    <div class="max-w-6xl mx-auto use-case-strip p-6 sm:p-8 sr">
+      <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div>
+          <div class="label mb-4">For SEO Agencies</div>
+          <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">A simple setup for SEO agencies.</h2>
+          <p class="mt-4 text-sm sm:text-base text-zinc-300 leading-relaxed">
+            Track subreddits where business owners ask for SEO help, compare agencies, or describe traffic problems. The app ranks those threads and shows why they were scored that way.
+          </p>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div class="proof-row">
+            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Track</p>
+            <p class="mt-2 text-sm text-zinc-300">`r/seo`, `r/smallbusiness`, `r/marketing`, `r/entrepreneur`</p>
+          </div>
+          <div class="proof-row">
+            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Surface</p>
+            <p class="mt-2 text-sm text-zinc-300">Agency comparisons, SEO help requests, and traffic problems</p>
+          </div>
+          <div class="proof-row">
+            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Act</p>
+            <p class="mt-2 text-sm text-zinc-300">Review the best threads first and ignore the rest</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="py-24 px-4 border-y divider">
-    <div class="max-w-5xl mx-auto">
-      <div class="mb-16 sr">
-        <div class="label mb-5">Results</div>
-        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-tight tracking-tighter">
-          Who uses it.
+    <div class="max-w-6xl mx-auto">
+      <div class="max-w-3xl sr">
+        <div class="label mb-5">Why It Helps</div>
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+          Manual Reddit search
+          does not scale well.
+        </h2>
+        <p class="mt-5 text-base sm:text-lg text-zinc-400 leading-relaxed">
+          Finding posts is easy. Deciding which ones are worth your time is the harder part.
+        </p>
+      </div>
+
+      <div class="mt-14 grid gap-5 md:grid-cols-3">
+        <div class="surface-card p-6 sr sr-d1">
+          <div class="label mb-4">Manual</div>
+          <h3 class="text-lg font-semibold text-white">Too much scanning</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">You open a lot of threads just to learn they are not useful.</p>
+        </div>
+        <div class="surface-card p-6 sr sr-d2">
+          <div class="label mb-4">Typical tools</div>
+          <h3 class="text-lg font-semibold text-white">Mentions without context</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">Keyword alerts tell you something was mentioned, not whether the thread is useful.</p>
+        </div>
+        <div class="surface-card p-6 sr sr-d3">
+          <div class="label mb-4">Dashboarder</div>
+          <h3 class="text-lg font-semibold text-white">Ranked posts</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">The app scores posts, shows the reason, and lets you review the strongest ones first.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how-it-works" class="py-28 px-4">
+    <div class="max-w-6xl mx-auto">
+      <div class="max-w-3xl sr">
+        <div class="label mb-5">How It Works</div>
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+          The basic workflow.
         </h2>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
-        <div class="t-card sr sr-d1">
-          <div>
-            <div class="label mb-4">SEO Agencies</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
-              Found 3 paying clients in the first week monitoring r/SEO. Saves 10+ hours weekly.
-            </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— Agency owner, Berlin</cite>
+      <div class="mt-14 grid gap-5 lg:grid-cols-3">
+        <div class="step-card sr sr-d1">
+          <div class="step-num">01</div>
+          <h3 class="mt-5 text-xl font-semibold text-white">Connect your Reddit account</h3>
+          <p class="mt-3 text-sm leading-relaxed text-zinc-500">Sign in with Reddit to load the dashboard and fetch posts.</p>
         </div>
-
-        <div class="t-card sr sr-d2">
-          <div>
-            <div class="label mb-4">Sales Teams</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
-              Track competitor mentions and catch warm leads within 1 hour. 40% reply rate vs 5% cold email.
-            </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— SaaS sales lead</cite>
+        <div class="step-card sr sr-d2">
+          <div class="step-num">02</div>
+          <h3 class="mt-5 text-xl font-semibold text-white">Choose your subreddits and goal</h3>
+          <p class="mt-3 text-sm leading-relaxed text-zinc-500">Pick the communities you want to track and define what a useful post looks like.</p>
         </div>
-
-        <div class="t-card sr sr-d3">
-          <div>
-            <div class="label mb-4">Market Researchers</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
-              Replaced 3 hours of manual trend spotting with a 5-minute daily digest.
-            </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— Indie hacker</cite>
+        <div class="step-card sr sr-d3">
+          <div class="step-num">03</div>
+          <h3 class="mt-5 text-xl font-semibold text-white">Work from ranked threads</h3>
+          <p class="mt-3 text-sm leading-relaxed text-zinc-500">Review the highest-scoring posts first and inspect the reason behind each score.</p>
         </div>
-
-        <div class="t-card sr sr-d4">
-          <div>
-            <div class="label mb-4">Recruiters</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
-              Spot hiring posts 2 hours after they go live. Huge advantage over job boards.
-            </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— Tech recruiter</cite>
-        </div>
-
       </div>
     </div>
   </section>
 
-  <!-- ── BOTTOM CTA ── -->
-  <section class="cta-glow py-32 px-4">
+  <section id="proof" class="py-24 px-4 border-y divider">
+    <div class="max-w-6xl mx-auto">
+      <div class="max-w-3xl sr">
+        <div class="label mb-5">Proof</div>
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+          Some posts are useful.
+          Some are not.
+        </h2>
+      </div>
+
+      <div class="mt-14 grid gap-5 lg:grid-cols-2">
+        <div class="annot-card sr sr-d1">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="label">Strong Match</p>
+              <h3 class="mt-2 text-xl font-semibold text-white">"Looking for someone to help our SaaS recover search traffic"</h3>
+            </div>
+            <span class="ai-badge high">5 / 5</span>
+          </div>
+          <div class="mt-6 space-y-4">
+            <div class="proof-row">
+              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Why it surfaces</p>
+              <p class="mt-2 text-sm text-zinc-300">Clear problem, likely budget, and a thread that is still active.</p>
+            </div>
+            <div class="proof-row">
+              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">What to do</p>
+              <p class="mt-2 text-sm text-zinc-300">Open it, read the thread, and decide whether to reply or save it.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="annot-card sr sr-d2">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="label">Weak Match</p>
+              <h3 class="mt-2 text-xl font-semibold text-white">"What is the funniest marketing fail you have seen?"</h3>
+            </div>
+            <span class="ai-badge low">1 / 5</span>
+          </div>
+          <div class="mt-6 space-y-4">
+            <div class="proof-row">
+              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Why it drops</p>
+              <p class="mt-2 text-sm text-zinc-300">High activity, but no clear intent and no obvious next action.</p>
+            </div>
+            <div class="proof-row">
+              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">What you avoid</p>
+              <p class="mt-2 text-sm text-zinc-300">Spending time on threads that are interesting but not useful.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-24 px-4">
+    <div class="max-w-6xl mx-auto">
+      <div class="max-w-3xl sr">
+        <div class="label mb-5">Inside The Product</div>
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+          Real screens from
+          the current app.
+        </h2>
+      </div>
+
+      <div class="mt-14 grid gap-6 lg:grid-cols-2">
+        <div class="surface-card p-4 sr sr-d1">
+          <div class="screen-frame">
+            <img src="/dashboard-feed.png" alt="Reddit Dashboarder feed view with ranked posts and subreddit filters" class="screen-shot feed" />
+          </div>
+          <div class="mt-4">
+            <p class="label mb-2">Feed View</p>
+            <p class="text-sm text-zinc-400 leading-relaxed">View multiple subreddits in one place and sort through posts more quickly.</p>
+          </div>
+        </div>
+        <div class="surface-card p-4 sr sr-d2">
+          <div class="screen-frame">
+            <img src="/dashboard-detail.png" alt="Reddit Dashboarder detail view highlighting why a post matters" class="screen-shot detail" />
+          </div>
+          <div class="mt-4">
+            <p class="label mb-2">Detail View</p>
+            <p class="text-sm text-zinc-400 leading-relaxed">Open a post and see the score, the reason, and the post details in one view.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-24 px-4 border-y divider">
+    <div class="max-w-6xl mx-auto">
+      <div class="max-w-3xl sr">
+        <div class="label mb-5">Ideal For</div>
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+          Common use cases.
+        </h2>
+      </div>
+
+      <div class="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div class="icp-card sr sr-d1">
+          <div class="label mb-4">Agencies</div>
+          <h3 class="text-lg font-semibold text-white">Client research</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">Find threads where people are directly asking for help or comparing options.</p>
+        </div>
+        <div class="icp-card sr sr-d2">
+          <div class="label mb-4">Consultants</div>
+          <h3 class="text-lg font-semibold text-white">Reply prioritization</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">See which conversations are worth reading before opening every thread.</p>
+        </div>
+        <div class="icp-card sr sr-d3">
+          <div class="label mb-4">Founders</div>
+          <h3 class="text-lg font-semibold text-white">Pain-point tracking</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">Watch for recurring problems, objections, and product questions.</p>
+        </div>
+        <div class="icp-card sr sr-d4">
+          <div class="label mb-4">Growth Teams</div>
+          <h3 class="text-lg font-semibold text-white">Demand monitoring</h3>
+          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">Review threads with context, velocity, and a visible reason behind each score.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-24 px-4">
+    <div class="max-w-5xl mx-auto surface-card p-8 sm:p-10 lg:p-12 sr">
+      <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div>
+          <div class="label mb-5">What It Looks Like</div>
+          <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+            The dashboard is built
+            for quick review.
+          </h2>
+          <p class="mt-5 text-base sm:text-lg text-zinc-400 leading-relaxed">
+            You get a ranked feed, filters, and a detail view that explains why a post was scored the way it was.
+          </p>
+        </div>
+        <div class="space-y-3">
+          <div class="proof-row">
+            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Signal</p>
+            <p class="mt-2 text-sm text-zinc-300">Score, confidence, and matched signals for each post.</p>
+          </div>
+          <div class="proof-row">
+            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Workflow</p>
+            <p class="mt-2 text-sm text-zinc-300">Sort, filter, and inspect posts without jumping between tabs.</p>
+          </div>
+          <div class="proof-row">
+            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Setup</p>
+            <p class="mt-2 text-sm text-zinc-300">Start with manual review, then add AI ranking if you want it.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-24 px-4 border-y divider">
+    <div class="max-w-4xl mx-auto">
+      <div class="max-w-2xl sr">
+        <div class="label mb-5">FAQ</div>
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
+          FAQ
+        </h2>
+      </div>
+
+      <div class="mt-14 space-y-4">
+        <div class="surface-card p-5 sr sr-d1">
+          <h3 class="text-base font-semibold text-white">Do I need my own AI API key?</h3>
+          <p class="mt-2 text-sm leading-relaxed text-zinc-400">You can start without one. If you want more control over model choice, you can add your own OpenRouter key later.</p>
+        </div>
+        <div class="surface-card p-5 sr sr-d2">
+          <h3 class="text-base font-semibold text-white">Can I use it without AI ranking?</h3>
+          <p class="mt-2 text-sm leading-relaxed text-zinc-400">Yes. You can use the dashboard as a manual multi-subreddit monitor first, then turn on AI ranking when you want better prioritization.</p>
+        </div>
+        <div class="surface-card p-5 sr sr-d3">
+          <h3 class="text-base font-semibold text-white">Is this only for lead generation?</h3>
+          <p class="mt-2 text-sm leading-relaxed text-zinc-400">No. It works for lead gen, market research, pain-point discovery, hiring signals, and tracking recurring customer questions.</p>
+        </div>
+        <div class="surface-card p-5 sr sr-d4">
+          <h3 class="text-base font-semibold text-white">How long does setup take?</h3>
+          <p class="mt-2 text-sm leading-relaxed text-zinc-400">Usually a few minutes. Pick subreddits, define your goal, and the app can start surfacing ranked posts right away.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hero-glow py-28 px-4">
     <div class="max-w-2xl mx-auto text-center sr">
-      <div class="label mb-7" style="color:rgba(2,132,199,0.7);">Get started</div>
-      <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.1] tracking-tighter mb-6">
-        Your next client<br/>
-        is on Reddit right now.
+      <div class="label mb-7" style="color:rgba(2,132,199,0.7);">Get Started</div>
+      <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter mb-6">
+        Open the dashboard
+        and try it.
       </h2>
-      <p class="text-zinc-500 text-base mb-11 leading-relaxed max-w-md mx-auto">
-        Join SEO agencies, sales teams, and indie hackers already using Reddit Dashboarder to find warm leads automatically.
+      <p class="text-zinc-500 text-base mb-10 leading-relaxed max-w-lg mx-auto">
+        Pick a few subreddits, define your goal, and review the posts the app ranks highest.
       </p>
-      <a href="/app" class="btn-primary inline-flex items-center gap-2 font-semibold text-base px-10 py-5 rounded-xl">
-        Start Free Now →
-      </a>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="/app" class="btn-primary inline-flex items-center justify-center gap-2 font-semibold text-base px-10 py-5 rounded-xl">
+          Open The Dashboard →
+        </a>
+        <a href="/pricing" class="btn-ghost inline-flex items-center justify-center gap-2 font-medium text-base px-10 py-5 rounded-xl">
+          See Pricing
+        </a>
+      </div>
       <p class="label mt-8" style="color:rgba(255,255,255,0.15);">
-        No credit card &nbsp;·&nbsp; 2-min setup &nbsp;·&nbsp; Open source
+        No credit card &nbsp;·&nbsp; Open source &nbsp;·&nbsp; Quick setup
       </p>
     </div>
   </section>
 
-  <!-- ── FOOTER ── -->
   <footer class="border-t divider py-8 px-4">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
       <p class="text-zinc-600 text-sm">
@@ -450,10 +746,10 @@
 
   <script>
     const observer = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          observer.unobserve(e.target);
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
         }
       });
     }, { threshold: 0.08 });
