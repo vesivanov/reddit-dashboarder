@@ -8,7 +8,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -17,7 +17,9 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
+            serif: ['"DM Serif Display"', 'Georgia', 'serif'],
+            sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
+            mono:  ['"JetBrains Mono"', 'monospace'],
           },
         },
       },
@@ -25,8 +27,8 @@
   </script>
   
   <style>
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    .gradient-bg { background: #E8541A; }
   </style>
 </head>
 <body class="bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
@@ -36,16 +38,16 @@
     <div class="max-w-7xl mx-auto px-6 py-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 text-[#E8541A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
           </svg>
           <span class="text-xl font-bold">Reddit Dashboarder</span>
         </div>
         
         <div class="flex items-center gap-6">
-          <a href="/" class="hover:text-purple-600 transition">Home</a>
-          <a href="/docs" class="hover:text-purple-600 transition">Docs</a>
-          <a href="/app" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition font-medium">
+          <a href="/" class="hover:text-[#E8541A] transition">Home</a>
+          <a href="/docs" class="hover:text-[#E8541A] transition">Docs</a>
+          <a href="/app" class="bg-[#E8541A] text-white px-6 py-2 rounded-lg hover:bg-[#D14A14] transition font-medium">
             Try Free
           </a>
         </div>
@@ -137,8 +139,8 @@
       </div>
       
       <!-- Pro Tier -->
-      <div class="bg-white dark:bg-zinc-800 p-10 rounded-2xl border-2 border-purple-600 relative">
-        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-purple-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
+      <div class="bg-white dark:bg-zinc-800 p-10 rounded-2xl border-2 border-[#E8541A] relative">
+        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#E8541A] text-white px-4 py-1 rounded-full text-sm font-semibold">
           MOST POPULAR
         </div>
         
@@ -148,7 +150,7 @@
         <div class="mb-8">
           <span class="text-5xl font-bold">$29</span>
           <span class="text-zinc-600 dark:text-zinc-400">/month</span>
-          <p class="text-sm text-purple-600 mt-2">Early bird pricing — lock it in now</p>
+          <p class="text-sm text-[#E8541A] mt-2">Early bird pricing — lock it in now</p>
         </div>
         
         <button id="notify-pro" class="block w-full gradient-bg text-white text-center py-4 rounded-lg font-semibold hover:opacity-90 transition mb-2">
@@ -250,7 +252,7 @@
     <div class="max-w-3xl mx-auto text-center">
       <h2 class="text-4xl font-bold mb-6">Start Free Today</h2>
       <p class="text-xl mb-8 opacity-90">No credit card required. Upgrade when you're ready.</p>
-      <a href="/app" class="inline-block bg-white text-purple-600 px-12 py-5 rounded-lg font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
+      <a href="/app" class="inline-block bg-white text-[#E8541A] px-12 py-5 rounded-lg font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
         Try Reddit Dashboarder →
       </a>
     </div>
@@ -259,7 +261,7 @@
   <!-- Footer -->
   <footer class="bg-zinc-900 text-zinc-400 py-12 px-6">
     <div class="max-w-6xl mx-auto text-center">
-      <p>© 2026 Reddit Dashboarder. Built by <a href="https://vesivanov.com" class="text-purple-400 hover:text-purple-300">Ves Ivanov</a></p>
+      <p>© 2026 Reddit Dashboarder. Built by <a href="https://vesivanov.com" class="text-orange-400 hover:text-orange-300">Ves Ivanov</a></p>
     </div>
   </footer>
   
