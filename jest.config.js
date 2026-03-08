@@ -10,8 +10,7 @@ module.exports = {
   ],
   coveragePathIgnorePatterns: [
     '/node_modules/',
-    '/__tests__/',
-    '/worker/'
+    '/__tests__/'
   ],
   setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js'],
   testTimeout: 30000,

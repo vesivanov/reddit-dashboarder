@@ -1,8 +1,9 @@
 // /api/v1/leads/latest - Get latest polled leads
-// No token required - fetches from storage
+// Protected by AGENT_API_KEY because lead output can be sensitive.
 // GET /api/v1/leads/latest
 
 const { withCORS } = require('../../../lib/cors');
+const { verifyAgentApiKey } = require('../../../lib/api-v1/auth');
 const storage = require('../../../lib/storage');
 
 async function handler(req, res) {
@@ -13,6 +14,14 @@ async function handler(req, res) {
 
   if (req.method !== 'GET') {
     return withCORS(req, res).status(405).json({ error: 'Method not allowed' });
+  }
+
+  const authResult = verifyAgentApiKey(req);
+  if (!authResult.valid) {
+    return withCORS(req, res).status(401).json({
+      error: 'Unauthorized',
+      message: authResult.error,
+    });
   }
 
   try {

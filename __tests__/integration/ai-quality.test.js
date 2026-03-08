@@ -15,6 +15,7 @@ process.env.OPENROUTER_API_KEY = 'test_key';
 process.env.NODE_ENV = 'test';
 
 const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
+const { PROMPT_VERSION } = aiRankHandler;
 
 describe('AI Ranking Quality', () => {
   let mockReq, mockRes;
@@ -245,10 +246,10 @@ describe('AI Ranking Quality', () => {
 
     await aiRankHandler(mockReq, mockRes);
     const response = mockRes.json.mock.calls[0][0];
-    expect(response.promptVersion).toBe('v3.1');
+    expect(response.promptVersion).toBe(PROMPT_VERSION);
     const metricsCall = mockRes.setHeader.mock.calls.find(call => call[0] === 'X-RDD-Metrics');
     const metrics = metricsCall ? JSON.parse(metricsCall[1]) : null;
-    expect(metrics.promptVersion).toBe('v3.1');
+    expect(metrics.promptVersion).toBe(PROMPT_VERSION);
   });
 
   test('Handles empty posts array', async () => {

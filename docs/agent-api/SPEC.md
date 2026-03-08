@@ -27,7 +27,7 @@ Every response includes:
 ## Endpoints
 
 ### GET /snapshot
-Returns the latest data snapshot (posts + config + analysis).
+Returns the latest materialized agent snapshot (posts + config + analysis).
 
 **Request:**
 ```bash
@@ -44,6 +44,9 @@ curl -H "Authorization: Bearer rd_api_xxx" \
   "data": {
     "snapshot": {
       "id": "snap_abc123",
+      "scopeId": "scope_sync_token",
+      "sourceSyncToken": "sync_token",
+      "sourceSyncedAt": "2026-02-11T15:20:00Z",
       "createdAt": "2026-02-11T15:20:00Z",
       "expiresAt": "2026-02-12T15:20:00Z"
     },
@@ -55,7 +58,10 @@ curl -H "Authorization: Bearer rd_api_xxx" \
         "daysBack": 1
       },
       "goals": "Find SEO consulting leads",
-      "threshold": 4
+      "threshold": 4,
+      "model": "google/gemini-2.5-flash",
+      "version": 3,
+      "updatedAt": "2026-02-11T15:00:00Z"
     },
     "posts": [
       {
@@ -71,6 +77,9 @@ curl -H "Authorization: Bearer rd_api_xxx" \
       }
     ],
     "analysis": {
+      "status": "completed",
+      "source": "ai_job",
+      "jobId": "job_mno345",
       "hotLeads": [
         {
           "postId": "t3_abc123",
@@ -81,7 +90,7 @@ curl -H "Authorization: Bearer rd_api_xxx" \
       ],
       "hotLeadCount": 1,
       "totalPosts": 43,
-      "lastAnalyzedAt": "2026-02-11T15:15:00Z"
+      "completedAt": "2026-02-11T15:15:00Z"
     }
   },
   "error": null
@@ -128,6 +137,10 @@ Get current monitoring configuration.
 ### PATCH /config
 Update monitoring configuration.
 
+Concurrency:
+- send `If-Match: <version>` or body `version`
+- stale versions return `409 VERSION_CONFLICT`
+
 **Request:**
 ```bash
 curl -X PATCH \
@@ -154,12 +167,13 @@ curl -X PATCH \
   "requestId": "req_ghi789",
   "timings": { "totalMs": 45 },
   "data": {
-    "config": { /* updated config */ },
+    "config": { /* updated config with incremented version */ },
     "auditLog": {
       "action": "CONFIG_UPDATE",
       "changedFields": ["subreddits", "threshold"],
       "previous": { "subreddits": [...], "threshold": 4 },
-      "updatedAt": "2026-02-11T15:25:00Z"
+      "updatedAt": "2026-02-11T15:25:00Z",
+      "version": 4
     }
   },
   "error": null
@@ -205,7 +219,9 @@ curl -X POST \
       "id": "job_mno345",
       "status": "queued",
       "createdAt": "2026-02-11T15:30:00Z",
-      "estimatedDurationSeconds": 30
+      "estimatedDurationSeconds": 30,
+      "snapshotId": "snap_abc123",
+      "configVersion": 4
     }
   },
   "error": null
@@ -217,6 +233,24 @@ curl -X POST \
 ### GET /jobs/:jobId
 Check analysis job status.
 
+### POST /jobs/drain
+Process at most one queued or recoverable analysis job.
+
+This is intended for workers, schedulers, or operational tooling. `GET /jobs/:jobId` is now read-only and does not trigger analysis work.
+
+**Response (200):**
+```json
+{
+  "schemaVersion": "1.0.0",
+  "requestId": "req_worker123",
+  "timings": { "totalMs": 18 },
+  "data": {
+    "processed": true
+  },
+  "error": null
+}
+```
+
 **Response (200) — Running:**
 ```json
 {
@@ -227,6 +261,8 @@ Check analysis job status.
     "job": {
       "id": "job_mno345",
       "status": "running",
+      "snapshotId": "snap_abc123",
+      "configVersion": 4,
       "progress": {
         "postsScored": 23,
         "totalPosts": 43
@@ -248,6 +284,8 @@ Check analysis job status.
     "job": {
       "id": "job_mno345",
       "status": "completed",
+      "snapshotId": "snap_abc123",
+      "configVersion": 4,
       "result": {
         "postsScored": 43,
         "hotLeadCount": 3,
