@@ -8,16 +8,14 @@
   <meta name="description" content="Start free. Upgrade to Pro for unlimited AI ranking, automated polling, and API access.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {
-            serif: ['"DM Serif Display"', 'Georgia', 'serif'],
-            sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
+          fontFamily: {            sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
             mono:  ['"JetBrains Mono"', 'monospace'],
           }
         }
@@ -99,7 +97,7 @@
   <!-- NAV -->
   <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-      <a href="/" class="font-serif text-[1.15rem] text-white tracking-tight leading-none">Reddit Dashboarder</a>
+      <a href="/" class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</a>
       <div class="flex items-center gap-5">
         <a href="/" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">Home</a>
         <a href="/docs" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">Docs</a>
@@ -114,7 +112,7 @@
   <section class="pt-20 pb-16 px-4 text-center">
     <div class="max-w-2xl mx-auto">
       <div class="label mb-5">Pricing</div>
-      <h1 class="font-serif text-4xl sm:text-5xl text-white leading-tight tracking-tight mb-4">
+      <h1 class="font-bold text-4xl sm:text-5xl text-white leading-tight tracking-tighter mb-4">
         Simple, transparent pricing.
       </h1>
       <p class="text-zinc-500 text-base">Start free. Upgrade when you're ready. No hidden fees.</p>
@@ -128,11 +126,11 @@
       <!-- Free -->
       <div class="card p-8 flex flex-col">
         <div class="label mb-4">Free</div>
-        <h2 class="font-serif text-3xl text-white mb-1">Free Forever</h2>
+        <h2 class="font-bold text-3xl text-white mb-1">Free Forever</h2>
         <p class="text-zinc-500 text-sm mb-8">Perfect for getting started.</p>
 
         <div class="mb-8">
-          <span class="font-serif text-5xl text-white">$0</span>
+          <span class="font-mono text-5xl text-white tracking-tight">$0</span>
           <span class="text-zinc-500 text-sm ml-1">/ month</span>
         </div>
 
@@ -179,11 +177,11 @@
         </div>
 
         <div class="label mb-4">Pro</div>
-        <h2 class="font-serif text-3xl text-white mb-1">Pro</h2>
+        <h2 class="font-bold text-3xl text-white mb-1">Pro</h2>
         <p class="text-zinc-500 text-sm mb-8">For serious lead generation.</p>
 
         <div class="mb-2">
-          <span class="font-serif text-5xl text-white">$29</span>
+          <span class="font-mono text-5xl text-white tracking-tight">$29</span>
           <span class="text-zinc-500 text-sm ml-1">/ month</span>
         </div>
         <p class="text-xs text-sky-400 font-mono mb-8">Early bird pricing — lock it in now</p>
@@ -232,7 +230,7 @@
   <section class="py-20 px-4 border-y divider">
     <div class="max-w-2xl mx-auto">
       <div class="label mb-6">FAQ</div>
-      <h2 class="font-serif text-3xl text-white mb-12 leading-tight">Common questions.</h2>
+      <h2 class="font-bold text-3xl text-white mb-12">Common questions.</h2>
       <div class="space-y-8">
         <div class="border-b divider pb-8">
           <h3 class="text-sm font-semibold text-white mb-2">Can I switch plans later?</h3>
@@ -262,7 +260,7 @@
   <section class="py-28 px-4">
     <div class="max-w-xl mx-auto text-center">
       <div class="label mb-6">Get started</div>
-      <h2 class="font-serif text-4xl text-white leading-tight mb-6">
+      <h2 class="font-bold text-4xl text-white leading-tight mb-6">
         Your next client<br/>is on Reddit right now.
       </h2>
       <p class="text-zinc-500 text-sm mb-10">No credit card required. 2-minute setup. Open source.</p>
@@ -275,7 +273,7 @@
   <!-- FOOTER -->
   <footer class="border-t divider py-8 px-4">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <p class="font-serif text-zinc-600 text-sm">
+      <p class="text-zinc-600 text-sm">
         &copy; 2026 Reddit Dashboarder &nbsp;&middot;&nbsp;
         <a href="https://vesivanov.com" class="hover:text-zinc-300 transition-colors underline underline-offset-2">Ves Ivanov</a>
       </p>

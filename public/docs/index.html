@@ -11,10 +11,10 @@
   />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { serif: ['"DM Serif Display"', 'Georgia', 'serif'], sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: {sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
   </script>
     <style>
     :root { --signal: #0284C7; --signal-hover: #0369A1; --bg: #0C0C0D; --border: rgba(255,255,255,0.07); }
@@ -39,7 +39,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </button>
-        <a href="/" class="font-serif text-[1.1rem] text-white tracking-tight leading-none">Reddit Dashboarder</a>
+        <a href="/" class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</a>
       </div>
       <div class="flex items-center gap-3 text-sm">
         <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white">GitHub</a>

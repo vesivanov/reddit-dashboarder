@@ -75,7 +75,8 @@ const {
       const [maxPages, setMaxPages] = useState(() => {
         try {
           const saved = localStorage.getItem('dashboard_max_pages');
-          if (saved) return Math.max(1, Math.min(10, Number(saved) || 5));
+          if (saved === '0') return 0;
+          if (saved) return Math.max(1, Math.min(30, Number(saved) || 5));
         } catch (error) {}
         return 5;
       });
@@ -1168,9 +1169,7 @@ const {
             days: String(days),
             limit: String(effectiveLimit)
           });
-          if (mode === 'new') {
-            params.set('max_pages', String(effectiveMaxPages));
-          }
+          params.set('max_pages', effectiveMaxPages === 0 ? 'all' : String(effectiveMaxPages));
           if (forceRefresh) {
             params.set('_ts', String(Date.now()));
             params.set('fresh', '1');
@@ -1912,7 +1911,7 @@ const {
                     'AI off'
                   ),
                   aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
-                  aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate italic' },
+                  aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' },
                     aiGoalSummary || aiGoals.trim()
                   )
                 ),
@@ -2552,7 +2551,10 @@ const {
                     onChange: (e) => setMaxPages(Number(e.target.value)),
                     className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
                     },
-                      [1, 2, 3, 5, 7, 10].map(n => h('option', { key: n, value: n }, n))
+                      [
+                        h('option', { key: 'all', value: 0 }, 'All pages'),
+                        ...[1, 2, 3, 5, 7, 10, 15, 20, 30].map(n => h('option', { key: n, value: n }, n))
+                      ]
                   )
                 )
               ),

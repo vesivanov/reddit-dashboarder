@@ -8,16 +8,14 @@
   <meta name="description" content="Stop scrolling for hours. Get AI-ranked Reddit posts that match your business goals, delivered automatically." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
-          fontFamily: {
-            serif: ['"DM Serif Display"', 'Georgia', 'serif'],
-            sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
+          fontFamily: {            sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
             mono:  ['"JetBrains Mono"', 'monospace'],
           }
         }
@@ -99,10 +97,6 @@
     }
 
     /* ── Italic serif accent ── */
-    .serif-italic {
-      font-family: 'DM Serif Display', serif;
-      font-style: italic;
-    }
 
     /* ── Score pill ── */
     .score-pill {
@@ -135,8 +129,8 @@
 
     /* ── Step number decoration ── */
     .step-ghost {
-      font-family: 'DM Serif Display', serif;
-      font-size: 5.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 5rem;
       line-height: 1;
       color: rgba(2, 132, 199, 0.09);
       position: absolute;
@@ -153,16 +147,6 @@
       border-radius: 14px;
       padding: 1.75rem 1.75rem 1.5rem;
       position: relative;
-    }
-    .t-card .open-quote {
-      font-family: 'DM Serif Display', serif;
-      font-size: 4.5rem;
-      line-height: 1;
-      color: var(--signal);
-      opacity: 0.25;
-      position: absolute;
-      top: -0.25rem;
-      left: 1.25rem;
     }
 
     /* ── CTA glow ── */
@@ -224,7 +208,7 @@
   <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
       <a href="/" class="flex items-center gap-0">
-        <span class="font-serif text-[1.15rem] text-white tracking-tight leading-none">Reddit Dashboarder</span>
+        <span class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</span>
       </a>
       <div class="flex items-center gap-5">
         <a href="#how-it-works" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">How it works</a>
@@ -250,9 +234,9 @@
       </div>
 
       <!-- Headline -->
-      <h1 class="reveal d2 font-serif text-5xl sm:text-6xl lg:text-[4.5rem] text-white leading-[1.08] tracking-tight mb-7">
+      <h1 class="reveal d2 font-bold text-5xl sm:text-6xl lg:text-[4.5rem] text-white leading-[1.08] tracking-tighter mb-7">
         Find Reddit leads<br/>
-        <span class="serif-italic" style="color:#38BDF8;">10× faster</span> with AI.
+        <span class="font-bold" style="color:#38BDF8;">10× faster</span> with AI.
       </h1>
 
       <!-- Sub -->
@@ -306,9 +290,9 @@
     <div class="max-w-3xl mx-auto">
       <div class="mb-18 sr" style="margin-bottom:4.5rem;">
         <div class="label mb-5">Process</div>
-        <h2 class="font-serif text-4xl sm:text-5xl text-white leading-[1.1] tracking-tight">
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.1] tracking-tighter">
           Setup to first lead<br/>
-          <span class="serif-italic">in five minutes.</span>
+          in five minutes.
         </h2>
       </div>
 
@@ -324,7 +308,6 @@
           <div class="pt-0.5">
             <h3 class="text-sm font-semibold text-white mb-1">Connect your Reddit account</h3>
             <p class="text-zinc-500 text-sm leading-relaxed">Secure OAuth in one click. Higher API limits, no password storage.</p>
-          </div>
         </div>
 
         <div class="flex gap-7 items-start relative sr sr-d2">
@@ -337,7 +320,6 @@
           <div class="pt-0.5">
             <h3 class="text-sm font-semibold text-white mb-1">Choose your subreddits</h3>
             <p class="text-zinc-500 text-sm leading-relaxed">Pick 3–10 subreddits to monitor. We handle the polling.</p>
-          </div>
         </div>
 
         <div class="flex gap-7 items-start relative sr sr-d3">
@@ -350,7 +332,6 @@
           <div class="pt-0.5">
             <h3 class="text-sm font-semibold text-white mb-1">Tell the AI your goals</h3>
             <p class="text-zinc-500 text-sm leading-relaxed">One sentence is enough. "Find people asking about SEO tools for small businesses."</p>
-          </div>
         </div>
 
         <div class="flex gap-7 items-start relative sr sr-d4">
@@ -363,7 +344,6 @@
           <div class="pt-0.5">
             <h3 class="text-sm font-semibold text-white mb-1">Get ranked results</h3>
             <p class="text-zinc-500 text-sm leading-relaxed">Every post scored 1–5. Sort by relevance. Stop wasting time on noise.</p>
-          </div>
         </div>
 
         <div class="flex gap-7 items-start relative sr">
@@ -376,7 +356,6 @@
           <div class="pt-0.5">
             <h3 class="text-sm font-semibold text-white mb-1">Automate everything</h3>
             <p class="text-zinc-500 text-sm leading-relaxed">Digest API delivers hot leads via cron or Slack. Set it and forget it.</p>
-          </div>
         </div>
 
       </div>
@@ -388,54 +367,46 @@
     <div class="max-w-5xl mx-auto">
       <div class="mb-16 sr">
         <div class="label mb-5">Results</div>
-        <h2 class="font-serif text-4xl sm:text-5xl text-white leading-tight tracking-tight">
+        <h2 class="font-bold text-4xl sm:text-5xl text-white leading-tight tracking-tighter">
           Who uses it.
         </h2>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
         <div class="t-card sr sr-d1">
-          <span class="open-quote">"</span>
-          <div class="pt-9">
+          <div>
             <div class="label mb-4">SEO Agencies</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-5 italic">
+            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
               Found 3 paying clients in the first week monitoring r/SEO. Saves 10+ hours weekly.
             </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] not-italic tracking-wide uppercase">— Agency owner, Berlin</cite>
-          </div>
+            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— Agency owner, Berlin</cite>
         </div>
 
         <div class="t-card sr sr-d2">
-          <span class="open-quote">"</span>
-          <div class="pt-9">
+          <div>
             <div class="label mb-4">Sales Teams</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-5 italic">
+            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
               Track competitor mentions and catch warm leads within 1 hour. 40% reply rate vs 5% cold email.
             </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] not-italic tracking-wide uppercase">— SaaS sales lead</cite>
-          </div>
+            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— SaaS sales lead</cite>
         </div>
 
         <div class="t-card sr sr-d3">
-          <span class="open-quote">"</span>
-          <div class="pt-9">
+          <div>
             <div class="label mb-4">Market Researchers</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-5 italic">
+            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
               Replaced 3 hours of manual trend spotting with a 5-minute daily digest.
             </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] not-italic tracking-wide uppercase">— Indie hacker</cite>
-          </div>
+            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— Indie hacker</cite>
         </div>
 
         <div class="t-card sr sr-d4">
-          <span class="open-quote">"</span>
-          <div class="pt-9">
+          <div>
             <div class="label mb-4">Recruiters</div>
-            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-5 italic">
+            <blockquote class="text-zinc-300 text-sm leading-relaxed mb-4">
               Spot hiring posts 2 hours after they go live. Huge advantage over job boards.
             </blockquote>
-            <cite class="font-mono text-zinc-600 text-[0.65rem] not-italic tracking-wide uppercase">— Tech recruiter</cite>
-          </div>
+            <cite class="font-mono text-zinc-600 text-[0.65rem] tracking-wide uppercase">— Tech recruiter</cite>
         </div>
 
       </div>
@@ -446,9 +417,9 @@
   <section class="cta-glow py-32 px-4">
     <div class="max-w-2xl mx-auto text-center sr">
       <div class="label mb-7" style="color:rgba(2,132,199,0.7);">Get started</div>
-      <h2 class="font-serif text-4xl sm:text-5xl text-white leading-[1.1] tracking-tight mb-6">
+      <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.1] tracking-tighter mb-6">
         Your next client<br/>
-        <span class="serif-italic">is on Reddit right now.</span>
+        is on Reddit right now.
       </h2>
       <p class="text-zinc-500 text-base mb-11 leading-relaxed max-w-md mx-auto">
         Join SEO agencies, sales teams, and indie hackers already using Reddit Dashboarder to find warm leads automatically.
@@ -465,7 +436,7 @@
   <!-- ── FOOTER ── -->
   <footer class="border-t divider py-8 px-4">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <p class="font-serif text-zinc-600 text-sm">
+      <p class="text-zinc-600 text-sm">
         &copy; 2026 Reddit Dashboarder &nbsp;&middot;&nbsp;
         <a href="https://vesivanov.com" class="hover:text-zinc-300 transition-colors underline underline-offset-2">Ves Ivanov</a>
       </p>
