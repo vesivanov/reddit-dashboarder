@@ -1892,78 +1892,59 @@ const {
 
           // Center - Post list
           h('main', { className: `flex-1 flex-col bg-zinc-50 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-4 shrink-0' },
-              h('div', { className: 'rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-gradient-to-br from-white via-sky-50/40 to-zinc-50 dark:from-zinc-800 dark:via-zinc-800 dark:to-zinc-900 px-4 py-4 shadow-sm' },
-                h('div', { className: 'flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between' },
-                h('div', { className: 'min-w-0 lg:max-w-[48%]' },
-                  h('div', { className: 'flex items-center gap-2 flex-wrap' },
-                    h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' }, 'AI Control'),
-                    aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-sky-100 dark:bg-[#0284C7]/20 text-[#0369A1] dark:text-sky-300' }, 'Active'),
-                    aiScoresStale && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' }, 'Scores stale'),
-                    aiRankingLoading && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300' }, 'Ranking...')
+            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 shrink-0' },
+              h('div', { className: 'flex items-center gap-3 px-4 py-2.5 min-w-0' },
+
+                // Status dot
+                h('div', { className: `w-2 h-2 rounded-full shrink-0 ${
+                  aiRankingLoading ? 'bg-amber-400 animate-pulse' :
+                  aiEnabled && aiGoals && aiGoals.trim() ? 'bg-emerald-400' :
+                  'bg-zinc-300 dark:bg-zinc-600'
+                }` }),
+
+                // Status label + goal summary
+                h('div', { className: 'flex items-center gap-2 min-w-0 flex-1' },
+                  h('span', { className: 'text-xs font-medium shrink-0 ' + (
+                    aiRankingLoading ? 'text-amber-600 dark:text-amber-400' :
+                    aiEnabled && aiGoals && aiGoals.trim() ? 'text-emerald-700 dark:text-emerald-400' :
+                    'text-zinc-500 dark:text-zinc-400'
+                  )},
+                    aiRankingLoading ? 'Ranking…' :
+                    aiEnabled && aiGoals && aiGoals.trim() ? 'AI active' :
+                    'AI off'
                   ),
-                  h('h2', { className: 'mt-2 text-base font-semibold text-zinc-900 dark:text-white leading-snug' },
-                    aiEnabled && aiGoals && aiGoals.trim()
-                      ? (aiGoalSummary || 'AI ranking active')
-                      : 'AI ranking is available but not configured'
-                  ),
-                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed' },
-                    aiEnabled && aiGoals && aiGoals.trim()
-                      ? `Model: ${(selectedModelInfo && selectedModelInfo.name) || openRouterModel}`
-                      : 'Set goals, exclusions, and examples to rank posts by fit instead of raw score.'
+                  aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
+                  aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate italic' },
+                    aiGoalSummary || aiGoals.trim()
                   )
                 ),
-                h('div', { className: 'grid grid-cols-2 gap-2 lg:grid-cols-4 lg:min-w-[420px]' },
-                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Scored'),
-                    h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, `${aiScoreStats.scored}/${aiScoreStats.total}`)
+
+                // Stats (when scored)
+                postRelevanceScores.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-2.5 shrink-0' },
+                  h('span', { className: 'font-mono text-xs text-zinc-500 dark:text-zinc-400' },
+                    `${aiScoreStats.scored} / ${aiScoreStats.total}`
                   ),
-                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'AI-reviewed'),
-                    h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, aiScoreStats.llm)
+                  aiScoreStats.high > 0 && h('span', { className: 'font-mono text-xs text-emerald-600 dark:text-emerald-400' },
+                    `${aiScoreStats.high} strong`
                   ),
-                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Strong matches'),
-                    h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, aiScoreStats.high)
-                  ),
-                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Strong matches in view'),
-                    h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, aiScoreStats.visibleHigh)
-                  )
-                )
-              ),
-                h('div', { className: 'mt-4 flex flex-wrap items-center gap-2.5 border-t border-zinc-200/80 dark:border-zinc-700 pt-4' },
-                h('button', {
-                  onClick: rerankNow,
-                  disabled: aiRankingLoading || loading || !aiEnabled || !aiGoals || !aiGoals.trim(),
-                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed'
-                }, aiRankingLoading ? 'Ranking…' : 'Rerank now'),
-                h('button', {
-                  onClick: () => setSettingsOpen(true),
-                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                }, aiEnabled && aiGoals && aiGoals.trim() ? 'Edit AI' : 'Set up AI'),
-                h('button', {
-                  onClick: () => setShowAiReasons(!showAiReasons),
-                  disabled: !aiEnabled || !aiGoals || !aiGoals.trim(),
-                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed'
-                }, showAiReasons ? 'Hide reasons' : 'Show reasons'),
-                h('span', { className: `px-2.5 py-1 rounded-full text-[11px] font-medium ${
-                  secureKeyStatus.source === 'cookie'
-                    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                    : secureKeyStatus.source === 'env'
-                      ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
-                      : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
-                }` },
-                  secureKeyStatus.source === 'cookie'
-                    ? 'Secure key saved'
-                    : secureKeyStatus.source === 'env'
-                      ? 'Server env key'
-                      : 'No secure key'
+                  aiScoresStale && h('span', { className: 'font-mono text-[10px] text-amber-500 dark:text-amber-400' }, '~stale')
                 ),
-                selectedModelInfo && h('span', { className: 'px-2.5 py-1 rounded-full text-[11px] font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300' },
-                  selectedModelInfo.hint || selectedModelInfo.name
-                ),
-                h('span', { className: 'text-[11px] text-zinc-500 dark:text-zinc-400' }, `Prompt ${AI_PROMPT_VERSION}`)
+
+                // Actions
+                h('div', { className: 'flex items-center gap-1.5 shrink-0' },
+                  aiEnabled && aiGoals && aiGoals.trim() && h('button', {
+                    onClick: rerankNow,
+                    disabled: aiRankingLoading || loading,
+                    className: 'px-2.5 py-1 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                  }, aiRankingLoading ? '…' : 'Rerank'),
+                  h('button', {
+                    onClick: () => setSettingsOpen(true),
+                    className: 'px-2.5 py-1 rounded-lg text-xs font-medium border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
+                  }, aiEnabled && aiGoals && aiGoals.trim() ? 'Edit AI' : 'Set up AI'),
+                  postRelevanceScores.size > 0 && h('button', {
+                    onClick: () => setShowAiReasons(!showAiReasons),
+                    className: `px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${showAiReasons ? 'border-[#0284C7] text-[#0284C7] dark:text-sky-400 dark:border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
+                  }, showAiReasons ? 'Reasons on' : 'Reasons')
                 )
               )
             ),
@@ -2718,53 +2699,40 @@ const {
                           className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         })
                       ),
-                      h('label', { className: 'block' },
-                        h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Extra context'),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Optional constraints, e.g. "prefer posts with urgency or a budget mentioned"'),
-                        h('input', {
-                          type: 'text',
-                          value: aiContext,
-                          onChange: (e) => setAiContext(e.target.value),
-                          placeholder: 'prioritize recent posts with active comments',
-                          disabled: !aiEnabled,
-                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        })
-                      ),
                       h('div', null,
-                        h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1' }, 'Examples'),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-2' }, 'Give the model concrete references — optional but improves accuracy'),
-                        h('div', { className: 'grid gap-2 sm:grid-cols-3' },
-                          h('label', { className: 'block' },
-                            h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Perfect (5)'),
+                        h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2' }, 'Few-shot examples'),
+                        h('div', { className: 'space-y-2' },
+                          h('label', { className: 'flex items-start gap-2' },
+                            h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 pt-2' }, 'PERFECT'),
                             h('textarea', {
                               value: aiExamplePerfect,
                               onChange: (e) => setAiExamplePerfect(e.target.value),
                               rows: 2,
                               disabled: !aiEnabled,
                               placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
-                              className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
+                              className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
                             })
                           ),
-                          h('label', { className: 'block' },
-                            h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Strong (4)'),
+                          h('label', { className: 'flex items-start gap-2' },
+                            h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-sky-600 dark:text-sky-400 pt-2' }, 'STRONG'),
                             h('textarea', {
                               value: aiExampleStrong,
                               onChange: (e) => setAiExampleStrong(e.target.value),
                               rows: 2,
                               disabled: !aiEnabled,
-                              placeholder: 'How can we improve local rankings?',
-                              className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
+                              placeholder: 'How can we improve our local rankings?',
+                              className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
                             })
                           ),
-                          h('label', { className: 'block' },
-                            h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Reject (0–1)'),
+                          h('label', { className: 'flex items-start gap-2' },
+                            h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-500 pt-2' }, 'REJECT'),
                             h('textarea', {
                               value: aiExampleReject,
                               onChange: (e) => setAiExampleReject(e.target.value),
                               rows: 2,
                               disabled: !aiEnabled,
                               placeholder: 'Hiring SEO specialist, $20/hr',
-                              className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
+                              className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
                             })
                           )
                         )
@@ -2872,17 +2840,7 @@ const {
                     )
                   ),
 
-                  // 4. Display options
-                  h('div', { className: 'flex items-center justify-between text-sm' },
-                    h('span', { className: 'text-zinc-600 dark:text-zinc-400' }, 'Score explanations in feed'),
-                    h('button', {
-                      onClick: () => setShowAiReasons(!showAiReasons),
-                      disabled: !aiEnabled,
-                      className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${showAiReasons ? 'bg-sky-100 dark:bg-[#0284C7]/20 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`
-                    }, showAiReasons ? 'On' : 'Off')
-                  ),
-
-                  // 5. Prompt preview (toggle link)
+                  // 4. Prompt preview (toggle link)
                   h('div', null,
                     h('button', {
                       type: 'button',
