@@ -7,17 +7,24 @@
   <title>API Reference - Reddit Dashboarder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { serif: ['"DM Serif Display"', 'Georgia', 'serif'], sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
   </script>
-  <style>body { font-family: 'DM Sans', system-ui, sans-serif; }</style>
+    <style>
+    :root { --signal: #0284C7; --signal-hover: #0369A1; --bg: #0C0C0D; --border: rgba(255,255,255,0.07); }
+    html { background-color: var(--bg); }
+    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    .nav-blur { background: rgba(12,12,13,0.88); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal); }
+    pre { overflow-x: auto; }
+  </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 antialiased">
+<body class="bg-[#0C0C0D] text-zinc-100 antialiased">
   <div class="flex min-h-screen">
     <aside class="hidden w-72 border-r border-zinc-800 bg-zinc-900 p-6 lg:block">
-      <a href="/docs" class="mb-8 block text-xl font-semibold text-white">Reddit Dashboarder Docs</a>
+      <a href="/docs" class="font-serif text-[1.1rem] text-white tracking-tight leading-none block mb-8">Reddit Dashboarder</a>
       <nav class="space-y-1 text-sm">
         <a href="/docs" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">Overview</a>
         <a href="/docs/api.html" class="block rounded-lg bg-[#0284C7]/15 px-3 py-2 text-sky-300">API Reference</a>
@@ -36,11 +43,11 @@
           <h2 class="mb-3 text-2xl font-bold text-white">Authentication</h2>
           <div class="space-y-4 text-zinc-300">
             <p><code>/api/v1/*</code> requires:</p>
-            <pre class="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>Authorization: Bearer &lt;AGENT_API_KEY&gt;</code></pre>
+            <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>Authorization: Bearer &lt;AGENT_API_KEY&gt;</code></pre>
             <p><code>/api/reddit/digest</code> requires:</p>
-            <pre class="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>Authorization: Bearer &lt;DIGEST_API_KEY&gt;</code></pre>
+            <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>Authorization: Bearer &lt;DIGEST_API_KEY&gt;</code></pre>
             <p><code>/api/cron/refresh-leads</code> requires:</p>
-            <pre class="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>X-Cron-Secret: &lt;CRON_SECRET_KEY&gt;</code></pre>
+            <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>X-Cron-Secret: &lt;CRON_SECRET_KEY&gt;</code></pre>
           </div>
         </section>
 
@@ -64,7 +71,7 @@
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
               <h3 class="mb-2 text-lg font-semibold text-white">POST /api/sync</h3>
               <p class="mb-3 text-zinc-300">Store the current frontend bundle for 24 hours.</p>
-              <pre class="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>{
+              <pre class="rounded-lg border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>{
   "token": "sync_token_here",
   "posts": [],
   "settings": {},
@@ -76,13 +83,13 @@
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
               <h3 class="mb-2 text-lg font-semibold text-white">GET /api/sync/:token</h3>
               <p class="mb-3 text-zinc-300">Return the synced bundle plus derived hot-lead analysis.</p>
-              <pre class="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>curl https://your-app.example/api/sync/SYNC_TOKEN</code></pre>
+              <pre class="rounded-lg border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>curl https://your-app.example/api/sync/SYNC_TOKEN</code></pre>
             </div>
 
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
               <h3 class="mb-2 text-lg font-semibold text-white">GET /api/reddit/digest?token=...</h3>
               <p class="mb-3 text-zinc-300">Protected proxy over the sync payload. It does not re-fetch Reddit data.</p>
-              <pre class="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>curl -H "Authorization: Bearer $DIGEST_API_KEY" \
+              <pre class="rounded-lg border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>curl -H "Authorization: Bearer $DIGEST_API_KEY" \
   "https://your-app.example/api/reddit/digest?token=SYNC_TOKEN"</code></pre>
             </div>
 
@@ -99,7 +106,7 @@
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
               <h3 class="mb-2 text-lg font-semibold text-white">PATCH /api/v1/config?token=...</h3>
               <p class="mb-3 text-zinc-300">Updates stored config after validation.</p>
-              <pre class="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>curl -X PATCH \
+              <pre class="rounded-lg border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>curl -X PATCH \
   -H "Authorization: Bearer $AGENT_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"threshold":4,"goals":"Find B2B SEO leads"}' \
@@ -166,7 +173,7 @@
         <section>
           <h2 class="mb-3 text-2xl font-bold text-white">Response Format</h2>
           <p class="mb-3 text-zinc-300">`/api/v1/*` uses a shared response wrapper with schema version, request id, timings, data, and error fields.</p>
-          <pre class="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-100"><code>{
+          <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>{
   "schemaVersion": "1.0.0",
   "requestId": "req_abc123",
   "timings": { "totalMs": 12 },

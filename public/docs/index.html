@@ -11,20 +11,23 @@
   />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { serif: ['"DM Serif Display"', 'Georgia', 'serif'], sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
   </script>
-  <style>
-    html { background-color: #09090b; }
+    <style>
+    :root { --signal: #0284C7; --signal-hover: #0369A1; --bg: #0C0C0D; --border: rgba(255,255,255,0.07); }
+    html { background-color: var(--bg); }
     body { font-family: 'DM Sans', system-ui, sans-serif; }
-    #sidebar { transition: transform 0.2s ease; }
+    .nav-blur { background: rgba(12,12,13,0.88); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal); }
     pre { overflow-x: auto; }
+    #sidebar { transition: transform 0.2s ease; }
   </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 antialiased">
-  <nav class="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+<body class="bg-[#0C0C0D] text-zinc-100 antialiased">
+  <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
     <div class="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
       <div class="flex items-center gap-4">
         <button
@@ -36,7 +39,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </button>
-        <a href="/" class="font-semibold text-white">Reddit Dashboarder / Docs</a>
+        <a href="/" class="font-serif text-[1.1rem] text-white tracking-tight leading-none">Reddit Dashboarder</a>
       </div>
       <div class="flex items-center gap-3 text-sm">
         <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white">GitHub</a>
@@ -46,7 +49,7 @@
   </nav>
 
   <div class="mx-auto flex max-w-7xl">
-    <aside id="sidebar" class="fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-72 -translate-x-full overflow-y-auto border-r border-zinc-800 bg-zinc-950 lg:sticky lg:translate-x-0">
+    <aside id="sidebar" class="fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-72 -translate-x-full overflow-y-auto border-r border-zinc-800 bg-[#0C0C0D] lg:sticky lg:translate-x-0">
       <nav class="space-y-1 p-4 pt-6 text-sm">
         <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Docs</p>
         <a href="#overview" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Overview</a>
@@ -104,7 +107,7 @@
 
       <section id="setup" class="mb-16">
         <h2 class="mb-4 text-2xl font-bold text-white">Local Setup</h2>
-        <pre class="rounded-xl border border-zinc-800 bg-zinc-950 p-5 text-sm text-zinc-100"><code>npm install
+        <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-5 text-sm text-zinc-100"><code>npm install
 npm run local</code></pre>
         <p class="mt-4 text-zinc-300">
           Local URLs: <code>http://localhost:3000/</code>, <code>http://localhost:3000/app</code>, and
@@ -114,7 +117,7 @@ npm run local</code></pre>
 
       <section id="env" class="mb-16">
         <h2 class="mb-4 text-2xl font-bold text-white">Environment Variables</h2>
-        <pre class="rounded-xl border border-zinc-800 bg-zinc-950 p-5 text-sm text-zinc-100"><code>REDDIT_CLIENT_ID=...
+        <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-5 text-sm text-zinc-100"><code>REDDIT_CLIENT_ID=...
 REDDIT_CLIENT_SECRET=...
 REDDIT_REDIRECT_URI=http://localhost:3000/api/auth/callback
 SESSION_COOKIE_SECRET=...

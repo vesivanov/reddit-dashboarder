@@ -1,16 +1,14 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pricing — Reddit Dashboarder</title>
   <meta name="description" content="Start free. Upgrade to Pro for unlimited AI ranking, automated polling, and API access.">
-  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -21,271 +19,291 @@
             serif: ['"DM Serif Display"', 'Georgia', 'serif'],
             sans:  ['"DM Sans"', 'system-ui', 'sans-serif'],
             mono:  ['"JetBrains Mono"', 'monospace'],
-          },
-        },
-      },
-    };
+          }
+        }
+      }
+    }
   </script>
-  
   <style>
+    :root {
+      --signal:        #0284C7;
+      --signal-hover:  #0369A1;
+      --signal-active: #075985;
+      --bg:            #0C0C0D;
+      --surface:       #161618;
+      --surface-2:     #1E1E21;
+      --border:        rgba(255,255,255,0.07);
+      --border-mid:    rgba(255,255,255,0.12);
+    }
+
+    html { background-color: var(--bg); }
     body { font-family: 'DM Sans', system-ui, sans-serif; }
-    .gradient-bg { background: #0284C7; }
+
+    .top-bar {
+      height: 2px;
+      background: linear-gradient(90deg, var(--signal) 0%, transparent 100%);
+    }
+    .nav-blur {
+      background: rgba(12, 12, 13, 0.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .btn-primary {
+      background: var(--signal);
+      color: #fff;
+      box-shadow: 0 6px 28px rgba(2, 132, 199, 0.28);
+      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-primary:hover {
+      background: var(--signal-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 36px rgba(2, 132, 199, 0.36);
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border-mid);
+      color: #d4d4d8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.09);
+      color: #fff;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 16px;
+    }
+    .card-featured {
+      background: var(--surface);
+      border: 1px solid var(--signal);
+      border-radius: 16px;
+    }
+    .divider { border-color: var(--border); }
+    .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--signal);
+    }
+    .check { color: #34d399; }
+    .cross { color: #52525b; }
   </style>
 </head>
-<body class="bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-  
-  <!-- Navigation -->
-  <nav class="bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
-    <div class="max-w-7xl mx-auto px-6 py-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <svg class="w-8 h-8 text-[#0284C7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-          </svg>
-          <span class="text-xl font-bold">Reddit Dashboarder</span>
-        </div>
-        
-        <div class="flex items-center gap-6">
-          <a href="/" class="hover:text-[#0284C7] transition">Home</a>
-          <a href="/docs" class="hover:text-[#0284C7] transition">Docs</a>
-          <a href="/app" class="bg-[#0284C7] text-white px-6 py-2 rounded-lg hover:bg-[#0369A1] transition font-medium">
-            Try Free
-          </a>
-        </div>
+<body class="bg-[#0C0C0D] text-zinc-100 antialiased">
+
+  <div class="top-bar"></div>
+
+  <!-- NAV -->
+  <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+      <a href="/" class="font-serif text-[1.15rem] text-white tracking-tight leading-none">Reddit Dashboarder</a>
+      <div class="flex items-center gap-5">
+        <a href="/" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">Home</a>
+        <a href="/docs" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">Docs</a>
+        <a href="/app" class="btn-primary inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg">
+          Open App →
+        </a>
       </div>
     </div>
   </nav>
-  
-  <!-- Hero -->
-  <section class="py-16 px-6">
-    <div class="max-w-4xl mx-auto text-center">
-      <h1 class="text-5xl font-bold mb-4">Simple, Transparent Pricing</h1>
-      <p class="text-xl text-zinc-600 dark:text-zinc-400 mb-2">
-        Start free. Upgrade when you're ready.
-      </p>
-      <p class="text-sm text-zinc-500">
-        No hidden fees. Cancel anytime.
-      </p>
+
+  <!-- HERO -->
+  <section class="pt-20 pb-16 px-4 text-center">
+    <div class="max-w-2xl mx-auto">
+      <div class="label mb-5">Pricing</div>
+      <h1 class="font-serif text-4xl sm:text-5xl text-white leading-tight tracking-tight mb-4">
+        Simple, transparent pricing.
+      </h1>
+      <p class="text-zinc-500 text-base">Start free. Upgrade when you're ready. No hidden fees.</p>
     </div>
   </section>
-  
-  <!-- Pricing Cards -->
-  <section class="pb-20 px-6">
-    <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
-      
-      <!-- Free Tier -->
-      <div class="bg-white dark:bg-zinc-800 p-10 rounded-2xl border-2 border-zinc-200 dark:border-zinc-700">
-        <h3 class="text-2xl font-bold mb-2">Free Forever</h3>
-        <p class="text-zinc-600 dark:text-zinc-400 mb-6">Perfect for trying out the platform</p>
-        
+
+  <!-- CARDS -->
+  <section class="pb-24 px-4">
+    <div class="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+
+      <!-- Free -->
+      <div class="card p-8 flex flex-col">
+        <div class="label mb-4">Free</div>
+        <h2 class="font-serif text-3xl text-white mb-1">Free Forever</h2>
+        <p class="text-zinc-500 text-sm mb-8">Perfect for getting started.</p>
+
         <div class="mb-8">
-          <span class="text-5xl font-bold">$0</span>
-          <span class="text-zinc-600 dark:text-zinc-400">/month</span>
+          <span class="font-serif text-5xl text-white">$0</span>
+          <span class="text-zinc-500 text-sm ml-1">/ month</span>
         </div>
-        
-        <a href="/app" class="block w-full bg-zinc-200 dark:bg-zinc-700 text-center py-4 rounded-lg font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-600 transition mb-8">
+
+        <a href="/app" class="btn-ghost inline-flex items-center justify-center font-semibold text-sm px-5 py-3 rounded-lg mb-8">
           Start Free →
         </a>
-        
-        <div class="space-y-4">
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span>Manual dashboard browsing</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span>Up to 3 subreddits</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span>Keyword filtering</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span>Velocity signals</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span>Dark mode</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-zinc-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            <span class="text-zinc-400">No AI ranking</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-zinc-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            <span class="text-zinc-400">No automated polling</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-zinc-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-            <span class="text-zinc-400">No Digest API</span>
-          </div>
-        </div>
+
+        <ul class="space-y-3 text-sm">
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300">Manual dashboard browsing</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300">Up to 3 subreddits</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300">Keyword filtering</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300">Velocity signals</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 cross shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <span class="text-zinc-600">No AI ranking</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 cross shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <span class="text-zinc-600">No automated polling</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 cross shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <span class="text-zinc-600">No Digest API</span>
+          </li>
+        </ul>
       </div>
-      
-      <!-- Pro Tier -->
-      <div class="bg-white dark:bg-zinc-800 p-10 rounded-2xl border-2 border-[#0284C7] relative">
-        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-[#0284C7] text-white px-4 py-1 rounded-full text-sm font-semibold">
-          MOST POPULAR
+
+      <!-- Pro -->
+      <div class="card-featured p-8 flex flex-col relative">
+        <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+          <span class="font-mono text-[10px] font-semibold tracking-widest uppercase bg-[#0284C7] text-white px-3 py-1 rounded-full">Most Popular</span>
         </div>
-        
-        <h3 class="text-2xl font-bold mb-2">Pro</h3>
-        <p class="text-zinc-600 dark:text-zinc-400 mb-6">For serious lead generation</p>
-        
-        <div class="mb-8">
-          <span class="text-5xl font-bold">$29</span>
-          <span class="text-zinc-600 dark:text-zinc-400">/month</span>
-          <p class="text-sm text-[#0284C7] mt-2">Early bird pricing — lock it in now</p>
+
+        <div class="label mb-4">Pro</div>
+        <h2 class="font-serif text-3xl text-white mb-1">Pro</h2>
+        <p class="text-zinc-500 text-sm mb-8">For serious lead generation.</p>
+
+        <div class="mb-2">
+          <span class="font-serif text-5xl text-white">$29</span>
+          <span class="text-zinc-500 text-sm ml-1">/ month</span>
         </div>
-        
-        <button id="notify-pro" class="block w-full gradient-bg text-white text-center py-4 rounded-lg font-semibold hover:opacity-90 transition mb-2">
+        <p class="text-xs text-sky-400 font-mono mb-8">Early bird pricing — lock it in now</p>
+
+        <button id="notify-pro" class="btn-primary inline-flex items-center justify-center font-semibold text-sm px-5 py-3 rounded-lg mb-2">
           Notify Me When Available →
         </button>
-        <p class="text-xs text-center text-zinc-500 mb-8">Launching soon</p>
-        
-        <div class="space-y-4">
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Everything in Free</strong></span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Unlimited AI ranking</strong> (OpenRouter models)</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Unlimited subreddits</strong></span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Automated polling</strong> (hourly background fetching)</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Digest API</strong> (integrate with Slack, email, etc.)</span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Export to CSV</strong></span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Priority support</strong></span>
-          </div>
-          <div class="flex items-start gap-3">
-            <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <span><strong>Early access</strong> to new features</span>
-          </div>
-        </div>
+        <p class="text-xs text-center text-zinc-600 font-mono mb-8">Launching soon</p>
+
+        <ul class="space-y-3 text-sm">
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Everything in Free</strong></span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Unlimited AI ranking</strong> — OpenRouter models</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Unlimited subreddits</strong></span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Automated polling</strong> — hourly background fetching</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Digest API</strong> — Slack, email, webhook</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Export to CSV</strong></span>
+          </li>
+          <li class="flex items-start gap-3">
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300"><strong class="text-white">Priority support</strong> + early access</span>
+          </li>
+        </ul>
       </div>
-      
+
     </div>
   </section>
-  
+
   <!-- FAQ -->
-  <section class="py-16 px-6 bg-white dark:bg-zinc-800">
-    <div class="max-w-3xl mx-auto">
-      <h2 class="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
-      
+  <section class="py-20 px-4 border-y divider">
+    <div class="max-w-2xl mx-auto">
+      <div class="label mb-6">FAQ</div>
+      <h2 class="font-serif text-3xl text-white mb-12 leading-tight">Common questions.</h2>
       <div class="space-y-8">
-        <div>
-          <h3 class="text-xl font-semibold mb-2">Can I switch plans later?</h3>
-          <p class="text-zinc-600 dark:text-zinc-400">Yes! Upgrade or downgrade anytime. No long-term contracts.</p>
+        <div class="border-b divider pb-8">
+          <h3 class="text-sm font-semibold text-white mb-2">Can I switch plans later?</h3>
+          <p class="text-zinc-500 text-sm leading-relaxed">Yes. Upgrade or downgrade anytime. No long-term contracts.</p>
         </div>
-        
-        <div>
-          <h3 class="text-xl font-semibold mb-2">Do I need an OpenRouter API key?</h3>
-          <p class="text-zinc-600 dark:text-zinc-400">For Free tier with AI ranking, yes (get one free at openrouter.ai). Pro tier includes server-side AI credits.</p>
+        <div class="border-b divider pb-8">
+          <h3 class="text-sm font-semibold text-white mb-2">Do I need an OpenRouter API key?</h3>
+          <p class="text-zinc-500 text-sm leading-relaxed">For Free tier with AI ranking, yes — get one free at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">openrouter.ai/keys</a>. Pro tier includes server-side AI credits.</p>
         </div>
-        
-        <div>
-          <h3 class="text-xl font-semibold mb-2">What's the refund policy?</h3>
-          <p class="text-zinc-600 dark:text-zinc-400">14-day money-back guarantee, no questions asked.</p>
+        <div class="border-b divider pb-8">
+          <h3 class="text-sm font-semibold text-white mb-2">What's the refund policy?</h3>
+          <p class="text-zinc-500 text-sm leading-relaxed">14-day money-back guarantee, no questions asked.</p>
         </div>
-        
-        <div>
-          <h3 class="text-xl font-semibold mb-2">Can I use this for multiple clients?</h3>
-          <p class="text-zinc-600 dark:text-zinc-400">Yes! Pro tier is perfect for agencies managing multiple client accounts. Team plan coming soon.</p>
+        <div class="border-b divider pb-8">
+          <h3 class="text-sm font-semibold text-white mb-2">Can I use this for multiple clients?</h3>
+          <p class="text-zinc-500 text-sm leading-relaxed">Yes. Pro tier is ideal for agencies managing multiple accounts. Team plan coming soon.</p>
         </div>
-        
         <div>
-          <h3 class="text-xl font-semibold mb-2">Is my Reddit data secure?</h3>
-          <p class="text-zinc-600 dark:text-zinc-400">Yes. OAuth tokens are stored securely in httpOnly cookies. We never see your Reddit password.</p>
+          <h3 class="text-sm font-semibold text-white mb-2">Is my Reddit data secure?</h3>
+          <p class="text-zinc-500 text-sm leading-relaxed">Yes. OAuth tokens are stored in httpOnly cookies. We never see your Reddit password.</p>
         </div>
       </div>
     </div>
   </section>
-  
+
   <!-- CTA -->
-  <section class="gradient-bg text-white py-16 px-6">
-    <div class="max-w-3xl mx-auto text-center">
-      <h2 class="text-4xl font-bold mb-6">Start Free Today</h2>
-      <p class="text-xl mb-8 opacity-90">No credit card required. Upgrade when you're ready.</p>
-      <a href="/app" class="inline-block bg-white text-[#0284C7] px-12 py-5 rounded-lg font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
-        Try Reddit Dashboarder →
+  <section class="py-28 px-4">
+    <div class="max-w-xl mx-auto text-center">
+      <div class="label mb-6">Get started</div>
+      <h2 class="font-serif text-4xl text-white leading-tight mb-6">
+        Your next client<br/>is on Reddit right now.
+      </h2>
+      <p class="text-zinc-500 text-sm mb-10">No credit card required. 2-minute setup. Open source.</p>
+      <a href="/app" class="btn-primary inline-flex items-center gap-2 font-semibold text-base px-10 py-4 rounded-xl">
+        Start Free Now →
       </a>
     </div>
   </section>
-  
-  <!-- Footer -->
-  <footer class="bg-zinc-900 text-zinc-400 py-12 px-6">
-    <div class="max-w-6xl mx-auto text-center">
-      <p>© 2026 Reddit Dashboarder. Built by <a href="https://vesivanov.com" class="text-sky-400 hover:text-sky-300">Ves Ivanov</a></p>
+
+  <!-- FOOTER -->
+  <footer class="border-t divider py-8 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="font-serif text-zinc-600 text-sm">
+        &copy; 2026 Reddit Dashboarder &nbsp;&middot;&nbsp;
+        <a href="https://vesivanov.com" class="hover:text-zinc-300 transition-colors underline underline-offset-2">Ves Ivanov</a>
+      </p>
+      <div class="flex items-center gap-7">
+        <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="label hover:text-zinc-300 transition-colors" style="color:rgba(255,255,255,0.25);">GitHub</a>
+        <a href="/app" class="label hover:text-zinc-300 transition-colors" style="color:rgba(255,255,255,0.25);">App</a>
+        <a href="/docs" class="label hover:text-zinc-300 transition-colors" style="color:rgba(255,255,255,0.25);">Docs</a>
+      </div>
     </div>
   </footer>
-  
+
   <script>
     document.getElementById('notify-pro').addEventListener('click', async () => {
       const email = prompt('Enter your email to get notified when Pro launches:');
       if (!email) return;
-      
       const button = document.getElementById('notify-pro');
       const originalText = button.textContent;
       button.textContent = 'Subscribing...';
       button.disabled = true;
-      
       try {
         const res = await fetch('/api/notify-me', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, tier: 'pro' })
         });
-        
         const data = await res.json();
-        alert(data.message || 'Thanks! We'll notify you when Pro launches.');
-      } catch (error) {
+        alert(data.message || "Thanks! We'll notify you when Pro launches.");
+      } catch {
         alert('Failed to subscribe. Please try again.');
       } finally {
         button.textContent = originalText;

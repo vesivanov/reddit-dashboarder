@@ -7,17 +7,24 @@
   <title>FAQ - Reddit Dashboarder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { serif: ['"DM Serif Display"', 'Georgia', 'serif'], sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
   </script>
-  <style>body { font-family: 'DM Sans', system-ui, sans-serif; }</style>
+    <style>
+    :root { --signal: #0284C7; --signal-hover: #0369A1; --bg: #0C0C0D; --border: rgba(255,255,255,0.07); }
+    html { background-color: var(--bg); }
+    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    .nav-blur { background: rgba(12,12,13,0.88); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal); }
+    pre { overflow-x: auto; }
+  </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 antialiased">
+<body class="bg-[#0C0C0D] text-zinc-100 antialiased">
   <div class="flex min-h-screen">
     <aside class="hidden w-72 border-r border-zinc-800 bg-zinc-900 p-6 lg:block">
-      <a href="/docs" class="mb-8 block text-xl font-semibold text-white">Reddit Dashboarder Docs</a>
+      <a href="/docs" class="font-serif text-[1.1rem] text-white tracking-tight leading-none block mb-8">Reddit Dashboarder</a>
       <nav class="space-y-1 text-sm">
         <a href="/docs" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">Overview</a>
         <a href="/docs/api.html" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">API Reference</a>
