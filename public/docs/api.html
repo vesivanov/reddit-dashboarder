@@ -4,10 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>API Reference - Reddit Dashboarder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class' };
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] } } } };
   </script>
+  <style>body { font-family: 'DM Sans', system-ui, sans-serif; }</style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 antialiased">
   <div class="flex min-h-screen">
@@ -15,7 +19,7 @@
       <a href="/docs" class="mb-8 block text-xl font-semibold text-white">Reddit Dashboarder Docs</a>
       <nav class="space-y-1 text-sm">
         <a href="/docs" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">Overview</a>
-        <a href="/docs/api.html" class="block rounded-lg bg-[#E8541A]/15 px-3 py-2 text-orange-300">API Reference</a>
+        <a href="/docs/api.html" class="block rounded-lg bg-[#0284C7]/15 px-3 py-2 text-sky-300">API Reference</a>
         <a href="/docs/faq.html" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">FAQ</a>
       </nav>
     </aside>

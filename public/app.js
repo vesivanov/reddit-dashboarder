@@ -65,9 +65,7 @@ const {
             localStorage.setItem('dashboard_subs', saved);
             return parsed;
           }
-        } catch (error) {
-          console.warn('Unable to parse saved subs', error);
-        }
+        } catch (error) {}
         return DEFAULT_SUBS;
       });
       const [mode, setMode] = useState('new');
@@ -108,9 +106,7 @@ const {
               return parsed;
             }
           }
-        } catch (error) {
-          console.warn('Unable to restore saved data', error);
-        }
+        } catch (error) {}
         return [];
       });
       const [selectedSub, setSelectedSub] = useState('ALL');
@@ -186,7 +182,6 @@ const {
       // Validate threshold is within valid range (0-5)
       useEffect(() => {
         if (highRelevanceThreshold > 5) {
-          console.warn(`Invalid highRelevanceThreshold: ${highRelevanceThreshold}. Max AI score is 5. Resetting to 4.`);
           setHighRelevanceThreshold(4);
         } else if (highRelevanceThreshold < 0) {
           setHighRelevanceThreshold(0);
@@ -243,10 +238,14 @@ const {
       const [scoresVersion, setScoresVersion] = useState(0); // Version counter to force useMemo recalculation
       const [aiRankingLoading, setAiRankingLoading] = useState(false);
       const [aiScoresStale, setAiScoresStale] = useState(false);
+      const [aiRankingError, setAiRankingError] = useState(null);
+      const [aiShowModelKey, setAiShowModelKey] = useState(() => !secureKeyStatus.hasKey);
+      const [aiShowPromptPreview, setAiShowPromptPreview] = useState(false);
       const [availableModels, setAvailableModels] = useState([]);
       const [modelsLoading, setModelsLoading] = useState(false);
       const [modelsError, setModelsError] = useState('');
       const [showAllModels, setShowAllModels] = useState(false);
+      const [aiAdvancedOpen, setAiAdvancedOpen] = useState(false);
       const [snapshotInfo, setSnapshotInfo] = useState(() => {
         try {
           const saved = localStorage.getItem('dashboard_snapshot_info');
@@ -257,6 +256,7 @@ const {
       });
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
+      const aiRankingRequestIdRef = useRef(0);
 
       useEffect(() => { loadingRef.current = loading; }, [loading]);
 
@@ -266,7 +266,7 @@ const {
           const subsJson = JSON.stringify(subs);
           localStorage.setItem('dashboard_subs', subsJson);
           localStorage.setItem('dashboard_subs_backup', subsJson);
-        } catch (e) { console.warn('Unable to persist subs', e); }
+        } catch (e) {}
       }, [subs]);
 
       useEffect(() => {
@@ -365,9 +365,7 @@ const {
           if (data && data.length > 0) {
             localStorage.setItem('dashboard_data', JSON.stringify(data));
           }
-        } catch (e) {
-          console.warn('Unable to persist data', e);
-        }
+        } catch (e) {}
       }, [data]);
 
       useEffect(() => {
@@ -394,8 +392,6 @@ const {
         // Only run once when data is available, AI is enabled, and we haven't restored scores yet
         if (data.length > 0 && aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size === 0 && !hasRestoredScoresRef.current) {
           hasRestoredScoresRef.current = true;
-          console.log('Restoring AI scores from cache on page load...');
-          
           // Load cached scores
           try {
             const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
@@ -410,7 +406,7 @@ const {
               const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
               const cacheVersionMismatch = savedCacheVersion && savedCacheVersion !== currentCacheVersion;
               if (cacheVersionMismatch) {
-                console.log('AI Ranking: Cached scores do not match current goals/model/prompt, restoring as stale');
+                setAiScoresStale(true);
               }
               const rawScores = new Map();
               const metadata = new Map();
@@ -440,16 +436,13 @@ const {
               
               if (rawScores.size > 0) {
                 const highRelevanceCount = Array.from(rawScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-                console.log(`Restored ${rawScores.size} AI scores from cache (${highRelevanceCount} posts scored >= 4)`);
                 setPostRelevanceScores(rawScores);
                 setPostRelevanceMetadata(metadata);
                 setScoresVersion(v => v + 1);
                 setAiScoresStale(Boolean(cacheVersionMismatch || staleByAge));
               }
             }
-          } catch (error) {
-            console.warn('Failed to restore AI scores on load:', error);
-          }
+          } catch (error) {}
         }
       }, [data, aiEnabled, aiGoals, aiContext, postRelevanceScores.size, openRouterModel, AI_PROMPT_VERSION]); // Run when data or AI settings change
 
@@ -537,7 +530,6 @@ const {
               if (!cancelled) setSecureKeyStatus({ hasKey: false, keyPreview: null, source: 'none', checking: false });
             }
           } catch (e) {
-            console.warn('Failed to check secure API key status:', e);
             if (!cancelled) setSecureKeyStatus({ hasKey: false, keyPreview: null, source: 'none', checking: false });
           }
         }
@@ -572,7 +564,6 @@ const {
           setAvailableModels(models);
           modelsFetchRef.current.loaded = true;
         } catch (error) {
-          console.warn('Failed to load OpenRouter models:', error);
           setAvailableModels([]);
           setModelsError(error.message || 'Failed to load models');
         } finally {
@@ -676,17 +667,20 @@ const {
               // Posts without scores (undefined or null) go to the end
               const hasScoreA = scoreA !== undefined && scoreA !== null;
               const hasScoreB = scoreB !== undefined && scoreB !== null;
-              if (rankA !== rankB) {
-                delta = rankA - rankB;
-                ignoreMultiplier = true;
-              } else if (!hasScoreA && !hasScoreB) {
+              if (!hasScoreA && !hasScoreB) {
                 delta = 0; // Both have no score, maintain order
               } else if (!hasScoreA) {
                 delta = 1; // a has no score, should go after b
+                ignoreMultiplier = true;
               } else if (!hasScoreB) {
                 delta = -1; // b has no score, should go after a
+                ignoreMultiplier = true;
               } else {
-                delta = scoreA - scoreB; // Both have scores, compare normally
+                delta = scoreA - scoreB; // Compare all scored posts together first
+                if (delta === 0 && rankA !== rankB) {
+                  delta = rankA - rankB; // Use source only as a tie-breaker
+                  ignoreMultiplier = true;
+                }
               }
               break;
             }
@@ -695,25 +689,6 @@ const {
           if (delta === 0) return 0;
           return ignoreMultiplier ? delta : delta * multiplier;
         });
-        
-        // Debug logging for AI relevance sorting
-        if (sortBy === 'ai-relevance') {
-          const scoresCount = postRelevanceScores.size;
-          const postsWithScores = sorted.filter(p => postRelevanceScores.has(String(p.id))).length;
-          console.log(`AI Relevance Sort (${sortOrder}):`, {
-            sortBy,
-            sortOrder,
-            totalPosts: sorted.length,
-            postsWithScores,
-            scoresInMap: scoresCount,
-            firstFew: sorted.slice(0, 5).map(p => ({
-              id: p.id,
-              title: p.title?.substring(0, 40),
-              score: postRelevanceScores.get(String(p.id))
-            }))
-          });
-        }
-        
         return sorted;
       }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minAiRelevance, sortBy, sortOrder, hiddenPosts, postRelevanceScores, scoresVersion]);
 
@@ -788,9 +763,7 @@ const {
       }, [data]);
 
       const runAiRanking = useCallback(async ({ perSub, triggeredByAuto = false, llmPostLimit = aiLlmPostLimit } = {}) => {
-        console.log('AI Ranking check:', { aiEnabled, hasGoals: Boolean(aiGoals && aiGoals.trim()), goalsLength: aiGoals?.length });
         if (!aiEnabled || !aiGoals || !aiGoals.trim()) {
-          console.log('AI Ranking: Disabled or no goals set');
           setPostRelevanceScores(new Map());
           setPostRelevanceMetadata(new Map());
           setScoresVersion(v => v + 1);
@@ -814,7 +787,6 @@ const {
           try {
             const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
             if (savedCacheVersion && savedCacheVersion !== currentCacheVersion) {
-              console.log('AI Ranking: Cache version changed (goals/model/prompt), clearing cached scores');
               localStorage.removeItem('dashboard_ai_scores_cache');
             }
             localStorage.setItem(CACHE_VERSION_KEY, currentCacheVersion);
@@ -854,27 +826,22 @@ const {
               );
               if (validEntries.length < Object.keys(cache).length) {
                 localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(Object.fromEntries(validEntries)));
-                console.log(`AI Ranking: Cleaned up ${Object.keys(cache).length - validEntries.length} expired cache entries`);
               }
             }
-          } catch (cacheError) {
-            console.warn('Error loading AI scores cache:', cacheError);
-          }
+          } catch (cacheError) {}
 
           // Get all posts
           const allNewPosts = groups.flatMap(g => g.posts || []);
-          console.log(`AI Ranking: Found ${allNewPosts.length} total posts, ${cachedScores.size} cached scores`);
-          
           // Filter out posts that already have cached scores
           const uncachedPosts = allNewPosts.filter(post => !cachedScores.has(String(post.id)));
-          console.log(`AI Ranking: ${uncachedPosts.length} posts need scoring`);
 
           if (uncachedPosts.length > 0) {
+            const thisRequestId = ++aiRankingRequestIdRef.current;
+            setAiRankingError(null);
             setAiRankingLoading(true);
             
             // Two-stage ranking: heuristic prefilter + LLM rerank
             const keywords = extractGoalKeywords(aiGoals.trim());
-            console.log('AI Ranking: Extracted', keywords.length, 'keywords from goals:', keywords.slice(0, 10).join(', '));
             
             // Compute heuristic scores for all uncached posts
             const postsWithHeuristic = uncachedPosts.map(post => {
@@ -897,16 +864,12 @@ const {
               postsWithHeuristic.map(entry => [String(entry.post.id), entry.heuristicDetails])
             );
             
-            console.log(`AI Ranking: Sending top ${topPosts.length} posts to LLM (${remainingPosts.length} will use heuristic scores only)`);
-            
             // Batch posts into chunks of 50 to avoid payload size limits
             const BATCH_SIZE = 50;
             const batches = [];
             for (let i = 0; i < topPosts.length; i += BATCH_SIZE) {
               batches.push(topPosts.slice(i, i + BATCH_SIZE));
             }
-            console.log(`AI Ranking: Processing ${batches.length} batches of up to ${BATCH_SIZE} posts each`);
-            
             let scoresForHighRelevance = null;
             try {
               const allScores = new Map(cachedScores);
@@ -925,8 +888,6 @@ const {
               for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
                 const batch = batches[batchIdx];
                 const batchPostMap = new Map(batch.map(p => [String(p.id), p]));
-                console.log(`AI Ranking: Processing batch ${batchIdx + 1}/${batches.length} (${batch.length} posts)`);
-                
                 try {
                   const response = await fetch('/api/reddit/ai-rank', {
                     method: 'POST',
@@ -975,18 +936,12 @@ const {
                     if (result.promptVersion) localStorage.setItem(PROMPT_VERSION_KEY, result.promptVersion);
                     const updatedCacheVersion = `${currentGoalsHash}_${resultPromptVersion}_${resultModel}`;
                     if (updatedCacheVersion !== currentCacheVersion) {
-                      console.log('AI Ranking: Model or prompt changed, clearing cached scores');
                       localStorage.removeItem('dashboard_ai_scores_cache');
                       localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
                     }
                     // Current format: scores is an object map {postId: score}
                     const scoresObj = result.scores || {};
                     const metadataObj = result.metadata || {};
-                    const scoreCount = typeof scoresObj === 'object' && !Array.isArray(scoresObj)
-                      ? Object.keys(scoresObj).length
-                      : 0;
-                    console.log(`AI Ranking: Batch ${batchIdx + 1} - Received scores for`, scoreCount, 'posts', result.cached ? `(${result.cached} cached)` : '');
-                    
                     if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
                       Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
                         const postIdStr = String(postId);
@@ -1028,10 +983,6 @@ const {
                       });
                     }
                     
-                    // Log failed post IDs if provided
-                    if (result.failedPostIds && result.failedPostIds.length > 0) {
-                      console.warn(`AI Ranking: ${result.failedPostIds.length} posts failed to score:`, result.failedPostIds);
-                    }
                   } else {
                     const errorText = await response.text();
                     console.error(`AI ranking API error for batch ${batchIdx + 1}:`, response.status, errorText);
@@ -1056,17 +1007,14 @@ const {
                   const toKeep = entries.slice(-MAX_CACHE_ENTRIES);
                   const trimmedCache = Object.fromEntries(toKeep);
                   localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(trimmedCache));
-                  console.log(`AI Ranking: Trimmed cache from ${entries.length} to ${MAX_CACHE_ENTRIES} entries`);
                 } else {
                   localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
                 }
               } catch (cacheError) {
-                console.warn('Error saving AI scores cache:', cacheError);
                 // If quota exceeded, clear cache and retry
                 if (cacheError.name === 'QuotaExceededError') {
                   try {
                     localStorage.removeItem('dashboard_ai_scores_cache');
-                    console.log('AI Ranking: Cleared cache due to quota exceeded');
                   } catch {}
                 }
               }
@@ -1103,8 +1051,8 @@ const {
               });
               
               const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-              console.log(`AI Ranking: Complete! ${allScores.size} total scores (${topPosts.length} from LLM, ${remainingPosts.length} from heuristic), ${highRelevanceCount} posts scored >= 4`);
 
+              if (aiRankingRequestIdRef.current !== thisRequestId) return;
               setPostRelevanceScores(allScores);
               setPostRelevanceMetadata(allMetadata);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
@@ -1112,6 +1060,7 @@ const {
               scoresForHighRelevance = allScores;
             } catch (aiError) {
               console.error('Error in AI ranking batch processing:', aiError);
+              if (aiRankingRequestIdRef.current !== thisRequestId) return;
               setPostRelevanceScores(cachedScores);
               setPostRelevanceMetadata(cachedMetadata);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
@@ -1143,9 +1092,7 @@ const {
             }
           } else {
             // All posts are cached, use cached scores directly
-            console.log('AI Ranking: All posts already cached, using cached scores');
             const highRelevanceCount = Array.from(cachedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-            console.log(`AI Ranking: ${highRelevanceCount} cached posts scored >= 4`);
             setPostRelevanceScores(cachedScores);
             setPostRelevanceMetadata(cachedMetadata);
             setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
@@ -1176,6 +1123,9 @@ const {
         } catch (aiError) {
           console.error('Error in AI ranking integration:', aiError);
           setAiRankingLoading(false);
+          if (triggeredByAuto) {
+            setAiRankingError('AI ranking failed during auto-refresh — scores may be stale.');
+          }
         }
       }, [aiEnabled, aiGoals, aiContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel, AI_PROMPT_VERSION]);
 
@@ -1645,6 +1595,70 @@ const {
       }, [modelGroups, openRouterModel]);
 
       const aiGoalSummary = useMemo(() => truncateText(aiGoals || '', 120), [aiGoals]);
+      const preFilterPostCount = filteredBySub.length;
+      const activeFilterPills = useMemo(() => {
+        const pills = [];
+        if (keyword.trim()) pills.push({ key: 'keyword', label: `Keyword: ${truncateText(keyword.trim(), 24)}` });
+        if (minUpvoteFilter) pills.push({ key: 'upvotes', label: `Upvotes: ${minUpvoteFilter}+` });
+        if (minCommentFilter) pills.push({ key: 'comments', label: `Comments: ${minCommentFilter}+` });
+        if (minAiRelevance) pills.push({ key: 'ai', label: `AI score: ${minAiRelevance}+` });
+        return pills;
+      }, [keyword, minUpvoteFilter, minCommentFilter, minAiRelevance, truncateText]);
+      const showingFilteredResults = visiblePosts.length !== preFilterPostCount;
+
+      function clearFilterPill(key) {
+        if (key === 'keyword') setKeyword('');
+        if (key === 'upvotes') setMinUpvoteFilter('');
+        if (key === 'comments') setMinCommentFilter('');
+        if (key === 'ai') setMinAiRelevance('');
+      }
+
+      function renderStatusChip(label, value, tone = 'neutral') {
+        const toneClass =
+          tone === 'success'
+            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+            : tone === 'warning'
+              ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              : tone === 'accent'
+                ? 'bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300'
+                : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300';
+        return h('span', {
+          className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`
+        },
+          h('span', { className: 'uppercase tracking-wide opacity-70' }, label),
+          h('span', null, value)
+        );
+      }
+
+      function renderGlyph(path, className = 'w-4 h-4') {
+        return h('svg', { className, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+          h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: path })
+        );
+      }
+
+      function renderStarterPackIcon(packId) {
+        const iconMap = {
+          'tech-news': 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 4h14a2 2 0 012 2v7H3V6a2 2 0 012-2z',
+          'design-inspo': 'M7 7h.01M7 3h10l4 4v10a2 2 0 01-2 2H7a4 4 0 01-4-4V7a4 4 0 014-4z',
+          'data-ai': 'M9.75 3v2.25M14.25 3v2.25M9 18h6M10 21h4M7.5 6.75h9A2.25 2.25 0 0118.75 9v5.25A2.25 2.25 0 0116.5 16.5h-9A2.25 2.25 0 015.25 14.25V9A2.25 2.25 0 017.5 6.75zM9 11.25h.008v.008H9v-.008zm6 0h.008v.008H15v-.008z'
+        };
+        return h('span', { className: 'inline-flex items-center justify-center w-7 h-7 rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 shrink-0' },
+          renderGlyph(iconMap[packId] || iconMap['tech-news'], 'w-4 h-4')
+        );
+      }
+
+      function renderPresetIcon(presetId, isActive = false) {
+        const iconMap = {
+          leads: 'M21 12l-7.5 7.5-3-3-6 6M21 12V3h-9',
+          research: 'M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
+          hiring: 'M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2M10 7a4 4 0 100-8 4 4 0 000 8zm11 8h-6m3-3v6',
+          feedback: 'M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z',
+          trends: 'M3 17l6-6 4 4 7-8M14 7h6v6'
+        };
+        return h('span', {
+          className: `inline-flex items-center justify-center w-4 h-4 ${isActive ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`
+        }, renderGlyph(iconMap[presetId] || iconMap.research, 'w-4 h-4'));
+      }
 
       const renderModelCard = (model, options = {}) => {
         if (!model) return null;
@@ -1662,7 +1676,7 @@ const {
         const containerClass = [
           'p-3 rounded-lg border transition-colors',
           selected
-            ? 'border-orange-400 bg-orange-50 dark:border-[#E8541A]/55 dark:bg-[#E8541A]/15'
+            ? 'border-sky-400 bg-sky-50 dark:border-[#0284C7]/55 dark:bg-[#0284C7]/15'
             : 'border-zinc-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-800/60',
           emphasize ? 'shadow-sm' : '',
         ].join(' ');
@@ -1674,12 +1688,12 @@ const {
               h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' }, model.id)
             ),
             h('div', { className: 'flex items-center gap-2 shrink-0' },
-              selected && h('span', { className: 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E8541A] text-white' }, 'Selected'),
+              selected && h('span', { className: 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#0284C7] text-white' }, 'Selected'),
               h('button', {
                 type: 'button',
                 onClick: () => setOpenRouterModel(model.id),
                 disabled: !aiEnabled,
-                className: 'px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#E8541A] dark:hover:bg-[#D14A14] disabled:opacity-50 disabled:cursor-not-allowed'
+                className: 'px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed'
               }, selected ? 'Using' : 'Select')
             )
           ),
@@ -1705,7 +1719,7 @@ const {
               // Dark mode toggle
               h('button', {
                 onClick: () => setDarkMode(!darkMode),
-                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: darkMode ? 'Light mode' : 'Dark mode'
               }, darkMode 
                 ? h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1717,7 +1731,7 @@ const {
               ),
               h('button', {
                 onClick: () => setSettingsOpen(true),
-              className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+              className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
               title: 'Settings'
             }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }),
@@ -1728,18 +1742,18 @@ const {
                 : authenticated
                   ? h('button', {
                       onClick: () => { window.location.href = '/api/auth/logout'; },
-                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                     }, 'Sign out')
                   : h('button', {
                       onClick: () => { window.location.href = '/api/auth/start'; },
-                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#E8541A] text-white hover:bg-zinc-800 dark:hover:bg-[#D14A14] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                     }, 'Sign in')
           )
         ),
 
         // Status bar
         h('div', { className: 'bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
-          h('div', { className: 'flex items-center gap-4' },
+          h('div', { className: 'flex flex-wrap items-center gap-2' },
             loading
               ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
                   h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' }),
@@ -1749,30 +1763,28 @@ const {
                 ? h('span', { className: 'text-rose-600 dark:text-rose-400 font-medium' }, error)
                 : needsAuth
                   ? h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, 'Sign in required')
-                  : h('span', { className: 'text-zinc-600 dark:text-zinc-400' },
-                      visiblePosts.length > 0
-                        ? `${visiblePosts.length} posts`
-                        : subs.length > 0 ? 'No posts found' : 'Add subreddits to start'
-                    ),
-            fetchedAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `Updated ${timeAgo(fetchedAt / 1000)}`),
-            snapshotInfo?.cached && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `• Cache ${snapshotInfo.age_seconds || 0}s old`),
-            staleSubCount > 0 && h('span', { className: 'text-amber-700 dark:text-amber-300 text-xs font-medium' }, `• ${staleSubCount} stale subreddit${staleSubCount === 1 ? '' : 's'}`),
-            rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && h('span', { className: 'text-amber-700 dark:text-amber-300 text-xs font-medium' }, `• Cooldown ${formatTimeUntil(rateLimitPauseUntil)}`),
-            autoRefreshEnabled && nextRefreshAt && !loading && h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `• Next ${formatTimeUntil(nextRefreshAt)}`),
-            aiRankingLoading && h('span', { className: 'text-emerald-700 dark:text-emerald-300 font-medium' }, '• AI Ranking...'),
-            !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-emerald-700 dark:text-emerald-300' }, '• AI Active'),
-            !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && aiScoreStats.total > 0 && h('span', { className: 'text-emerald-700 dark:text-emerald-300' }, `• AI scored ${aiScoreStats.llm}/${aiScoreStats.total} (LLM)`),
-            !aiRankingLoading && (!aiEnabled || !aiGoals || !aiGoals.trim()) && postRelevanceScores.size === 0 && h('span', { className: 'text-zinc-500 text-xs' }, '• AI Inactive'),
+                  : [
+                      renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0),
+                      fetchedAt && !loading && renderStatusChip('Updated', timeAgo(fetchedAt / 1000)),
+                      snapshotInfo?.cached && !loading && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
+                      staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
+                      rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
+                      autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt)),
+                      aiRankingLoading && renderStatusChip('AI', 'Ranking…', 'success'),
+                      !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && renderStatusChip('AI', 'On', 'success'),
+                      !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && aiScoreStats.total > 0 && renderStatusChip('AI-reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
+                      !aiRankingLoading && (!aiEnabled || !aiGoals || !aiGoals.trim()) && postRelevanceScores.size === 0 && renderStatusChip('AI', 'Off'),
+                    ],
             (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
-              className: 'text-[#E8541A] dark:text-orange-400 hover:text-[#D14A14] dark:hover:text-orange-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
-            }, '• Alerts')
+              className: 'text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
+            }, renderStatusChip('Alerts', 'On', 'accent'))
           ),
           h('div', { className: 'flex items-center gap-2' },
             h('button', {
               onClick: () => refresh({ force: true }),
               disabled: loading,
-              className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-[#E8541A] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#D14A14] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+              className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-[#0284C7] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
             },
               h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
@@ -1782,8 +1794,8 @@ const {
             h('button', {
               onClick: () => refresh({ force: true }),
               disabled: loading,
-              className: 'px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-            }, 'Force')
+              className: 'px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+            }, 'Force refresh')
           )
         ),
 
@@ -1795,7 +1807,7 @@ const {
               h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Add subreddit'
               }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
@@ -1810,8 +1822,8 @@ const {
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' })
                       )
                     ),
-                    h('h3', { className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'Welcome!'),
-                    h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, 'Get started with a starter pack'),
+                    h('h3', { className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'Start by adding a few subreddits'),
+                    h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, 'Pick a starter pack below or click "Add custom" to enter 3 to 5 subreddit names.'),
                     h('div', { className: 'space-y-2' },
                       STARTER_PACKS.map(pack =>
                         h('button', {
@@ -1819,21 +1831,26 @@ const {
                           onClick: () => handleApplyStarterPack(pack),
                           className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-left text-sm transition-colors'
                         },
-                          h('span', { className: 'mr-1.5' }, pack.emoji),
-                          h('span', { className: 'text-zinc-700 dark:text-zinc-300' }, pack.label)
+                          h('span', { className: 'flex items-center gap-2.5' },
+                            renderStarterPackIcon(pack.id),
+                            h('span', { className: 'min-w-0' },
+                              h('span', { className: 'block font-medium text-zinc-700 dark:text-zinc-300' }, pack.label),
+                              h('span', { className: 'block text-xs text-zinc-500 dark:text-zinc-400' }, `${pack.subs.length} starter subreddits`)
+                            )
+                          )
                         )
                       )
                     ),
                     h('button', {
                       onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                      className: 'mt-3 text-xs text-[#E8541A] dark:text-orange-400 hover:text-[#D14A14] dark:hover:text-orange-300 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                    }, '+ Add custom')
+                      className: 'mt-3 text-xs text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                    }, 'Add custom subreddits')
                   )
                 : [
                     h('button', {
                       key: 'all',
                       onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-orange-50 dark:bg-[#E8541A]/15 text-[#D14A14] dark:text-orange-400' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'}`
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-400' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'}`
                     },
                       h('div', { className: 'flex items-center justify-between' },
                         h('span', null, 'All'),
@@ -1846,19 +1863,19 @@ const {
                     const meta = subMetaMap.get(sub) || {};
                       return h('div', {
                       key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-orange-50 dark:bg-[#E8541A]/15' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-sky-50 dark:bg-[#0284C7]/15' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
                       },
                         h('button', {
                       onClick: () => setSelectedSub(sub),
-                          className: `w-full px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`
+                          className: `w-full px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`
                     },
                       h('div', { className: 'flex items-center justify-between' },
-                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-[#D14A14] dark:text-orange-400' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
+                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-[#0369A1] dark:text-sky-400' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
                         h('div', { className: 'flex items-center gap-2' },
                               h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, postCount),
                           h('button', {
                                 onClick: (e) => { e.stopPropagation(); handleRemoveSub(sub); },
-                                className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                                className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                             title: 'Remove'
                               }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
@@ -1875,50 +1892,51 @@ const {
 
           // Center - Post list
           h('main', { className: `flex-1 flex-col bg-zinc-50 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 shrink-0' },
-              h('div', { className: 'flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between' },
-                h('div', { className: 'min-w-0' },
+            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-4 shrink-0' },
+              h('div', { className: 'rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-gradient-to-br from-white via-sky-50/40 to-zinc-50 dark:from-zinc-800 dark:via-zinc-800 dark:to-zinc-900 px-4 py-4 shadow-sm' },
+                h('div', { className: 'flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between' },
+                h('div', { className: 'min-w-0 lg:max-w-[48%]' },
                   h('div', { className: 'flex items-center gap-2 flex-wrap' },
-                    h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' }, 'AI Module'),
-                    aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-orange-100 dark:bg-[#E8541A]/20 text-[#D14A14] dark:text-orange-300' }, 'Active'),
+                    h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' }, 'AI Control'),
+                    aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-sky-100 dark:bg-[#0284C7]/20 text-[#0369A1] dark:text-sky-300' }, 'Active'),
                     aiScoresStale && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' }, 'Scores stale'),
                     aiRankingLoading && h('span', { className: 'px-2 py-1 rounded-full text-[11px] font-semibold bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300' }, 'Ranking...')
                   ),
-                  h('h2', { className: 'mt-2 text-sm font-semibold text-zinc-900 dark:text-white' },
+                  h('h2', { className: 'mt-2 text-base font-semibold text-zinc-900 dark:text-white leading-snug' },
                     aiEnabled && aiGoals && aiGoals.trim()
                       ? (aiGoalSummary || 'AI ranking active')
                       : 'AI ranking is available but not configured'
                   ),
-                  h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' },
+                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed' },
                     aiEnabled && aiGoals && aiGoals.trim()
                       ? `Model: ${(selectedModelInfo && selectedModelInfo.name) || openRouterModel}`
                       : 'Set goals, exclusions, and examples to rank posts by fit instead of raw score.'
                   )
                 ),
                 h('div', { className: 'grid grid-cols-2 gap-2 lg:grid-cols-4 lg:min-w-[420px]' },
-                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-3 py-2' },
+                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
                     h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Scored'),
                     h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, `${aiScoreStats.scored}/${aiScoreStats.total}`)
                   ),
-                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-3 py-2' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'LLM'),
+                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
+                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'AI-reviewed'),
                     h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, aiScoreStats.llm)
                   ),
-                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-3 py-2' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'High Fit'),
+                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
+                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Strong matches'),
                     h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, aiScoreStats.high)
                   ),
-                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-3 py-2' },
-                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Visible 4+'),
+                  h('div', { className: 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900 px-3 py-3 shadow-sm' },
+                    h('div', { className: 'text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Strong matches in view'),
                     h('div', { className: 'mt-1 text-lg font-semibold font-mono text-zinc-900 dark:text-white' }, aiScoreStats.visibleHigh)
                   )
                 )
               ),
-              h('div', { className: 'mt-3 flex flex-wrap items-center gap-2' },
+                h('div', { className: 'mt-4 flex flex-wrap items-center gap-2.5 border-t border-zinc-200/80 dark:border-zinc-700 pt-4' },
                 h('button', {
                   onClick: rerankNow,
                   disabled: aiRankingLoading || loading || !aiEnabled || !aiGoals || !aiGoals.trim(),
-                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#E8541A] dark:hover:bg-[#D14A14] disabled:opacity-50 disabled:cursor-not-allowed'
+                  className: 'px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed'
                 }, aiRankingLoading ? 'Ranking…' : 'Rerank now'),
                 h('button', {
                   onClick: () => setSettingsOpen(true),
@@ -1946,10 +1964,11 @@ const {
                   selectedModelInfo.hint || selectedModelInfo.name
                 ),
                 h('span', { className: 'text-[11px] text-zinc-500 dark:text-zinc-400' }, `Prompt ${AI_PROMPT_VERSION}`)
+                )
               )
             ),
             // Filter toolbar
-            h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2.5 flex items-center gap-3 shrink-0 flex-wrap' },
+            h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center gap-3 shrink-0 flex-wrap' },
               h('div', { className: 'relative flex-1 min-w-[120px] max-w-[180px]' },
                 h('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
@@ -1960,43 +1979,43 @@ const {
                   value: keyword,
                   onChange: (e) => setKeyword(e.target.value),
                   placeholder: 'Search keywords… (⌘K)',
-                  className: 'w-full pl-9 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                  className: 'w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                 })
               ),
               h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mr-1' }, '▲'),
+                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Upvotes'),
                 UPVOTE_PRESETS.map(preset =>
                   h('button', {
                     key: `upvote-${preset.value}`,
                     onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minUpvoteFilter === preset.value ? 'bg-orange-50 dark:bg-[#E8541A]/15 text-[#D14A14] dark:text-orange-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minUpvoteFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
               h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mr-1' }, '💬'),
+                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Comments'),
                 COMMENT_PRESETS.map(preset =>
                   h('button', {
                     key: `comment-${preset.value}`,
                     onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minCommentFilter === preset.value ? 'bg-orange-50 dark:bg-[#E8541A]/15 text-[#D14A14] dark:text-orange-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minCommentFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
               // AI relevance filter (only show when AI is enabled and scores are available)
               aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mr-1' }, '🤖'),
+                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'AI score'),
                 AI_RELEVANCE_PRESETS.map(preset =>
                   h('button', {
                     key: `ai-${preset.value}`,
                     onClick: () => setMinAiRelevance(minAiRelevance === preset.value ? '' : preset.value),
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minAiRelevance === preset.value ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minAiRelevance === preset.value ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
               (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
                 onClick: () => setSettingsOpen(true),
-                className: 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 dark:bg-[#E8541A]/15 text-[#D14A14] dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-[#E8541A]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Alerts settings'
               }, h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
@@ -2016,29 +2035,45 @@ const {
                     by = value.substring(0, lastDashIndex);
                     order = value.substring(lastDashIndex + 1);
                   }
-                  console.log('Sort changed:', { value, by, order, previous: { sortBy, sortOrder } });
                   setSortBy(by);
                   setSortOrder(order);
                 },
-                className: 'px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white'
-              },
-                h('option', { value: 'date-desc' }, 'Newest'),
-                h('option', { value: 'date-asc' }, 'Oldest'),
+                className: 'px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white shadow-sm'
+                },
+                h('option', { value: 'date-desc' }, 'Latest posts'),
+                h('option', { value: 'date-asc' }, 'Oldest posts'),
                 h('option', { value: 'upvotes-desc' }, 'Most upvotes'),
                 h('option', { value: 'upvotes-asc' }, 'Least upvotes'),
                 h('option', { value: 'comments-desc' }, 'Most comments'),
                 h('option', { value: 'comments-asc' }, 'Least comments'),
-                h('option', { value: 'velocity-upvotes-desc' }, '⚡ Upvotes per hour'),
-                h('option', { value: 'velocity-comments-desc' }, '💬 Comments per hour'),
+                h('option', { value: 'velocity-upvotes-desc' }, 'Highest upvote velocity'),
+                h('option', { value: 'velocity-comments-desc' }, 'Highest comment velocity'),
                 aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size > 0 && [
-                  h('option', { key: 'ai-desc', value: 'ai-relevance-desc' }, '🤖 Highest AI relevance'),
-                  h('option', { key: 'ai-asc', value: 'ai-relevance-asc' }, '🤖 Lowest AI relevance')
+                  h('option', { key: 'ai-desc', value: 'ai-relevance-desc' }, 'Highest AI relevance'),
+                  h('option', { key: 'ai-asc', value: 'ai-relevance-asc' }, 'Lowest AI relevance')
                 ]
               ),
                 filtersActive && h('button', {
                 onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
                 className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-              }, 'Clear')
+              }, 'Clear all')
+            ),
+            activeFilterPills.length > 0 && h('div', { className: 'bg-zinc-50/80 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 flex-wrap' },
+              h('div', { className: 'flex items-center gap-2 flex-wrap' },
+                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400' }, `Showing ${visiblePosts.length} of ${preFilterPostCount} posts`),
+                ...activeFilterPills.map(pill => h('button', {
+                  key: pill.key,
+                  onClick: () => clearFilterPill(pill.key),
+                  className: 'inline-flex items-center gap-1 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                },
+                  h('span', null, pill.label),
+                  h('span', { 'aria-hidden': 'true', className: 'text-zinc-400' }, 'x')
+                ))
+              ),
+              h('button', {
+                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
+                className: 'text-xs font-medium text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300'
+              }, 'Clear filters')
             ),
 
             // Post list
@@ -2053,23 +2088,51 @@ const {
                             )
                           ),
                           h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No subreddits yet'),
-                          h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs' }, 'Add your favorite subreddits from the sidebar or try one of our starter packs')
+                          h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm' }, 'Click "Add custom subreddits" in the left sidebar or choose a starter pack to build your feed.')
                         ]
                       : loading 
                         ? h('span', { className: 'text-zinc-500 dark:text-zinc-400 text-sm' }, 'Loading…')
+                        : filtersActive || showingFilteredResults
+                        ? [
+                            h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
+                              h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
+                              )
+                            ),
+                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No posts match your current filters'),
+                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm mb-4' }, 'Clear one or more filters to bring posts back into view.'),
+                            h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
+                              h('button', {
+                                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
+                                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                              }, 'Clear filters'),
+                              minAiRelevance && h('button', {
+                                onClick: () => setMinAiRelevance(''),
+                                className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                              }, 'Remove AI score filter')
+                            )
+                          ]
                         : [
                             h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
                               h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
                               )
                             ),
-                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No posts match'),
-                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, 'Try adjusting your filters or search for different keywords'),
-                            h('button', { 
-                              key: 'clear',
-                              onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
-                              className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#E8541A] dark:hover:bg-[#D14A14] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                            }, 'Clear all filters')
+                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, aiEnabled && aiGoals && aiGoals.trim() ? 'No strong matches yet' : 'No posts found'),
+                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, aiEnabled && aiGoals && aiGoals.trim()
+                              ? 'Try broadening your AI goals, lowering the AI score filter, or fetching more posts.'
+                              : 'Try a different fetch mode or add more subreddits.'
+                            ),
+                            h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
+                              h('button', { 
+                                onClick: () => refresh({ force: true }),
+                                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                              }, 'Refresh posts'),
+                              h('button', {
+                                onClick: () => setSettingsOpen(true),
+                                className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                              }, aiEnabled && aiGoals && aiGoals.trim() ? 'Adjust AI settings' : 'Open settings')
+                            )
                           ]
                   )
                 : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700' },
@@ -2088,21 +2151,8 @@ const {
                         const isSpiking = velocityMeta.spiking.has(String(post.id));
                         const upvotesPerHour = velocity?.upvotesPerHour || 0;
                         const commentsPerHour = velocity?.commentsPerHour || 0;
-                        // Debug: log first post's score retrieval
-                        if (visiblePosts.indexOf(post) === 0) {
-                          console.log('Post rendering debug:', {
-                            postId: post.id,
-                            postIdString: String(post.id),
-                            relevanceScore,
-                            relevanceMeta,
-                            isHighlyRelevant,
-                            scoresMapSize: postRelevanceScores.size,
-                            aiEnabled,
-                            hasGoals: Boolean(aiGoals && aiGoals.trim())
-                          });
-                        }
                         const borderClass = isSelected 
-                          ? 'border-l-2 border-[#E8541A]' 
+                          ? 'border-l-2 border-[#0284C7]' 
                           : isHighlyRelevant 
                             ? 'border-l-4 border-emerald-500' 
                             : '';
@@ -2141,14 +2191,14 @@ const {
                                   }, 'Spiking'),
                                   h('span', { className: 'text-[10px] text-zinc-500 dark:text-zinc-400' }, `⚡ ${formatVelocity(upvotesPerHour)}/h`),
                                   relevanceScore !== undefined && relevanceScore !== null && h('span', {
-                                    className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
+                                    className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
                                       relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
                                       relevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
                                       relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                                       'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                                     }`,
-                                    title: relevanceMeta ? `AI Relevance: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/5`
-                                  }, `${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
+                                    title: aiScoresStale ? `Cached score (may be stale) — re-run ranking for fresh results` : relevanceMeta ? `AI Relevance: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/5`
+                                  }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
                                 ),
                                 h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
                                 showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
@@ -2281,13 +2331,13 @@ const {
                           title: detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : `AI Relevance: ${detailRelevanceScore}/5`
                         },
                           h('span', {
-                            className: `px-2 py-0.5 rounded text-xs font-bold font-mono shadow-sm ${
+                            className: `px-2 py-0.5 rounded text-xs font-bold font-mono shadow-sm ${aiScoresStale ? 'opacity-50' : ''} ${
                               detailRelevanceScore >= 5 ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
                               detailRelevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
                               detailRelevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                               'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                             }`
-                          }, `${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
+                          }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
                           h('div', { 
                             className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
                           },
@@ -2317,7 +2367,7 @@ const {
                       href: selectedPost.reddit_url || selectedPost.external_url,
                       target: '_blank',
                       rel: 'noreferrer',
-                      className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-[#E8541A] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#D14A14] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                      className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-[#0284C7] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                     },
                       'Open on Reddit',
                       h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -2345,16 +2395,16 @@ const {
         h('nav', { className: 'lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-800 border-t border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-around z-40' },
           h('button', {
             onClick: () => setMobileView('subs'),
-            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'subs' ? 'text-[#E8541A] dark:text-orange-400' : 'text-zinc-500 dark:text-zinc-400'}`
+            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'subs' ? 'text-[#0284C7] dark:text-sky-400' : 'text-zinc-500 dark:text-zinc-400'}`
           },
             h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
             ),
-            h('span', { className: 'text-xs font-medium' }, 'Subs')
+            h('span', { className: 'text-xs font-medium' }, 'Subreddits')
           ),
           h('button', {
             onClick: () => setMobileView('posts'),
-            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'posts' ? 'text-[#E8541A] dark:text-orange-400' : 'text-zinc-500 dark:text-zinc-400'}`
+            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'posts' ? 'text-[#0284C7] dark:text-sky-400' : 'text-zinc-500 dark:text-zinc-400'}`
           },
             h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 6h16M4 10h16M4 14h16M4 18h16' })
@@ -2363,7 +2413,7 @@ const {
           ),
           h('button', {
             onClick: () => setMobileView('detail'),
-            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'detail' ? 'text-[#E8541A] dark:text-orange-400' : 'text-zinc-500 dark:text-zinc-400'}`
+            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'detail' ? 'text-[#0284C7] dark:text-sky-400' : 'text-zinc-500 dark:text-zinc-400'}`
           },
             h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
@@ -2395,7 +2445,7 @@ const {
                   value: addSubInput,
                   onChange: (e) => setAddSubInput(e.target.value),
                   placeholder: 'programming, webdev, javascript...',
-                  className: 'w-full px-3 py-2 border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                  className: 'w-full px-3 py-2 border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                   rows: 3
                 }),
                 h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate with commas or new lines')
@@ -2422,7 +2472,7 @@ const {
               h('button', {
                 onClick: handleAddSubSubmit,
                 disabled: !addSubInput.trim(),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#E8541A] text-white hover:bg-zinc-800 dark:hover:bg-[#D14A14] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
               }, 'Add')
             )
           )
@@ -2460,7 +2510,7 @@ const {
                   ),
                   h('button', {
                     onClick: () => setAutoRefreshEnabled(!autoRefreshEnabled),
-                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${autoRefreshEnabled ? 'bg-[#E8541A]' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${autoRefreshEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
                   },
                     h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${autoRefreshEnabled ? 'translate-x-5' : ''}` })
                   )
@@ -2468,18 +2518,18 @@ const {
               ),
               h('div', { className: 'grid grid-cols-2 gap-4' },
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Listing mode'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Feed type'),
                     h('select', {
                       value: mode,
                     onChange: (e) => setMode(e.target.value),
                     className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
                     },
-                      h('option', { value: 'new' }, 'New'),
-                      h('option', { value: 'top' }, 'Top')
+                      h('option', { value: 'new' }, 'Latest posts'),
+                      h('option', { value: 'top' }, 'Top posts')
                     )
                   ),
                   h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Top range'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Top posts time range'),
                     h('select', {
                       value: time,
                     onChange: (e) => setTime(e.target.value),
@@ -2493,7 +2543,7 @@ const {
                     )
                   ),
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Lookback window'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Time window'),
                     h('select', {
                       value: days,
                     onChange: (e) => setDays(Number(e.target.value)),
@@ -2505,7 +2555,7 @@ const {
                     )
                   ),
                 h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Max pages'),
+                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Fetch depth'),
                     h('select', {
                       value: maxPages,
                     onChange: (e) => setMaxPages(Number(e.target.value)),
@@ -2527,12 +2577,12 @@ const {
                     h('div', { className: 'flex items-center gap-2' },
                       Notification.permission !== 'granted' && h('button', {
                         onClick: requestNotificationPermission,
-                        className: 'px-2.5 py-1 text-xs font-medium rounded-full bg-orange-50 text-[#D14A14] dark:bg-[#E8541A]/15 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-[#E8541A]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                      }, 'Allow'),
+                        className: 'px-2.5 py-1 text-xs font-medium rounded-full bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                      }, 'Allow notifications'),
                       h('button', {
                         onClick: () => setNotificationsEnabled(!notificationsEnabled),
                         disabled: Notification.permission !== 'granted',
-                        className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notificationsEnabled ? 'bg-[#E8541A]' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                        className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notificationsEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
                       },
                         h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notificationsEnabled ? 'translate-x-5' : ''}` })
                       )
@@ -2563,19 +2613,19 @@ const {
                   ),
                   h('div', { className: 'flex items-center justify-between' },
                     h('div', null,
-                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on high AI relevance'),
-                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post scores at or above the threshold (AI ranking must be enabled)')
+                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on strong AI matches'),
+                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post reaches your AI threshold (AI ranking must be enabled)')
                     ),
                     h('button', {
                       onClick: () => setNotifyHighRelevance(!notifyHighRelevance),
                       disabled: !aiEnabled || !aiGoals || !aiGoals.trim(),
-                      className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyHighRelevance ? 'bg-[#E8541A]' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                      className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyHighRelevance ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
                     },
                       h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifyHighRelevance ? 'translate-x-5' : ''}` })
                     )
                   ),
                   h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'High-relevance threshold'),
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strong-match threshold'),
                     h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum AI score (4 or 5) to trigger a notification'),
                     h('select', {
                       value: highRelevanceThreshold,
@@ -2591,254 +2641,281 @@ const {
               ),
               // AI Relevance Ranking section
               h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
-                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, 'AI Relevance Ranking'),
+                // Header: label + enable toggle
+                h('div', { className: 'flex items-center justify-between mb-4' },
+                  h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide' }, 'AI Relevance Ranking'),
+                  h('button', {
+                    onClick: () => setAiEnabled(!aiEnabled),
+                    title: aiEnabled ? 'Disable AI ranking' : 'Enable AI ranking',
+                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${aiEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                  },
+                    h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${aiEnabled ? 'translate-x-5' : ''}` })
+                  )
+                ),
                 h('div', { className: 'space-y-4' },
-                  h('div', { className: 'flex items-center justify-between' },
-                    h('div', null,
-                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Enable AI ranking'),
-                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Rank posts by relevance to your goals')
-                    ),
-                    h('button', {
-                      onClick: () => setAiEnabled(!aiEnabled),
-                      className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8541A] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${aiEnabled ? 'bg-[#E8541A]' : 'bg-zinc-300 dark:bg-zinc-600'}`
-                    },
-                      h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${aiEnabled ? 'translate-x-5' : ''}` })
-                    )
-                  ),
-                  h('div', { className: 'flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 px-3 py-2' },
-                    h('div', null,
-                      h('p', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-200' }, 'Show score explanations in feed'),
-                      h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Controls the short “Why” helper line below post titles')
-                    ),
-                    h('button', {
-                      onClick: () => setShowAiReasons(!showAiReasons),
-                      className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${showAiReasons ? 'bg-orange-100 dark:bg-[#E8541A]/20 text-[#D14A14] dark:text-orange-300' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`
-                    }, showAiReasons ? 'On' : 'Off')
-                  ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Your goals / context'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Describe what you\'re looking for (e.g., "I run an SEO agency and am looking for leads")'),
-                    !aiPresetDismissed && aiEnabled && (!aiGoals || aiGoals.trim().length < 20) && aiPresetSuggestion && h('div', { className: 'mb-2 p-2 rounded-lg border border-orange-200 dark:border-[#D14A14]/55 bg-orange-50/60 dark:bg-[#E8541A]/10 text-xs text-[#D14A14] dark:text-orange-300 flex items-center justify-between gap-2' },
-                      h('span', null, `Suggested focus: ${aiPresetSuggestion.emoji || '✨'} ${aiPresetSuggestion.label}`),
-                      h('div', { className: 'flex items-center gap-2' },
-                        h('button', {
-                          type: 'button',
-                          onClick: () => applyPreset(aiPresetSuggestion),
-                          className: 'px-2 py-1 rounded-md bg-[#E8541A] text-white text-xs font-semibold hover:bg-[#D14A14]'
-                        }, 'Apply'),
-                        h('button', {
-                          type: 'button',
-                          onClick: () => setAiPresetDismissed(true),
-                          className: 'px-2 py-1 rounded-md border border-orange-200 dark:border-[#D14A14] text-[#D14A14] dark:text-orange-300 text-xs hover:bg-orange-100 dark:hover:bg-[#E8541A]/20'
-                        }, 'Dismiss')
-                      )
-                    ),
-                    h('div', { className: 'mb-2 flex flex-wrap gap-2' },
+
+                  // 1. Goal
+                  h('div', null,
+                    h('div', { className: 'flex flex-wrap gap-1.5 mb-2' },
                       AI_PRESETS.map(preset => h('button', {
                         key: preset.id,
                         type: 'button',
                         onClick: () => applyPreset(preset),
                         disabled: !aiEnabled,
-                        className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#E8541A] text-white border-[#E8541A]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!aiEnabled ? 'opacity-50 cursor-not-allowed' : ''}`
-                      }, `${preset.emoji || '✨'} ${preset.label}`))
+                        className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#0284C7] text-white border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!aiEnabled ? 'opacity-50 cursor-not-allowed' : ''}`
+                      },
+                        h('span', { className: 'inline-flex items-center gap-1.5' },
+                          renderPresetIcon(preset.id, aiPresetId === preset.id),
+                          h('span', null, preset.label)
+                        )
+                      ))
                     ),
                     h('textarea', {
                       value: aiGoals,
                       onChange: (e) => setAiGoals(e.target.value),
-                      placeholder: 'e.g., I run an SEO agency and am looking for leads',
+                      placeholder: "Describe what you're looking for — e.g., \"I run an SEO agency and am looking for small business owners asking about SEO\"",
                       disabled: !aiEnabled,
                       rows: 3,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none'
                     })
                   ),
-                  h('label', { className: 'block mt-4' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Additional context (optional)'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Extra constraints like “prefer fresh launches”.'),
-                    h('input', {
-                      type: 'text',
-                      value: aiContext,
-                      onChange: (e) => setAiContext(e.target.value),
-                      placeholder: 'e.g., prioritize recent posts with active comments',
+
+                  // 2. Tune (collapsible)
+                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden' },
+                    h('button', {
+                      type: 'button',
+                      onClick: () => setAiAdvancedOpen(!aiAdvancedOpen),
                       disabled: !aiEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    })
-                  ),
-                  h('label', { className: 'block mt-3' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Avoid / exclude (optional)'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'What should score low? (jobs, memes, generic chatter, etc.)'),
-                    h('input', {
-                      type: 'text',
-                      value: aiAvoid,
-                      onChange: (e) => setAiAvoid(e.target.value),
-                      placeholder: 'e.g., job postings, memes, generic questions without intent',
-                      disabled: !aiEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    })
-                  ),
-                  h('div', { className: 'grid gap-2 mt-3 sm:grid-cols-3' },
-                    h('label', { className: 'block' },
-                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Example score 5 (perfect)'),
-                      h('textarea', {
-                        value: aiExamplePerfect,
-                        onChange: (e) => setAiExamplePerfect(e.target.value),
-                        rows: 2,
-                        disabled: !aiEnabled,
-                        placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
-                        className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A]'
-                      })
+                      className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                    },
+                      h('span', null, 'Tune'),
+                      h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiAdvancedOpen ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
+                      )
                     ),
-                    h('label', { className: 'block' },
-                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Example score 4 (strong)'),
-                      h('textarea', {
-                        value: aiExampleStrong,
-                        onChange: (e) => setAiExampleStrong(e.target.value),
-                        rows: 2,
-                        disabled: !aiEnabled,
-                        placeholder: 'How can we improve local rankings?',
-                        className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A]'
-                      })
-                    ),
-                    h('label', { className: 'block' },
-                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Example score 0-1 (reject)'),
-                      h('textarea', {
-                        value: aiExampleReject,
-                        onChange: (e) => setAiExampleReject(e.target.value),
-                        rows: 2,
-                        disabled: !aiEnabled,
-                        placeholder: 'Hiring SEO specialist, $20/hr',
-                        className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A]'
-                      })
+                    aiAdvancedOpen && h('div', { className: 'px-3 pb-3 pt-3 space-y-3 border-t border-zinc-200 dark:border-zinc-700' },
+                      h('label', { className: 'block' },
+                        h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Exclude'),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'What should score low? e.g. job posts, memes, ads'),
+                        h('input', {
+                          type: 'text',
+                          value: aiAvoid,
+                          onChange: (e) => setAiAvoid(e.target.value),
+                          placeholder: 'job postings, memes, generic questions without intent',
+                          disabled: !aiEnabled,
+                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                        })
+                      ),
+                      h('label', { className: 'block' },
+                        h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Extra context'),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Optional constraints, e.g. "prefer posts with urgency or a budget mentioned"'),
+                        h('input', {
+                          type: 'text',
+                          value: aiContext,
+                          onChange: (e) => setAiContext(e.target.value),
+                          placeholder: 'prioritize recent posts with active comments',
+                          disabled: !aiEnabled,
+                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                        })
+                      ),
+                      h('div', null,
+                        h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1' }, 'Examples'),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-2' }, 'Give the model concrete references — optional but improves accuracy'),
+                        h('div', { className: 'grid gap-2 sm:grid-cols-3' },
+                          h('label', { className: 'block' },
+                            h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Perfect (5)'),
+                            h('textarea', {
+                              value: aiExamplePerfect,
+                              onChange: (e) => setAiExamplePerfect(e.target.value),
+                              rows: 2,
+                              disabled: !aiEnabled,
+                              placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
+                              className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
+                            })
+                          ),
+                          h('label', { className: 'block' },
+                            h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Strong (4)'),
+                            h('textarea', {
+                              value: aiExampleStrong,
+                              onChange: (e) => setAiExampleStrong(e.target.value),
+                              rows: 2,
+                              disabled: !aiEnabled,
+                              placeholder: 'How can we improve local rankings?',
+                              className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
+                            })
+                          ),
+                          h('label', { className: 'block' },
+                            h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Reject (0–1)'),
+                            h('textarea', {
+                              value: aiExampleReject,
+                              onChange: (e) => setAiExampleReject(e.target.value),
+                              rows: 2,
+                              disabled: !aiEnabled,
+                              placeholder: 'Hiring SEO specialist, $20/hr',
+                              className: 'mt-1 w-full px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
+                            })
+                          )
+                        )
+                      )
                     )
                   ),
-                  h('div', { className: 'block' },
-                    h('div', { className: 'flex items-center justify-between gap-2 mb-1' },
-                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Prompt preview'),
-                      h('span', { className: 'text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' }, AI_PROMPT_VERSION)
+
+                  // 3. Model & Key (collapsible)
+                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden' },
+                    h('button', {
+                      type: 'button',
+                      onClick: () => setAiShowModelKey(!aiShowModelKey),
+                      disabled: !aiEnabled,
+                      className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                    },
+                      h('span', { className: 'flex items-center gap-2' },
+                        'Model & Key',
+                        secureKeyStatus.hasKey && h('span', { className: 'text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-medium' }, '\u2713 key saved')
+                      ),
+                      h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiShowModelKey ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
+                      )
                     ),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'This is the scoring instruction sent to the model (posts JSON omitted for brevity).'),
-                    h('pre', { className: 'max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
+                    aiShowModelKey && h('div', { className: 'px-3 pb-3 pt-3 space-y-4 border-t border-zinc-200 dark:border-zinc-700' },
+                      // API Key
+                      h('div', null,
+                        h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1' }, 'OpenRouter API Key'),
+                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-2' },
+                          'Get a free key at ',
+                          h('a', { href: 'https://openrouter.ai/keys', target: '_blank', rel: 'noopener noreferrer', className: 'text-[#0284C7] dark:text-sky-400 hover:underline' }, 'openrouter.ai/keys')
+                        ),
+                        secureKeyStatus.hasKey
+                          ? h('div', { className: 'flex items-center gap-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800' },
+                              h('svg', { className: 'w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' })
+                              ),
+                              h('div', { className: 'flex-1 min-w-0' },
+                                h('p', { className: 'text-xs font-medium text-emerald-700 dark:text-emerald-300' }, 'Secure key stored'),
+                                h('p', { className: 'text-xs text-emerald-600 dark:text-emerald-400 font-mono truncate' }, secureKeyStatus.keyPreview)
+                              ),
+                              h('button', {
+                                onClick: deleteSecureApiKey,
+                                className: 'p-1 text-emerald-600 dark:text-emerald-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors',
+                                title: 'Remove key'
+                              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
+                              ))
+                            )
+                          : h('div', { className: 'flex gap-2' },
+                              h('input', {
+                                type: 'password',
+                                value: openRouterApiKey,
+                                onChange: (e) => setOpenRouterApiKey(e.target.value),
+                                placeholder: 'sk-or-v1-...',
+                                disabled: !aiEnabled,
+                                className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono'
+                              }),
+                              openRouterApiKey.trim() && h('button', {
+                                onClick: saveSecureApiKey,
+                                disabled: savingSecureKey || !aiEnabled,
+                                className: 'px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap',
+                                title: 'Save key securely (HttpOnly cookie)'
+                              }, savingSecureKey ? 'Saving...' : 'Save securely')
+                            ),
+                        !secureKeyStatus.hasKey && openRouterApiKey.trim() && h('p', { className: 'mt-1 text-xs text-amber-600 dark:text-amber-400' },
+                          '\u26a0\ufe0f Click "Save securely" to protect your key from XSS attacks'
+                        )
+                      ),
+                      // Model
+                      h('div', null,
+                        h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2' }, 'Model'),
+                        modelGroups.recommended.length > 0 && h('div', { className: 'mb-3 p-2.5 rounded-lg border border-sky-200 dark:border-[#0369A1]/55 bg-sky-50 dark:bg-[#0284C7]/10' },
+                          h('p', { className: 'text-[10px] font-semibold text-[#0369A1] dark:text-sky-300 uppercase tracking-wide mb-1.5' }, 'Recommended'),
+                          renderModelCard(modelGroups.recommended[0], { emphasize: true })
+                        ),
+                        h('div', { className: 'grid gap-2 sm:grid-cols-2' },
+                          modelGroups.latestFree.length > 0
+                            ? modelGroups.latestFree.map(model => renderModelCard(model, { compact: true }))
+                            : h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'No free models found.')
+                        ),
+                        showAllModels && h('div', { className: 'mt-2' },
+                          h('select', {
+                            value: openRouterModel,
+                            onChange: (e) => setOpenRouterModel(e.target.value),
+                            disabled: !aiEnabled,
+                            className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                          },
+                            modelGroups.all.map(model =>
+                              h('option', { key: `all-${model.id}`, value: model.id }, `${model.name} \u2014 ${model.hint}`)
+                            )
+                          )
+                        ),
+                        h('div', { className: 'mt-2 flex items-center justify-between gap-2' },
+                          h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate' }, openRouterModel),
+                          h('button', {
+                            type: 'button',
+                            onClick: () => setShowAllModels(!showAllModels),
+                            disabled: !aiEnabled,
+                            className: 'text-xs text-[#0284C7] dark:text-sky-400 hover:underline disabled:opacity-50 whitespace-nowrap shrink-0'
+                          }, showAllModels ? 'Fewer' : 'All models')
+                        ),
+                        modelsLoading && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mt-1' }, 'Loading models...'),
+                        modelsError && h('p', { className: 'text-xs text-rose-600 dark:text-rose-400 mt-1' }, modelsError)
+                      )
+                    )
+                  ),
+
+                  // 4. Display options
+                  h('div', { className: 'flex items-center justify-between text-sm' },
+                    h('span', { className: 'text-zinc-600 dark:text-zinc-400' }, 'Score explanations in feed'),
+                    h('button', {
+                      onClick: () => setShowAiReasons(!showAiReasons),
+                      disabled: !aiEnabled,
+                      className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${showAiReasons ? 'bg-sky-100 dark:bg-[#0284C7]/20 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'}`
+                    }, showAiReasons ? 'On' : 'Off')
+                  ),
+
+                  // 5. Prompt preview (toggle link)
+                  h('div', null,
+                    h('button', {
+                      type: 'button',
+                      onClick: () => setAiShowPromptPreview(!aiShowPromptPreview),
+                      className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors flex items-center gap-1.5'
+                    },
+                      h('svg', { className: `w-3 h-3 transition-transform ${aiShowPromptPreview ? 'rotate-90' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5l7 7-7 7' })
+                      ),
+                      'Preview scoring prompt',
+                      h('span', { className: 'px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 font-mono text-[10px]' }, AI_PROMPT_VERSION)
+                    ),
+                    aiShowPromptPreview && h('pre', { className: 'mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
                       buildScoringPromptPreview({ goals: aiGoals, context: aiContext, avoid: aiAvoid, examples: { perfect: aiExamplePerfect, strong: aiExampleStrong, reject: aiExampleReject } })
                     )
                   ),
-                  h('div', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'OpenRouter API Key'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Optional: Your own OpenRouter API key (get one at ', h('a', { href: 'https://openrouter.ai/keys', target: '_blank', className: 'text-[#E8541A] dark:text-orange-400 hover:underline' }, 'openrouter.ai/keys'), ')'),
-                    // Show secure key status
-                    secureKeyStatus.hasKey && h('div', { className: 'flex items-center gap-2 mb-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800' },
-                      h('svg', { className: 'w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' })
-                      ),
-                      h('div', { className: 'flex-1 min-w-0' },
-                        h('p', { className: 'text-xs font-medium text-emerald-700 dark:text-emerald-300' }, 'Secure key stored'),
-                        h('p', { className: 'text-xs text-emerald-600 dark:text-emerald-400 font-mono truncate' }, secureKeyStatus.keyPreview)
-                      ),
-                      h('button', {
-                        onClick: deleteSecureApiKey,
-                        className: 'p-1 text-emerald-600 dark:text-emerald-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors',
-                        title: 'Remove secure key'
-                      }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
-                      ))
-                    ),
-                    // Input for new key (only show if no secure key or user wants to update)
-                    !secureKeyStatus.hasKey && h('div', { className: 'flex gap-2' },
-                      h('input', {
-                        type: 'password',
-                        value: openRouterApiKey,
-                        onChange: (e) => setOpenRouterApiKey(e.target.value),
-                        placeholder: 'sk-or-v1-...',
-                        disabled: !aiEnabled,
-                        className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono'
-                      }),
-                      openRouterApiKey.trim() && h('button', {
-                        onClick: saveSecureApiKey,
-                        disabled: savingSecureKey || !aiEnabled,
-                        className: 'px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap',
-                        title: 'Save key securely (HttpOnly cookie - XSS-safe)'
-                      }, savingSecureKey ? 'Saving...' : 'Save securely')
-                    ),
-                    // Security note
-                    !secureKeyStatus.hasKey && openRouterApiKey.trim() && h('p', { className: 'mt-1 text-xs text-amber-600 dark:text-amber-400' },
-                      '⚠️ Click "Save securely" to protect your key from XSS attacks'
+
+                  // 6. Status banners
+                  aiRankingError && h('div', { className: 'p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2' },
+                    h('span', null, aiRankingError),
+                    h('button', { onClick: () => setAiRankingError(null), className: 'text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 font-medium' }, '\u00d7')
+                  ),
+                  aiScoresStale && !aiRankingError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
+                    'Scores are cached \u2014 badges show ~ prefix. Re-run for fresh results.'
+                  ),
+
+                  // 7. Run ranking
+                  h('div', { className: 'flex items-center gap-3' },
+                    h('button', {
+                      type: 'button',
+                      onClick: rerankNow,
+                      disabled: !aiEnabled || !aiGoals || !aiGoals.trim() || aiRankingLoading || loading || data.length === 0,
+                      className: 'flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                    }, aiRankingLoading ? 'Analyzing\u2026' : 'Run ranking'),
+                    aiRankingLoading && h('div', { className: 'flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 shrink-0' },
+                      h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' })
                     )
-                  ),
-                  h('div', { className: 'block' },
-                    h('div', { className: 'flex items-start justify-between gap-3' },
-                      h('div', null,
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'AI Model'),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Latest free + paid picks with details. Choose any model to rank posts.')
-                      ),
-                      h('button', {
-                        type: 'button',
-                        onClick: () => setShowAllModels(!showAllModels),
-                        className: 'px-2.5 py-1.5 rounded-lg text-xs font-medium border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed',
-                        disabled: !aiEnabled
-                      }, showAllModels ? 'Hide all' : 'Show all')
-                    ),
-                    modelGroups.recommended.length > 0 && h('div', { className: 'mt-3 p-3 rounded-xl border border-orange-200 dark:border-[#D14A14]/55 bg-orange-50/60 dark:bg-[#E8541A]/10' },
-                      h('p', { className: 'text-xs font-semibold text-[#D14A14] dark:text-orange-300 uppercase tracking-wide' }, 'Recommended'),
-                      h('div', { className: 'mt-2' }, renderModelCard(modelGroups.recommended[0], { emphasize: true }))
-                    ),
-                    h('div', { className: 'mt-3' },
-                      h('div', { className: 'flex items-center justify-between mb-2' },
-                        h('p', { className: 'text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide' }, `Latest Free (${modelGroups.latestFree.length})`),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, `${LATEST_MODEL_COUNT} newest`)
-                      ),
-                      h('div', { className: 'grid gap-2 sm:grid-cols-2' },
-                        modelGroups.latestFree.length > 0
-                          ? modelGroups.latestFree.map(model => renderModelCard(model, { compact: true }))
-                          : h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'No free models found.')
-                      )
-                    ),
-                    h('div', { className: 'mt-4' },
-                      h('div', { className: 'flex items-center justify-between mb-2' },
-                        h('p', { className: 'text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide' }, `Latest Paid (${modelGroups.latestPaid.length})`),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, `${LATEST_MODEL_COUNT} newest`)
-                      ),
-                      h('div', { className: 'grid gap-2 sm:grid-cols-2' },
-                        modelGroups.latestPaid.length > 0
-                          ? modelGroups.latestPaid.map(model => renderModelCard(model, { compact: true }))
-                          : h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'No paid models found.')
-                      )
-                    ),
-                    showAllModels && h('div', { className: 'mt-4' },
-                      h('p', { className: 'text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-2' }, `All models (${modelGroups.all.length})`),
-                      h('select', {
-                        value: openRouterModel,
-                        onChange: (e) => setOpenRouterModel(e.target.value),
-                        disabled: !aiEnabled,
-                        className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#E8541A] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                      },
-                        modelGroups.all.map(model =>
-                          h('option', { key: `all-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
-                        )
-                      )
-                    ),
-                    h('p', { className: 'mt-2 text-xs text-zinc-500 dark:text-zinc-400' }, `Current model: ${openRouterModel}`)
-                  ),
-                  aiScoresStale && h('div', { className: 'mt-3 p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
-                    'AI scores were restored from cache and may be stale. Re-run ranking for the freshest results.'
-                  ),
-                  h('button', {
-                    type: 'button',
-                    onClick: rerankNow,
-                    disabled: !aiEnabled || !aiGoals || !aiGoals.trim() || aiRankingLoading || loading || data.length === 0,
-                    className: 'mt-3 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#E8541A] dark:hover:bg-[#D14A14] disabled:opacity-50 disabled:cursor-not-allowed'
-                  }, aiRankingLoading ? 'Analyzing…' : 'Re-run AI ranking'),
-                  modelsLoading && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Loading models...'),
-                  modelsError && h('p', { className: 'text-xs text-rose-600 dark:text-rose-400' }, modelsError),
-                  aiRankingLoading && h('div', { className: 'flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400' },
-                    h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' }),
-                    'Analyzing posts...'
                   )
                 )
-              ),
-
+              )
             ),
             h('div', { className: 'p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end sticky bottom-0 bg-white dark:bg-zinc-800' },
                 h('button', {
                 onClick: () => setSettingsOpen(false),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#E8541A] text-white hover:bg-zinc-800 dark:hover:bg-[#D14A14] transition-colors'
+                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors'
               }, 'Done')
             )
           )

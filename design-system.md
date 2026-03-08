@@ -16,7 +16,7 @@ The implementation is Tailwind-first, dark-mode aware, and optimized for dense d
 All three fonts are loaded via Google Fonts in `index.html` and `landing.html`.
 
 **Color**
-Primary accent is signal orange (`#E8541A`) — Reddit-adjacent, warm, high-contrast against zinc surfaces. Replaces generic indigo throughout.
+Primary accent is sky blue (`#0284C7`) — sharp, data-intelligence feel, high-contrast against zinc surfaces. Replaces generic indigo throughout.
 
 ## Principles
 
@@ -35,27 +35,27 @@ Primary accent is signal orange (`#E8541A`) — Reddit-adjacent, warm, high-cont
 - `surface/panel`: `bg-white dark:bg-zinc-800`
 - `surface/muted`: `bg-zinc-50 dark:bg-zinc-800/50`
 - `surface/raised`: `bg-white dark:bg-zinc-800 shadow-lg`
-- `surface/selected`: `bg-orange-50 dark:bg-[#E8541A]/15`
+- `surface/selected`: `bg-sky-50 dark:bg-[#0284C7]/15`
 - `surface/overlay`: `bg-black/40`
 
 ### Borders
 
 - `border/default`: `border-zinc-200 dark:border-zinc-700`
 - `border/strong`: `border-zinc-300 dark:border-zinc-600`
-- `border/accent`: `border-[#E8541A] dark:border-[#E8541A]`
+- `border/accent`: `border-[#0284C7] dark:border-[#0284C7]`
 
 ### Text
 
 - `text/primary`: `text-zinc-900 dark:text-zinc-100`
 - `text/secondary`: `text-zinc-600 dark:text-zinc-400`
 - `text/muted`: `text-zinc-500`
-- `text/link`: `text-[#D14A14] hover:text-[#E8541A] dark:text-orange-400 dark:hover:text-orange-300`
+- `text/link`: `text-[#0369A1] hover:text-[#0284C7] dark:text-sky-400 dark:hover:text-sky-300`
 - `text/data`: `font-mono text-zinc-900 dark:text-zinc-100` (JetBrains Mono for scores, counts)
 
 ### Actions and States
 
-- `accent/primary`: `bg-[#E8541A] text-white hover:bg-[#D14A14] active:bg-[#B83F10]`
-- `accent/soft`: `bg-orange-50 text-[#D14A14] dark:bg-[#E8541A]/15 dark:text-orange-300`
+- `accent/primary`: `bg-[#0284C7] text-white hover:bg-[#0369A1] active:bg-[#075985]`
+- `accent/soft`: `bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300`
 - `success`: `text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50`
 - `warning`: `text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40`
 - `danger`: `text-rose-600 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/40`
@@ -78,7 +78,7 @@ Buttons and links:
 ```text
 focus-visible:outline-none
 focus-visible:ring-2
-focus-visible:ring-[#E8541A]
+focus-visible:ring-[#0284C7]
 focus-visible:ring-offset-2
 focus-visible:ring-offset-white
 dark:focus-visible:ring-offset-zinc-900
@@ -89,7 +89,7 @@ Inputs:
 ```text
 focus:outline-none
 focus:ring-2
-focus:ring-[#E8541A]
+focus:ring-[#0284C7]
 focus:ring-offset-2
 focus:ring-offset-white
 dark:focus:ring-offset-zinc-900
@@ -141,7 +141,7 @@ disabled:opacity-50 disabled:cursor-not-allowed
 
 Variants:
 
-- primary: `bg-[#E8541A] text-white hover:bg-[#D14A14] active:bg-[#B83F10]`
+- primary: `bg-[#0284C7] text-white hover:bg-[#0369A1] active:bg-[#075985]`
 - secondary: `text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700`
 - ghost: `text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700`
 - danger: `bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800`
@@ -175,9 +175,9 @@ AI scores and numeric values use monospace and a warm accent:
 
 ```text
 font-mono text-xs font-medium
-bg-orange-50 dark:bg-[#E8541A]/15
-text-[#D14A14] dark:text-orange-300
-border border-orange-200 dark:border-[#E8541A]/30
+bg-sky-50 dark:bg-[#0284C7]/15
+text-[#0369A1] dark:text-sky-300
+border border-sky-200 dark:border-[#0284C7]/30
 rounded px-1.5 py-0.5
 ```
 

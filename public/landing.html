@@ -25,9 +25,9 @@
   </script>
   <style>
     :root {
-      --signal:        #E8541A;
-      --signal-hover:  #D14A14;
-      --signal-active: #B83F10;
+      --signal:        #0284C7;
+      --signal-hover:  #0369A1;
+      --signal-active: #075985;
       --bg:            #0C0C0D;
       --surface:       #161618;
       --surface-2:     #1E1E21;
@@ -80,7 +80,7 @@
     /* ── Top accent bar ── */
     .top-bar {
       height: 2px;
-      background: linear-gradient(90deg, var(--signal) 0%, rgba(232,84,26,0.3) 50%, transparent 100%);
+      background: linear-gradient(90deg, var(--signal) 0%, rgba(2,132,199,0.3) 50%, transparent 100%);
     }
 
     /* ── Nav ── */
@@ -93,7 +93,7 @@
     /* ── Hero glow ── */
     .hero-glow {
       background: radial-gradient(ellipse 75% 55% at 50% -5%,
-        rgba(232, 84, 26, 0.14) 0%,
+        rgba(2, 132, 199, 0.14) 0%,
         transparent 65%);
     }
 
@@ -108,21 +108,21 @@
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      background: rgba(232, 84, 26, 0.1);
-      border: 1px solid rgba(232, 84, 26, 0.28);
+      background: rgba(2, 132, 199, 0.1);
+      border: 1px solid rgba(2, 132, 199, 0.28);
       border-radius: 6px;
       padding: 0.2rem 0.65rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.7rem;
       font-weight: 500;
-      color: #F97316;
+      color: #38BDF8;
       letter-spacing: 0.02em;
     }
     .score-dot {
       width: 5px;
       height: 5px;
       border-radius: 50%;
-      background: #E8541A;
+      background: #0284C7;
       animation: pulse-dot 2s ease-in-out infinite;
     }
 
@@ -137,7 +137,7 @@
       font-family: 'DM Serif Display', serif;
       font-size: 5.5rem;
       line-height: 1;
-      color: rgba(232, 84, 26, 0.09);
+      color: rgba(2, 132, 199, 0.09);
       position: absolute;
       top: -1.25rem;
       left: -0.75rem;
@@ -167,7 +167,7 @@
     /* ── CTA glow ── */
     .cta-glow {
       background: radial-gradient(ellipse 65% 55% at 50% 105%,
-        rgba(232, 84, 26, 0.18) 0%,
+        rgba(2, 132, 199, 0.18) 0%,
         transparent 70%);
     }
 
@@ -175,13 +175,13 @@
     .btn-primary {
       background: var(--signal);
       color: #fff;
-      box-shadow: 0 6px 28px rgba(232, 84, 26, 0.28);
+      box-shadow: 0 6px 28px rgba(2, 132, 199, 0.28);
       transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
     }
     .btn-primary:hover {
       background: var(--signal-hover);
       transform: translateY(-1px);
-      box-shadow: 0 10px 36px rgba(232, 84, 26, 0.36);
+      box-shadow: 0 10px 36px rgba(2, 132, 199, 0.36);
     }
     .btn-primary:active {
       background: var(--signal-active);
@@ -251,7 +251,7 @@
       <!-- Headline -->
       <h1 class="reveal d2 font-serif text-5xl sm:text-6xl lg:text-[4.5rem] text-white leading-[1.08] tracking-tight mb-7">
         Find Reddit leads<br/>
-        <span class="serif-italic" style="color:#F97316;">10× faster</span> with AI.
+        <span class="serif-italic" style="color:#38BDF8;">10× faster</span> with AI.
       </h1>
 
       <!-- Sub -->
@@ -316,8 +316,8 @@
         <div class="flex gap-7 items-start relative sr sr-d1">
           <div class="relative flex-shrink-0 w-10">
             <span class="step-ghost">1</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#E8541A] flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#E8541A] font-medium">01</span>
+            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7] flex items-center justify-center relative z-10 bg-[#0C0C0D]">
+              <span class="font-mono text-xs text-[#0284C7] font-medium">01</span>
             </div>
           </div>
           <div class="pt-0.5">
@@ -329,8 +329,8 @@
         <div class="flex gap-7 items-start relative sr sr-d2">
           <div class="relative flex-shrink-0 w-10">
             <span class="step-ghost">2</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#E8541A]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#E8541A]/60 font-medium">02</span>
+            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
+              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">02</span>
             </div>
           </div>
           <div class="pt-0.5">
@@ -342,8 +342,8 @@
         <div class="flex gap-7 items-start relative sr sr-d3">
           <div class="relative flex-shrink-0 w-10">
             <span class="step-ghost">3</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#E8541A]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#E8541A]/60 font-medium">03</span>
+            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
+              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">03</span>
             </div>
           </div>
           <div class="pt-0.5">
@@ -355,8 +355,8 @@
         <div class="flex gap-7 items-start relative sr sr-d4">
           <div class="relative flex-shrink-0 w-10">
             <span class="step-ghost">4</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#E8541A]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#E8541A]/60 font-medium">04</span>
+            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
+              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">04</span>
             </div>
           </div>
           <div class="pt-0.5">
@@ -368,8 +368,8 @@
         <div class="flex gap-7 items-start relative sr">
           <div class="relative flex-shrink-0 w-10">
             <span class="step-ghost">5</span>
-            <div class="w-8 h-8 rounded-full border-2 border-[#E8541A]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
-              <span class="font-mono text-xs text-[#E8541A]/60 font-medium">05</span>
+            <div class="w-8 h-8 rounded-full border-2 border-[#0284C7]/35 flex items-center justify-center relative z-10 bg-[#0C0C0D]">
+              <span class="font-mono text-xs text-[#0284C7]/60 font-medium">05</span>
             </div>
           </div>
           <div class="pt-0.5">
@@ -444,7 +444,7 @@
   <!-- ── BOTTOM CTA ── -->
   <section class="cta-glow py-32 px-4">
     <div class="max-w-2xl mx-auto text-center sr">
-      <div class="label mb-7" style="color:rgba(232,84,26,0.7);">Get started</div>
+      <div class="label mb-7" style="color:rgba(2,132,199,0.7);">Get started</div>
       <h2 class="font-serif text-4xl sm:text-5xl text-white leading-[1.1] tracking-tight mb-6">
         Your next client<br/>
         <span class="serif-italic">is on Reddit right now.</span>
