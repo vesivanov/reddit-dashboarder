@@ -2079,7 +2079,7 @@ const {
             // Post list
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin relative' },
               visiblePosts.length === 0
-                ? h('div', { className: 'flex flex-col items-center justify-center h-full p-8' },
+                ? h('div', { className: 'flex flex-col items-center justify-center h-full p-10' },
                     subs.length === 0 
                       ? [
                           h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
@@ -2135,7 +2135,7 @@ const {
                             )
                           ]
                   )
-                : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700' },
+                : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700 bg-zinc-50/70 dark:bg-zinc-900' },
                     visiblePosts.map(post => {
                         const isSelected = selectedPost?.id === post.id;
                         const score = Number(post.score) || 0;
@@ -2163,7 +2163,7 @@ const {
                             : 'bg-zinc-50 dark:bg-zinc-900';
                         return h('div', {
                           key: post.id,
-                          className: `group relative w-full text-left px-4 py-3 hover:bg-white dark:hover:bg-zinc-800 transition-colors ${bgClass} ${borderClass}`,
+                          className: `group relative w-full text-left px-4 py-3.5 hover:bg-white dark:hover:bg-zinc-800 transition-colors ${bgClass} ${borderClass}`,
                           onMouseEnter: () => handlePostHoverStart(post),
                           onMouseLeave: handlePostHoverEnd
                         },
@@ -2178,7 +2178,7 @@ const {
                                 className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200 dark:bg-zinc-700'
                               }),
                               h('div', { className: 'flex-1 min-w-0' },
-                                h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1 flex-wrap' },
+                                h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1.5 flex-wrap' },
                                   h('span', null, `r/${post.subreddit}`),
                                   flair && h('span', { 
                                     className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
@@ -2189,7 +2189,10 @@ const {
                                   isSpiking && h('span', {
                                     className: 'px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-200'
                                   }, 'Spiking'),
-                                  h('span', { className: 'text-[10px] text-zinc-500 dark:text-zinc-400' }, `⚡ ${formatVelocity(upvotesPerHour)}/h`),
+                                  h('span', { className: 'inline-flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400' },
+                                    renderGlyph('M13 2L4 14h6l-1 8 9-12h-6l1-8z', 'w-3 h-3'),
+                                    `${formatVelocity(upvotesPerHour)}/h`
+                                  ),
                                   relevanceScore !== undefined && relevanceScore !== null && h('span', {
                                     className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
                                       relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
@@ -2200,7 +2203,7 @@ const {
                                     title: aiScoresStale ? `Cached score (may be stale) — re-run ranking for fresh results` : relevanceMeta ? `AI Relevance: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/5`
                                   }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
                                 ),
-                                h('h3', { className: 'text-sm font-medium text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
+                                h('h3', { className: 'text-sm font-semibold text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
                                 showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
                                   buildWhyLine({
                                     post,
@@ -2209,10 +2212,19 @@ const {
                                     commentsPerHour
                                   })
                                 ),
-                                h('div', { className: 'flex items-center gap-3 mt-1.5 text-xs' },
-                                  h('span', { className: 'text-emerald-700 dark:text-emerald-400 font-medium' }, `▲ ${score}`),
-                                  h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, `💬 ${comments}`),
-                                  commentsPerHour > 0 && h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `💬 ${formatVelocity(commentsPerHour)}/h`),
+                                h('div', { className: 'flex items-center gap-3 mt-2 text-xs' },
+                                  h('span', { className: 'inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium' },
+                                    renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'),
+                                    score
+                                  ),
+                                  h('span', { className: 'inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium' },
+                                    renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
+                                    comments
+                                  ),
+                                  commentsPerHour > 0 && h('span', { className: 'inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400' },
+                                    renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
+                                    `${formatVelocity(commentsPerHour)}/h`
+                                  ),
                                   h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
                                 )
                               )
