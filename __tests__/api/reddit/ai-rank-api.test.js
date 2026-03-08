@@ -85,6 +85,7 @@ describe('/api/reddit/ai-rank', () => {
     expect(parsedBody.messages[1].content).toContain('React news');
     expect(res.body.scores).toMatchObject({ p1: 5, p2: null });
     expect(res.body.metadata.p1).toMatchObject({ confidence: 'high' });
+    expect(res.body.opportunities.p1).toBeDefined();
     expect(res.headers['x-rdd-metrics']).toBeDefined();
   });
 

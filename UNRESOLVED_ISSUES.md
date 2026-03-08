@@ -1,5 +1,11 @@
 # Unresolved Issues
 
+## Direction Update
+
+The repo is now intentionally moving toward a commercial opportunity intelligence engine rather than a generic AI relevance-scoring product.
+
+That means some "unresolved issues" below are likely to be superseded by a broader ranking and settings redesign documented in [OPPORTUNITY_ENGINE_PLAN.md](./OPPORTUNITY_ENGINE_PLAN.md).
+
 ## Purpose
 
 This file captures the meaningful unresolved issues left in the codebase after the recent cleanup work. These are not all bugs. Some are architectural decisions that should be made explicitly before further refactoring.
@@ -140,3 +146,9 @@ The next sensible step is to write a short architecture note answering:
 3. Is legacy Vercel KV support still required in production?
 
 After those decisions are explicit, the remaining cleanup becomes straightforward.
+
+The next product-level move is also explicit now:
+
+- replace generic `aiRelevance` semantics with server-owned opportunity semantics
+- unify dashboard and poller ranking around structured opportunity signals
+- expose recommended actions and opportunity types instead of opaque score-first UX

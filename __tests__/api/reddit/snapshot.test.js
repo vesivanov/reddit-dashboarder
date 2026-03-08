@@ -51,6 +51,7 @@ describe('/api/reddit/snapshot', () => {
       .reply(200, { data: { subscribers: 100, title: 'programming', icon_img: null, public_description: '' } })
       .get(new RegExp('^/r/programming/new\\.json'))
       .query(true)
+      .times(2)
       .reply(200, {
         data: {
           children: [buildPost('programming', 'programming-1')],

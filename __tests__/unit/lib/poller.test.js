@@ -64,8 +64,8 @@ describe('RedditPoller', () => {
     });
 
     expect(ranked).toHaveLength(2);
-    expect(ranked[0]).toMatchObject({ id: 'p1', aiRelevance: 5 });
-    expect(ranked[1]).toMatchObject({ id: 'p2', aiRelevance: 2 });
+    expect(ranked[0]).toMatchObject({ id: 'p1', aiScoreProxy: 5 });
+    expect(ranked[1]).toMatchObject({ id: 'p2', aiScoreProxy: 2 });
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -126,7 +126,7 @@ describe('RedditPoller', () => {
     );
   });
 
-  test('poll stores latest leads payload with AI ranking metadata', async () => {
+  test('poll stores latest opportunity payload with ranking metadata', async () => {
     const poller = new RedditPoller();
     const createdUtc = Math.floor(Date.now() / 1000) - 3600;
 
@@ -168,18 +168,18 @@ describe('RedditPoller', () => {
     });
 
     expect(result.postCount).toBe(1);
-    expect(result.hotLeadCount).toBe(1);
+    expect(result.opportunityCount).toBe(1);
     expect(result.aiRankingWorked).toBe(true);
-    expect(result.hotLeads[0]).toMatchObject({
+    expect(result.opportunities[0]).toMatchObject({
       id: 'lead1',
       subreddit: 'smallbusiness',
-      aiRelevance: 4,
+      aiScoreProxy: 4,
     });
     expect(storage.set).toHaveBeenCalledWith(
-      'latest-leads',
+      'latest-opportunities',
       expect.objectContaining({
         postCount: 1,
-        hotLeadCount: 1,
+        opportunityCount: 1,
         aiRankingWorked: true,
       }),
       7 * 24 * 60 * 60
@@ -244,7 +244,7 @@ describe('RedditPoller', () => {
     });
 
     expect(result.postCount).toBe(2);
-    expect(result.hotLeadCount).toBe(2);
+    expect(result.opportunityCount).toBe(2);
     expect(result.subreddits).toEqual(['smallbusiness', 'saas']);
   });
 
@@ -288,7 +288,7 @@ describe('RedditPoller', () => {
     });
 
     expect(result.postCount).toBe(1);
-    expect(result.hotLeadCount).toBe(1);
+    expect(result.opportunityCount).toBe(1);
     expect(result.subreddits).toEqual(['smallbusiness', 'saas']);
   });
 });

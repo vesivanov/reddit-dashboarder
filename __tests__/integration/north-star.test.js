@@ -4,12 +4,12 @@
  * This test validates the complete user journey:
  * 1. Authenticate with Reddit
  * 2. Fetch posts from multiple subreddits
- * 3. Rank posts by AI relevance
- * 4. Filter and surface actionable posts
+ * 3. Rank posts by opportunity priority
+ * 4. Filter and surface actionable opportunities
  * 
  * Success criteria:
  * - Complete workflow in < 2 minutes (target: < 1 minute)
- * - Surface at least 3-5 highly relevant posts (score ≥ 4)
+ * - Surface at least 3-5 strong opportunities (score proxy ≥ 4)
  * - Handle errors gracefully
  */
 
@@ -171,7 +171,7 @@ describe('North Star: Complete User Journey', () => {
     expect(responseData.results).toBeDefined();
     expect(responseData.results.length).toBeGreaterThan(0);
 
-    // Step 3: Rank posts with AI
+    // Step 3: Rank posts with the opportunity engine
     const posts = responseData.results.flatMap(r => r.posts || []);
     
     // Reset mocks for AI ranking
@@ -216,7 +216,7 @@ describe('North Star: Complete User Journey', () => {
     const aiResponse = aiRankRes.json.mock.calls[0][0];
     expect(aiResponse.scores).toBeDefined();
     
-    // Step 4: Validate actionable posts surfaced
+    // Step 4: Validate actionable opportunities surfaced
     const highRelevancePosts = Object.entries(aiResponse.scores)
       .filter(([_, score]) => score !== null && score >= 4)
       .map(([postId, score]) => ({ postId, score }));
@@ -224,7 +224,7 @@ describe('North Star: Complete User Journey', () => {
     // If we have posts, validate that AI ranking worked
     if (posts.length > 0) {
       expect(Object.keys(aiResponse.scores).length).toBeGreaterThan(0);
-      // At least some posts should be scored (even if not all are high relevance)
+      // At least some posts should be scored even if not all become strong opportunities
       const scoredPosts = Object.values(aiResponse.scores).filter(s => s !== null);
       expect(scoredPosts.length).toBeGreaterThan(0);
     }
@@ -234,8 +234,8 @@ describe('North Star: Complete User Journey', () => {
     console.log(`\n⏱️  Workflow completed in ${elapsedTime}ms`);
     expect(elapsedTime).toBeLessThan(120000); // 2 minutes max (target: < 1 minute)
     
-    // Quality check: Should surface relevant posts
-    console.log(`\n✅ Surfaces ${highRelevancePosts.length} highly relevant posts (score ≥ 4)`);
+    // Quality check: Should surface strong opportunities
+    console.log(`\n✅ Surfaces ${highRelevancePosts.length} strong opportunities (score proxy ≥ 4)`);
   });
 
   test('Performance: Fetch multiple subreddits efficiently', async () => {

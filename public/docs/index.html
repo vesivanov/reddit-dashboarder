@@ -99,7 +99,7 @@
               <li><code>/api/auth/*</code> for Reddit OAuth</li>
               <li><code>/api/sync</code> and <code>/api/sync/:token</code></li>
               <li><code>/api/v1/*</code> for agent access</li>
-              <li><code>/api/cron/refresh-leads</code> and <code>/api/v1/leads/latest</code></li>
+              <li><code>/api/cron/refresh-opportunities</code> and <code>/api/v1/opportunities/latest</code></li>
             </ul>
           </div>
         </div>
@@ -162,13 +162,13 @@ KV_REST_API_TOKEN=...</code></pre>
                 <td class="px-3 py-2 font-medium text-white">Vercel app only</td>
                 <td class="px-3 py-2">Reddit OAuth vars, session secret</td>
                 <td class="px-3 py-2">Redis or KV, OpenRouter key, agent/digest secrets</td>
-                <td class="px-3 py-2">Sync tokens, jobs, and latest leads are not durable</td>
+                <td class="px-3 py-2">Sync tokens, jobs, and latest opportunities are not durable</td>
               </tr>
               <tr>
                 <td class="px-3 py-2 font-medium text-white">Vercel + polling</td>
                 <td class="px-3 py-2">Above plus <code>CRON_SECRET_KEY</code></td>
                 <td class="px-3 py-2">Persistent storage is mandatory in practice</td>
-                <td class="px-3 py-2">Latest leads and cron-derived user config are unreliable</td>
+                <td class="px-3 py-2">Latest opportunities and cron-derived user config are unreliable</td>
               </tr>
             </tbody>
           </table>
@@ -185,7 +185,7 @@ KV_REST_API_TOKEN=...</code></pre>
             <li><code>/api/settings/server/openrouter-key</code>: Bearer auth using <code>DIGEST_API_KEY</code>.</li>
             <li><code>/api/reddit/digest</code>: Bearer auth using <code>DIGEST_API_KEY</code>.</li>
             <li><code>/api/v1/*</code>: Bearer auth using <code>AGENT_API_KEY</code>.</li>
-            <li><code>/api/cron/refresh-leads</code>: <code>X-Cron-Secret</code> matched against <code>CRON_SECRET_KEY</code>.</li>
+            <li><code>/api/cron/refresh-opportunities</code> and <code>/api/cron/refresh-opportunities</code>: <code>X-Cron-Secret</code> matched against <code>CRON_SECRET_KEY</code>.</li>
           </ul>
           <p class="rounded-xl border border-amber-900/40 bg-amber-950/20 p-4 text-amber-200">
             Do not treat the browser cookie endpoints and the agent API as interchangeable. They solve different problems.
@@ -206,7 +206,7 @@ KV_REST_API_TOKEN=...</code></pre>
           <li>In-memory mode is acceptable for local work only.</li>
         </ul>
         <p class="mt-4 rounded-xl border border-rose-900/40 bg-rose-950/20 p-4 text-rose-200">
-          Without Redis or KV, deployed sync tokens, queued jobs, and <code>latest-leads</code> data can disappear on restart
+          Without Redis or KV, deployed sync tokens, queued jobs, and <code>latest-opportunities</code> data can disappear on restart
           or serverless replacement.
         </p>
       </section>
@@ -219,7 +219,7 @@ KV_REST_API_TOKEN=...</code></pre>
             <ol class="space-y-2 text-zinc-300">
               <li>1. Authenticate with Reddit.</li>
               <li>2. Add subreddits and filters in the dashboard.</li>
-              <li>3. Optionally enable AI ranking with an OpenRouter key.</li>
+              <li>3. Optionally enable the opportunity engine with an OpenRouter key.</li>
               <li>4. Fetch posts and review them in the three-pane UI.</li>
             </ol>
           </div>
@@ -235,10 +235,10 @@ KV_REST_API_TOKEN=...</code></pre>
           <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
             <h3 class="mb-2 text-lg font-semibold text-white">Scheduled polling</h3>
             <ol class="space-y-2 text-zinc-300">
-              <li>1. Call <code>/api/cron/refresh-leads</code> with <code>X-Cron-Secret</code>.</li>
+              <li>1. Call <code>/api/cron/refresh-opportunities</code> with <code>X-Cron-Secret</code>.</li>
               <li>2. Poller uses synced user config if present, otherwise built-in subreddit and goals defaults.</li>
-              <li>3. Poller fetches posts, attempts AI ranking, falls back to keyword-only hot lead detection if AI fails.</li>
-              <li>4. Read latest results from <code>/api/v1/leads/latest</code>.</li>
+              <li>3. Poller fetches posts, attempts opportunity ranking, and falls back to keyword-only opportunity detection if model ranking fails.</li>
+              <li>4. Read latest results from <code>/api/v1/opportunities/latest</code>.</li>
             </ol>
           </div>
         </div>
@@ -270,8 +270,8 @@ KV_REST_API_TOKEN=...</code></pre>
             <p>The user has not synced recently, the token is wrong, or the server restarted while using in-memory storage.</p>
           </div>
           <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-            <h3 class="mb-2 text-lg font-semibold text-white">AI ranking missing</h3>
-            <p>Check that an OpenRouter key is available, and remember that the poller can still return keyword-only hot leads when AI ranking fails.</p>
+            <h3 class="mb-2 text-lg font-semibold text-white">Opportunity ranking missing</h3>
+            <p>Check that an OpenRouter key is available, and remember that the poller can still return keyword-only opportunities when model ranking fails.</p>
           </div>
           <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
             <h3 class="mb-2 text-lg font-semibold text-white">Data disappears after deploy or restart</h3>

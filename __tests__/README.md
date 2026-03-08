@@ -6,9 +6,9 @@ This test suite validates the Reddit Dashboard against its North Star goal: **"D
 
 ### Integration Tests (`__tests__/integration/`)
 
-- **`north-star.test.js`** - Tests the complete user journey from authentication through fetching, ranking, and surfacing actionable posts. Validates performance and quality metrics.
+- **`north-star.test.js`** - Tests the complete user journey from authentication through fetching, opportunity ranking, and surfacing actionable threads. Validates performance and quality metrics.
 - **`resilience.test.js`** - Tests error handling, rate limiting, token refresh, and graceful degradation.
-- **`ai-quality.test.js`** - Validates AI ranking calibration, relevance scoring, and batching efficiency.
+- **`ai-quality.test.js`** - Validates opportunity-ranking calibration, score proxy quality, and batching efficiency.
 
 ### Unit Tests (`__tests__/unit/`)
 
@@ -42,11 +42,11 @@ npm test -- north-star.test.js
 
 These tests are designed to:
 
-1. **Validate North Star**: Ensure the complete workflow (auth → fetch → rank → surface) completes in reasonable time and surfaces relevant posts.
+1. **Validate North Star**: Ensure the complete workflow (auth → fetch → rank → surface) completes in reasonable time and surfaces useful opportunities.
 
 2. **Measure Performance**: Track metrics like:
    - Time to fetch multiple subreddits
-   - Time to rank posts with AI
+   - Time to rank posts with the opportunity engine
    - Overall workflow completion time
 
 3. **Ensure Resilience**: Verify the app handles:
@@ -56,13 +56,13 @@ These tests are designed to:
    - Invalid data
 
 4. **Validate Quality**: Check that:
-   - AI ranking properly calibrates scores (top 10% get ≥4)
-   - Posts are ranked by relevance to user goals
+   - Opportunity ranking properly calibrates score proxies (top 10% get ≥4)
+   - Posts are ranked according to the user opportunity brief
    - Batching is efficient for large post lists
 
 5. **Guide Iteration**: Tests provide actionable feedback:
    - Performance metrics in console output
-   - Quality metrics (e.g., "Surfaces X highly relevant posts")
+   - Quality metrics (e.g., "Surfaces X strong opportunities")
    - Clear error messages for failures
 
 ## Test Metrics
@@ -70,7 +70,7 @@ These tests are designed to:
 The tests output helpful metrics:
 
 - ⏱️ Performance timing (e.g., "Workflow completed in 45000ms")
-- ✅ Quality metrics (e.g., "Surfaces 5 highly relevant posts (score ≥ 4)")
+- ✅ Quality metrics (e.g., "Surfaces 5 strong opportunities (score ≥ 4 proxy)")
 - 📊 Calibration checks (e.g., "3 posts scored ≥4 out of 20")
 - 🔄 Batching efficiency (e.g., "Batched 100 posts into 4 requests")
 
@@ -79,7 +79,7 @@ The tests output helpful metrics:
 These tests are designed to be run by agents/CI systems and provide feedback that guides iterative improvements:
 
 - If performance degrades, tests will show timing metrics
-- If AI ranking quality drops, tests will show calibration issues
+- If opportunity-ranking quality drops, tests will show calibration issues
 - If resilience breaks, tests will catch error handling failures
 
 Run tests frequently during development to catch regressions early.

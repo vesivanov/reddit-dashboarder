@@ -36,7 +36,7 @@ describe('/api/v1/snapshot', () => {
           num_comments: 8,
           created_utc: Math.floor(Date.now() / 1000) - 3600,
           reddit_url: 'https://reddit.com/r/smallbusiness/comments/p1',
-          aiRelevance: 4,
+          aiScoreProxy: 4,
         },
       ],
       settings: {
@@ -44,6 +44,15 @@ describe('/api/v1/snapshot', () => {
         aiGoals: 'Find SEO leads',
         aiThreshold: 4,
         openRouterModel: 'openai/gpt-4o-mini',
+        opportunityConfig: {
+          businessOffering: 'SEO consulting',
+          idealCustomer: 'Small business owners',
+          problemsSolved: 'Traffic drops',
+          preferredEngagement: 'reply',
+          strategyPreset: 'sales',
+          opportunityTypes: ['lead', 'pain_point'],
+          strictness: 'balanced',
+        },
       },
       filters: {
         minScore: 10,
@@ -71,6 +80,15 @@ describe('/api/v1/snapshot', () => {
       subreddits: ['smallbusiness'],
       goals: 'Find SEO leads',
       aiContext: '',
+      opportunityConfig: {
+        businessOffering: 'SEO consulting',
+        idealCustomer: 'Small business owners',
+        problemsSolved: 'Traffic drops',
+        preferredEngagement: 'reply',
+        strategyPreset: 'sales',
+        opportunityTypes: ['lead', 'pain_point'],
+        strictness: 'balanced',
+      },
       scoringConfig: null,
       threshold: 4,
       model: 'openai/gpt-4o-mini',
@@ -79,6 +97,7 @@ describe('/api/v1/snapshot', () => {
     expect(res.body.data.analysis).toMatchObject({
       status: 'heuristic_only',
       source: 'heuristic',
+      opportunityCount: 1,
       totalPosts: 1,
     });
 
@@ -112,6 +131,15 @@ describe('/api/v1/snapshot', () => {
       filters: {},
       goals: 'Find leads',
       aiPrompt: '',
+      opportunityConfig: {
+        businessOffering: 'SEO consulting',
+        idealCustomer: 'SaaS founders',
+        problemsSolved: 'Search visibility',
+        preferredEngagement: 'either',
+        strategyPreset: 'balanced',
+        opportunityTypes: ['lead'],
+        strictness: 'balanced',
+      },
       threshold: 4,
       model: 'openai/gpt-4o-mini',
       updatedAt: '2026-03-08T11:00:00.000Z',
@@ -122,8 +150,8 @@ describe('/api/v1/snapshot', () => {
       status: 'completed',
       source: 'ai_job',
       jobId: 'job_123',
-      hotLeads: [{ postId: 'p1', hotScore: 5, matchReason: 'AI matched' }],
-      hotLeadCount: 1,
+      opportunities: [{ postId: 'p1', hotScore: 5, matchReason: 'AI matched' }],
+      opportunityCount: 1,
       totalPosts: 1,
       completedAt: '2026-03-08T11:30:00.000Z',
       modelUsed: 'openai/gpt-4o-mini',
@@ -144,7 +172,7 @@ describe('/api/v1/snapshot', () => {
       status: 'completed',
       source: 'ai_job',
       jobId: 'job_123',
-      hotLeadCount: 1,
+      opportunityCount: 1,
       modelUsed: 'openai/gpt-4o-mini',
     });
   });

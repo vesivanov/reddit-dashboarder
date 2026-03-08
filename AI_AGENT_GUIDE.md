@@ -1,5 +1,13 @@
 # AI Agent Guide
 
+This product is moving toward a commercial opportunity intelligence engine. Agents should think in terms of opportunities, actions, and structured business signals, not just generic AI relevance scores.
+
+During the migration period:
+
+- legacy `aiRelevance` fields may still appear
+- newer endpoints and payloads may expose structured opportunity objects alongside legacy scores
+- backend-owned opportunity semantics should be preferred over frontend-derived score interpretation
+
 This repo exposes two agent-facing integration patterns:
 
 - sync-token access for a user-synced snapshot
@@ -155,6 +163,13 @@ Supported fields:
 - `aiPrompt`
 - `threshold`
 - `model`
+
+This config surface is expected to evolve toward opportunity-engine concepts such as:
+
+- business profile
+- opportunity preferences
+- ranking strategy
+- advanced AI settings
 
 Example:
 

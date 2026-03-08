@@ -9,7 +9,7 @@ function authCookie() {
   return cookie.split(';')[0];
 }
 
-function buildPost(subreddit, id) {
+function buildPost(subreddit, id, createdUtc = Math.floor(Date.now() / 1000)) {
   return {
     data: {
       id,
@@ -18,7 +18,7 @@ function buildPost(subreddit, id) {
       selftext: `Body for ${id}`,
       score: 42,
       num_comments: 7,
-      created_utc: Math.floor(Date.now() / 1000),
+      created_utc: createdUtc,
       permalink: `/r/${subreddit}/comments/${id}`,
       url: `https://example.com/${id}`,
       domain: 'example.com',
@@ -146,7 +146,57 @@ describe('/api/reddit aggregation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(25);
-    expect(res.body.max_pages).toBe(10);
+    expect(res.body.max_pages).toBe(30);
+  });
+
+  test('fetches all available pages inside the selected timeframe when max_pages=all', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const withinWindow = now - 3600;
+    const tooOld = now - (2 * 86400);
+
+    const oauth = nock('https://oauth.reddit.com');
+    oauth
+      .get('/r/programming/about.json')
+      .reply(200, { data: { subscribers: 100, title: 'programming' } })
+      .get('/r/programming/new.json')
+      .query((query) => query.limit === '1')
+      .reply(200, {
+        data: {
+          children: [buildPost('programming', 'probe', withinWindow)],
+          after: 'page-1',
+        },
+      })
+      .get('/r/programming/new.json')
+      .query((query) => query.limit === '100' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost('programming', 'p1', withinWindow)],
+          after: 'page-2',
+        },
+      })
+      .get('/r/programming/new.json')
+      .query((query) => query.limit === '100' && query.after === 'page-2')
+      .reply(200, {
+        data: {
+          children: [
+            buildPost('programming', 'p2', withinWindow),
+            buildPost('programming', 'old-post', tooOld),
+          ],
+          after: 'page-3',
+        },
+      });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming&mode=new&days=1&limit=100&max_pages=all',
+      headers: { cookie: authCookie() },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.max_pages).toBe(0);
+    expect(res.body.fetch_all_pages).toBe(true);
+    expect(res.body.results[0].posts.map((post) => post.id)).toEqual(['p1', 'p2']);
+    expect(res.body.results[0].partial).toBe(false);
   });
 
   test('flags timed_out when execution budget is exhausted', async () => {

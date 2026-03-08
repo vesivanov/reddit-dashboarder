@@ -1,6 +1,6 @@
-// /api/cron/refresh-leads - Scheduled endpoint for cron-job.org
-// Fetches Reddit posts, runs AI ranking, stores in KV
-// GET /api/cron/refresh-leads
+// /api/cron/refresh-opportunities - Scheduled endpoint for cron-job.org
+// Fetches Reddit posts, runs opportunity ranking, stores in KV
+// GET /api/cron/refresh-opportunities
 // Header: X-Cron-Secret: YOUR_CRON_SECRET_KEY
 
 const { withCORS } = require('../../lib/cors');
@@ -8,7 +8,6 @@ const { RedditPoller } = require('../../lib/poller');
 const { loadPollerRuntimeConfig } = require('../../lib/services/poller-config');
 
 async function handler(req, res) {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return withCORS(req, res, 'GET, OPTIONS').status(204).end();
   }
@@ -17,18 +16,15 @@ async function handler(req, res) {
     return withCORS(req, res).status(405).json({ error: 'Method not allowed' });
   }
 
-  // Auth check - secret in header (not URL for security)
   const key = req.headers['x-cron-secret'];
-  
   if (key !== process.env.CRON_SECRET_KEY) {
-    return withCORS(req, res).status(401).json({ 
+    return withCORS(req, res).status(401).json({
       error: 'Unauthorized',
       message: 'Provide valid X-Cron-Secret header'
     });
   }
 
   try {
-    // Check required env vars
     if (!process.env.REDDIT_CLIENT_ID || !process.env.REDDIT_CLIENT_SECRET) {
       return withCORS(req, res).status(500).json({
         error: 'Configuration error',
@@ -60,15 +56,13 @@ async function handler(req, res) {
     }
 
     const poller = new RedditPoller();
-
-    // Run the poll
     const result = await poller.poll(runtimeConfig.subreddits, runtimeConfig.settings);
 
     return withCORS(req, res).status(200).json({
       success: true,
       polledAt: result.polledAt,
       postsFetched: result.postCount,
-      hotLeadsFound: result.hotLeadCount,
+      opportunitiesFound: result.opportunityCount,
       subreddits: result.subreddits,
       subredditCount: result.subreddits.length,
       usingUserConfig: runtimeConfig.source !== 'defaults',
@@ -76,7 +70,7 @@ async function handler(req, res) {
       nextPoll: 'In 2 hours (set via cron-job.org)',
     });
   } catch (error) {
-    console.error('[cron/refresh-leads] Error:', error);
+    console.error('[cron/refresh-opportunities] Error:', error);
     return withCORS(req, res).status(500).json({
       error: 'Poll failed',
       message: error.message,

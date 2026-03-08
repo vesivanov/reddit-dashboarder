@@ -104,7 +104,7 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
     expect(getRes.body.data.job.status).toBe('completed');
     expect(getRes.body.data.job.result).toMatchObject({
       postsScored: 2,
-      hotLeadCount: 2,
+      opportunityCount: 2,
       modelUsed: 'openai/gpt-4o-mini',
       failedCount: 0,
     });
@@ -116,7 +116,7 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
       status: 'completed',
       source: 'ai_job',
       jobId,
-      hotLeadCount: 2,
+      opportunityCount: 2,
       threshold: 4,
     });
 
@@ -124,12 +124,12 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
     expect(snapshotRecord.posts).toEqual([
       expect.objectContaining({
         id: 'p1',
-        aiRelevance: 4,
+        aiScoreProxy: 4,
         aiMetadata: { confidence: 'high', reason: 'match' },
       }),
       expect.objectContaining({
         id: 'p2',
-        aiRelevance: 4,
+        aiScoreProxy: 4,
         aiMetadata: { confidence: 'high', reason: 'match' },
       }),
     ]);

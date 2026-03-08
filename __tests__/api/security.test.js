@@ -15,7 +15,7 @@ const { aiRankLimiter } = require('../../lib/middleware/rate-limit');
 const { incrementWindow } = require('../../lib/rate-limit-store');
 const { makeSignedCookie } = require('../../lib/cookies');
 const configHandler = require('../../lib/api-v1/handlers/config');
-const cronRefreshHandler = require('../../api/cron/refresh-leads');
+const cronRefreshHandler = require('../../api/cron/refresh-opportunities');
 const notifyMeHandler = require('../../lib/api-handlers/notify-me');
 const syncHandler = require('../../lib/api-handlers/sync');
 const storage = require('../../lib/storage');
@@ -113,7 +113,7 @@ describe('Authentication', () => {
   it('rejects invalid cron secrets', async () => {
     const res = await runHandler(cronRefreshHandler, {
       method: 'GET',
-      url: '/api/cron/refresh-leads',
+      url: '/api/cron/refresh-opportunities',
       headers: {
         origin: 'http://localhost:3000',
         'x-cron-secret': 'wrong-secret',

@@ -55,6 +55,13 @@ const {
   renderBody,
 } = window.RDDAppUtils || {};
     function App() {
+      const makeSyncToken = () => {
+        try {
+          return `sync_${crypto.randomUUID()}`;
+        } catch {
+          return `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        }
+      };
       const [subs, setSubs] = useState(() => {
         try {
           let saved = localStorage.getItem('dashboard_subs');
@@ -127,11 +134,27 @@ const {
       const [authenticated, setAuthenticated] = useState(false);
       const [authChecking, setAuthChecking] = useState(true);
       const [settingsOpen, setSettingsOpen] = useState(false);
+      const [onboardingOpen, setOnboardingOpen] = useState(() => {
+        try {
+          return localStorage.getItem('dashboard_onboarding_complete') !== '1';
+        } catch {
+          return true;
+        }
+      });
+      const [onboardingStep, setOnboardingStep] = useState(0);
+      const [onboardingCompleted, setOnboardingCompleted] = useState(() => {
+        try {
+          return localStorage.getItem('dashboard_onboarding_complete') === '1';
+        } catch {
+          return false;
+        }
+      });
+      const [onboardingSubInput, setOnboardingSubInput] = useState('');
       const [addSubOpen, setAddSubOpen] = useState(false);
       const [addSubInput, setAddSubInput] = useState('');
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
       const [minCommentFilter, setMinCommentFilter] = useState('');
-      const [minAiRelevance, setMinAiRelevance] = useState('');
+      const [minPriorityFilter, setMinPriorityFilter] = useState('');
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
       const [nextRefreshAt, setNextRefreshAt] = useState(null);
@@ -168,33 +191,54 @@ const {
         try { return localStorage.getItem('dashboard_alert_keywords') || ''; } catch { return ''; }
       });
       const [previousPostScores, setPreviousPostScores] = useState(new Map());
-      const [notifyHighRelevance, setNotifyHighRelevance] = useState(() => {
+      const [notifyStrongOpportunities, setNotifyStrongOpportunities] = useState(() => {
         try { return localStorage.getItem('dashboard_notify_high_relevance') === '1'; } catch { return false; }
       });
-      const [highRelevanceThreshold, setHighRelevanceThreshold] = useState(() => {
+      const [priorityNotificationThreshold, setPriorityNotificationThreshold] = useState(() => {
         try { 
           const val = Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 4;
           // Clamp to valid range 0-5 (AI scores only go up to 5)
           return Math.max(0, Math.min(5, val));
         } catch { return 4; }
       });
-      const [notifiedHighRelevancePostIds, setNotifiedHighRelevancePostIds] = useState(() => new Set());
+      const [notifiedStrongOpportunityPostIds, setNotifiedStrongOpportunityPostIds] = useState(() => new Set());
       
       // Validate threshold is within valid range (0-5)
       useEffect(() => {
-        if (highRelevanceThreshold > 5) {
-          setHighRelevanceThreshold(4);
-        } else if (highRelevanceThreshold < 0) {
-          setHighRelevanceThreshold(0);
+        if (priorityNotificationThreshold > 5) {
+          setPriorityNotificationThreshold(4);
+        } else if (priorityNotificationThreshold < 0) {
+          setPriorityNotificationThreshold(0);
         }
-      }, [highRelevanceThreshold]);
+      }, [priorityNotificationThreshold]);
       const [mobileView, setMobileView] = useState('posts');
       const [touchStart, setTouchStart] = useState(null);
-      const [aiGoals, setAiGoals] = useState(() => {
+      const [opportunityBrief, setOpportunityBrief] = useState(() => {
         try { return localStorage.getItem('dashboard_ai_goals') || ''; } catch { return ''; }
       });
-      const [aiContext, setAiContext] = useState(() => {
+      const [opportunityContext, setOpportunityContext] = useState(() => {
         try { return localStorage.getItem('dashboard_ai_context') || ''; } catch { return ''; }
+      });
+      const [businessOffering, setBusinessOffering] = useState(() => {
+        try { return localStorage.getItem('dashboard_business_offering') || ''; } catch { return ''; }
+      });
+      const [idealCustomer, setIdealCustomer] = useState(() => {
+        try { return localStorage.getItem('dashboard_ideal_customer') || ''; } catch { return ''; }
+      });
+      const [problemsSolved, setProblemsSolved] = useState(() => {
+        try { return localStorage.getItem('dashboard_problems_solved') || ''; } catch { return ''; }
+      });
+      const [preferredEngagement, setPreferredEngagement] = useState(() => {
+        try { return localStorage.getItem('dashboard_preferred_engagement') || 'reply'; } catch { return 'reply'; }
+      });
+      const [strategyPreset, setStrategyPreset] = useState(() => {
+        try { return localStorage.getItem('dashboard_strategy_preset') || 'balanced'; } catch { return 'balanced'; }
+      });
+      const [opportunityFocus, setOpportunityFocus] = useState(() => {
+        try { return localStorage.getItem('dashboard_opportunity_focus') || 'lead,pain_point,tool_search'; } catch { return 'lead,pain_point,tool_search'; }
+      });
+      const [opportunityStrictness, setOpportunityStrictness] = useState(() => {
+        try { return localStorage.getItem('dashboard_opportunity_strictness') || 'balanced'; } catch { return 'balanced'; }
       });
       const [aiAvoid, setAiAvoid] = useState(() => {
         try { return localStorage.getItem('dashboard_ai_avoid') || ''; } catch { return ''; }
@@ -208,7 +252,7 @@ const {
       const [aiExampleReject, setAiExampleReject] = useState(() => {
         try { return localStorage.getItem('dashboard_ai_example_reject') || ''; } catch { return ''; }
       });
-      const [aiEnabled, setAiEnabled] = useState(() => {
+      const [opportunityEngineEnabled, setOpportunityEngineEnabled] = useState(() => {
         try {
           const saved = localStorage.getItem('dashboard_ai_enabled');
           return saved !== null ? saved === '1' : Boolean(localStorage.getItem('dashboard_ai_goals'));
@@ -234,12 +278,13 @@ const {
       const [showAiReasons, setShowAiReasons] = useState(() => {
         try { return localStorage.getItem('dashboard_show_ai_reasons') === '1'; } catch { return true; }
       });
-      const [postRelevanceScores, setPostRelevanceScores] = useState(new Map());
-      const [postRelevanceMetadata, setPostRelevanceMetadata] = useState(new Map());
+      const [postScoreProxies, setPostScoreProxies] = useState(new Map());
+      const [postScoreMetadata, setPostScoreMetadata] = useState(new Map());
+      const [postOpportunities, setPostOpportunities] = useState(new Map());
       const [scoresVersion, setScoresVersion] = useState(0); // Version counter to force useMemo recalculation
-      const [aiRankingLoading, setAiRankingLoading] = useState(false);
+      const [opportunityScanLoading, setOpportunityScanLoading] = useState(false);
       const [aiScoresStale, setAiScoresStale] = useState(false);
-      const [aiRankingError, setAiRankingError] = useState(null);
+      const [opportunityScanError, setOpportunityScanError] = useState(null);
       const [aiShowModelKey, setAiShowModelKey] = useState(() => !secureKeyStatus.hasKey);
       const [aiShowPromptPreview, setAiShowPromptPreview] = useState(false);
       const [availableModels, setAvailableModels] = useState([]);
@@ -255,9 +300,18 @@ const {
           return null;
         }
       });
+      const [syncToken, setSyncToken] = useState(() => {
+        try {
+          return localStorage.getItem('dashboard_sync_token') || makeSyncToken();
+        } catch {
+          return makeSyncToken();
+        }
+      });
+      const [fetchSummary, setFetchSummary] = useState(null);
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
-      const aiRankingRequestIdRef = useRef(0);
+      const opportunityScanRequestIdRef = useRef(0);
+      const hydratedOpportunityConfigRef = useRef(null);
 
       useEffect(() => { loadingRef.current = loading; }, [loading]);
 
@@ -281,6 +335,12 @@ const {
       useEffect(() => {
         try { localStorage.setItem('dashboard_auto_refresh_interval', String(autoRefreshInterval)); } catch {}
       }, [autoRefreshInterval]);
+
+      useEffect(() => {
+        try {
+          localStorage.setItem('dashboard_onboarding_complete', onboardingCompleted ? '1' : '0');
+        } catch {}
+      }, [onboardingCompleted]);
 
       // Dark mode persistence and class toggle
       useEffect(() => {
@@ -315,19 +375,40 @@ const {
         try { localStorage.setItem('dashboard_alert_keywords', alertKeywords); } catch {}
       }, [alertKeywords]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_notify_high_relevance', notifyHighRelevance ? '1' : '0'); } catch {}
-      }, [notifyHighRelevance]);
+        try { localStorage.setItem('dashboard_notify_high_relevance', notifyStrongOpportunities ? '1' : '0'); } catch {}
+      }, [notifyStrongOpportunities]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_high_relevance_threshold', String(highRelevanceThreshold)); } catch {}
-      }, [highRelevanceThreshold]);
+        try { localStorage.setItem('dashboard_high_relevance_threshold', String(priorityNotificationThreshold)); } catch {}
+      }, [priorityNotificationThreshold]);
 
       // AI settings persistence
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_goals', aiGoals); } catch {}
-      }, [aiGoals]);
+        try { localStorage.setItem('dashboard_ai_goals', opportunityBrief); } catch {}
+      }, [opportunityBrief]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_context', aiContext); } catch {}
-      }, [aiContext]);
+        try { localStorage.setItem('dashboard_ai_context', opportunityContext); } catch {}
+      }, [opportunityContext]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_business_offering', businessOffering); } catch {}
+      }, [businessOffering]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_ideal_customer', idealCustomer); } catch {}
+      }, [idealCustomer]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_problems_solved', problemsSolved); } catch {}
+      }, [problemsSolved]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_preferred_engagement', preferredEngagement); } catch {}
+      }, [preferredEngagement]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_strategy_preset', strategyPreset); } catch {}
+      }, [strategyPreset]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_opportunity_focus', opportunityFocus); } catch {}
+      }, [opportunityFocus]);
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_opportunity_strictness', opportunityStrictness); } catch {}
+      }, [opportunityStrictness]);
       useEffect(() => {
         try { localStorage.setItem('dashboard_ai_avoid', aiAvoid); } catch {}
       }, [aiAvoid]);
@@ -341,8 +422,8 @@ const {
         try { localStorage.setItem('dashboard_ai_example_reject', aiExampleReject); } catch {}
       }, [aiExampleReject]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_enabled', aiEnabled ? '1' : '0'); } catch {}
-      }, [aiEnabled]);
+        try { localStorage.setItem('dashboard_ai_enabled', opportunityEngineEnabled ? '1' : '0'); } catch {}
+      }, [opportunityEngineEnabled]);
       useEffect(() => {
         try { localStorage.setItem('dashboard_ai_preset_dismissed', aiPresetDismissed ? '1' : '0'); } catch {}
       }, [aiPresetDismissed]);
@@ -359,6 +440,47 @@ const {
       useEffect(() => {
         try { localStorage.removeItem('dashboard_openrouter_api_key'); } catch {}
       }, []);
+
+      const normalizedOpportunityFocus = useMemo(() => {
+        return opportunityFocus
+          .split(',')
+          .map(item => item.trim())
+          .filter(Boolean)
+          .slice(0, 8);
+      }, [opportunityFocus]);
+
+      const effectiveGoalText = useMemo(() => {
+        const lines = [];
+        if (businessOffering.trim()) lines.push(`Offering: ${businessOffering.trim()}`);
+        if (idealCustomer.trim()) lines.push(`Ideal customer: ${idealCustomer.trim()}`);
+        if (problemsSolved.trim()) lines.push(`Problems solved: ${problemsSolved.trim()}`);
+        if (normalizedOpportunityFocus.length) lines.push(`Prioritize opportunities: ${normalizedOpportunityFocus.join(', ')}`);
+        if (opportunityBrief.trim()) lines.push(`Additional goal: ${opportunityBrief.trim()}`);
+        return lines.join('\n');
+      }, [businessOffering, idealCustomer, problemsSolved, normalizedOpportunityFocus, opportunityBrief]);
+
+      const effectiveContextText = useMemo(() => {
+        const parts = [];
+        if (preferredEngagement === 'reply') parts.push('Preferred engagement style: public reply first.');
+        if (preferredEngagement === 'dm') parts.push('Preferred engagement style: direct outreach or DM when appropriate.');
+        if (preferredEngagement === 'either') parts.push('Preferred engagement style: either public reply or direct outreach.');
+        if (preferredEngagement === 'research') parts.push('Preferred engagement style: research only, do not optimize for direct outreach.');
+        if (strategyPreset === 'sales') parts.push('Ranking strategy: optimize for sales opportunities and likely client conversion.');
+        if (strategyPreset === 'fast_wins') parts.push('Ranking strategy: optimize for easy engagement and quick response likelihood.');
+        if (strategyPreset === 'research') parts.push('Ranking strategy: optimize for research value, pain points, and messaging insight.');
+        if (strategyPreset === 'balanced') parts.push('Ranking strategy: balance engagement likelihood, fit, urgency, and conversion potential.');
+        if (opportunityStrictness === 'strict') parts.push('Strictness: favor precision, be conservative with high scores.');
+        if (opportunityStrictness === 'broad') parts.push('Strictness: favor recall, include weaker but potentially useful opportunities.');
+        if (opportunityStrictness === 'balanced') parts.push('Strictness: balanced precision and recall.');
+        if (opportunityContext.trim()) parts.push(opportunityContext.trim());
+        return parts.join('\n');
+      }, [preferredEngagement, strategyPreset, opportunityStrictness, opportunityContext]);
+
+      const effectiveAvoidText = useMemo(() => {
+        return aiAvoid.trim();
+      }, [aiAvoid]);
+
+      const hasOpportunityGoals = Boolean(effectiveGoalText.trim());
 
       // Persist fetched data and timestamp
       useEffect(() => {
@@ -387,11 +509,17 @@ const {
         } catch {}
       }, [snapshotInfo]);
 
+      useEffect(() => {
+        try {
+          if (syncToken) localStorage.setItem('dashboard_sync_token', syncToken);
+        } catch {}
+      }, [syncToken]);
+
       // Restore and apply AI scores on initial load with restored data
       const hasRestoredScoresRef = useRef(false);
       useEffect(() => {
         // Only run once when data is available, AI is enabled, and we haven't restored scores yet
-        if (data.length > 0 && aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size === 0 && !hasRestoredScoresRef.current) {
+        if (data.length > 0 && opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size === 0 && !hasRestoredScoresRef.current) {
           hasRestoredScoresRef.current = true;
           // Load cached scores
           try {
@@ -401,7 +529,7 @@ const {
               const now = Date.now();
               const CACHE_EXPIRY = AI_CACHE_EXPIRY_MS;
               const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
-              const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
+              const combinedGoals = `${effectiveGoalText.trim()}||${effectiveContextText.trim()}`;
               const currentGoalsHash = hashGoals(combinedGoals);
               const currentCacheVersion = `${currentGoalsHash}_${AI_PROMPT_VERSION}_${openRouterModel}`;
               const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
@@ -411,6 +539,7 @@ const {
               }
               const rawScores = new Map();
               const metadata = new Map();
+              const opportunities = new Map();
               let staleByAge = false;
               
               // Get all post IDs from current data
@@ -432,20 +561,24 @@ const {
                     source: cachedData.source || 'cache-restored',
                     debug: cachedData.debug || null,
                   });
+                  if (cachedData.opportunity && typeof cachedData.opportunity === 'object') {
+                    opportunities.set(postId, cachedData.opportunity);
+                  }
                 }
               });
               
               if (rawScores.size > 0) {
                 const highRelevanceCount = Array.from(rawScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-                setPostRelevanceScores(rawScores);
-                setPostRelevanceMetadata(metadata);
+                setPostScoreProxies(rawScores);
+                setPostScoreMetadata(metadata);
+                setPostOpportunities(opportunities);
                 setScoresVersion(v => v + 1);
                 setAiScoresStale(Boolean(cacheVersionMismatch || staleByAge));
               }
             }
           } catch (error) {}
         }
-      }, [data, aiEnabled, aiGoals, aiContext, postRelevanceScores.size, openRouterModel, AI_PROMPT_VERSION]); // Run when data or AI settings change
+      }, [data, opportunityEngineEnabled, hasOpportunityGoals, effectiveGoalText, effectiveContextText, postScoreProxies.size, openRouterModel, AI_PROMPT_VERSION]); // Run when data or AI settings change
 
       // Touch/swipe gesture handlers
       const handleTouchStart = useCallback((e) => {
@@ -507,6 +640,59 @@ const {
         checkAuth();
         return () => { cancelled = true; };
       }, []);
+
+      useEffect(() => {
+        if (!authenticated || !syncToken) return;
+        if (hydratedOpportunityConfigRef.current === syncToken) return;
+
+        let cancelled = false;
+        async function loadOpportunityConfig() {
+          try {
+            const response = await fetch(`/api/settings/opportunity-config?token=${encodeURIComponent(syncToken)}`, {
+              credentials: 'include',
+              cache: 'no-store',
+            });
+            if (response.status === 404) {
+              hydratedOpportunityConfigRef.current = syncToken;
+              return;
+            }
+            if (!response.ok) return;
+
+            const payload = await response.json();
+            const config = payload?.config || {};
+            const opportunityConfig = config.opportunityConfig || {};
+            const scoringConfig = config.scoringConfig || {};
+            const examples = scoringConfig.examples || {};
+
+            if (cancelled) return;
+
+            if (Array.isArray(config.subreddits) && config.subreddits.length > 0) setSubs(config.subreddits);
+            setOpportunityBrief(config.goals || '');
+            setOpportunityContext(config.opportunityContext || '');
+            setBusinessOffering(opportunityConfig.businessOffering || '');
+            setIdealCustomer(opportunityConfig.idealCustomer || '');
+            setProblemsSolved(opportunityConfig.problemsSolved || '');
+            setPreferredEngagement(opportunityConfig.preferredEngagement || 'reply');
+            setStrategyPreset(opportunityConfig.strategyPreset || 'balanced');
+            setOpportunityFocus(Array.isArray(opportunityConfig.opportunityTypes) ? opportunityConfig.opportunityTypes.join(',') : '');
+            setOpportunityStrictness(opportunityConfig.strictness || 'balanced');
+            setAiAvoid(scoringConfig.avoid || '');
+            setAiExamplePerfect(examples.perfect || '');
+            setAiExampleStrong(examples.strong || '');
+            setAiExampleReject(examples.reject || '');
+            if (config.threshold !== undefined && config.threshold !== null) {
+              setPriorityNotificationThreshold(Math.max(0, Math.min(5, Number(config.threshold) || 4)));
+            }
+            if (config.model) setOpenRouterModel(config.model);
+            if (config.opportunityConfig || config.goals || config.opportunityContext) setOpportunityEngineEnabled(true);
+
+            hydratedOpportunityConfigRef.current = syncToken;
+          } catch {}
+        }
+
+        loadOpportunityConfig();
+        return () => { cancelled = true; };
+      }, [authenticated, syncToken]);
 
       // Check secure API key status on mount
       useEffect(() => {
@@ -574,9 +760,9 @@ const {
       }, [availableModels.length]);
 
       useEffect(() => {
-        if (!settingsOpen || !aiEnabled) return;
+        if (!settingsOpen || !opportunityEngineEnabled) return;
         loadOpenRouterModels();
-      }, [settingsOpen, aiEnabled, loadOpenRouterModels]);
+      }, [settingsOpen, opportunityEngineEnabled, loadOpenRouterModels]);
 
       const allPosts = useMemo(() => {
         const rows = [];
@@ -595,6 +781,161 @@ const {
         });
       }, [subs, allPosts]);
 
+      const getOpportunityForPost = useCallback((postId) => {
+        return postOpportunities.get(String(postId)) || null;
+      }, [postOpportunities]);
+
+      const getPriorityScore = useCallback((postId) => {
+        const opportunity = getOpportunityForPost(postId);
+        if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
+          return Number(opportunity.scores.priority) || 0;
+        }
+        const relevance = postScoreProxies.get(String(postId));
+        if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
+        return null;
+      }, [getOpportunityForPost, postScoreProxies]);
+
+      const getOpportunityTypeLabel = useCallback((postId) => {
+        const type = getOpportunityForPost(postId)?.classification?.type || null;
+        if (!type) return null;
+        return String(type).replace(/_/g, ' ');
+      }, [getOpportunityForPost]);
+
+      const getRecommendedActionLabel = useCallback((postId) => {
+        const action = getOpportunityForPost(postId)?.action?.recommended || null;
+        if (!action) return null;
+        return String(action).replace(/_/g, ' ');
+      }, [getOpportunityForPost]);
+
+      const buildSyncSettings = useCallback(() => ({
+        subreddits: subs,
+        opportunityBrief,
+        opportunityContext,
+        aiAvoid,
+        aiPrompt: opportunityBrief,
+        aiThreshold: priorityNotificationThreshold,
+        openRouterModel,
+        scoringConfig: {
+          lookingFor: effectiveGoalText.trim() || opportunityBrief.trim(),
+          avoid: effectiveAvoidText.trim() || undefined,
+          examples: {
+            perfect: aiExamplePerfect.trim() || undefined,
+            strong: aiExampleStrong.trim() || undefined,
+            reject: aiExampleReject.trim() || undefined,
+          },
+        },
+        opportunityConfig: {
+          businessOffering: businessOffering.trim(),
+          idealCustomer: idealCustomer.trim(),
+          problemsSolved: problemsSolved.trim(),
+          preferredEngagement,
+          strategyPreset,
+          opportunityTypes: normalizedOpportunityFocus,
+          strictness: opportunityStrictness,
+        },
+      }), [
+        subs,
+        opportunityBrief,
+        opportunityContext,
+        aiAvoid,
+        priorityNotificationThreshold,
+        openRouterModel,
+        effectiveGoalText,
+        effectiveAvoidText,
+        aiExamplePerfect,
+        aiExampleStrong,
+        aiExampleReject,
+        businessOffering,
+        idealCustomer,
+        problemsSolved,
+        preferredEngagement,
+        strategyPreset,
+        normalizedOpportunityFocus,
+        opportunityStrictness,
+      ]);
+
+      const buildSyncFilters = useCallback(() => ({
+        minScore: parseNumberFilter(minUpvoteFilter) ?? undefined,
+        minComments: parseNumberFilter(minCommentFilter) ?? undefined,
+        minPriority: parseNumberFilter(minPriorityFilter) ?? undefined,
+        keyword: keyword.trim() || undefined,
+      }), [minUpvoteFilter, minCommentFilter, minPriorityFilter, keyword]);
+
+      const syncDashboardSnapshot = useCallback(async (groupsOverride) => {
+        const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
+        if (!authenticated || !syncToken || !Array.isArray(groups) || groups.length === 0) return;
+
+        const posts = groups.flatMap(group => (group.posts || []).map(post => {
+          const postId = String(post.id);
+          const opportunity = postOpportunities.get(postId) || null;
+          return {
+            ...post,
+            aiRelevance: postScoreProxies.get(postId) ?? post.aiRelevance ?? null,
+            aiMetadata: postScoreMetadata.get(postId) || post.aiMetadata || null,
+            aiOpportunity: opportunity || post.aiOpportunity || null,
+            aiPriority: opportunity?.scores?.priority ?? post.aiPriority ?? null,
+          };
+        }));
+
+        try {
+          const response = await fetch('/api/sync', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: syncToken,
+              posts,
+              settings: buildSyncSettings(),
+              filters: buildSyncFilters(),
+              timestamp: new Date().toISOString(),
+            }),
+          });
+          if (response.ok) {
+            setSnapshotInfo(prev => ({ ...(prev || {}), syncToken }));
+          }
+        } catch {}
+      }, [
+        data,
+        authenticated,
+        syncToken,
+        postOpportunities,
+        postScoreProxies,
+        postScoreMetadata,
+        buildSyncSettings,
+        buildSyncFilters,
+      ]);
+
+      const syncOpportunityConfig = useCallback(async () => {
+        if (!authenticated || !syncToken) return;
+        try {
+          await fetch('/api/settings/opportunity-config', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: syncToken,
+              subreddits: subs,
+              goals: opportunityBrief,
+              opportunityContext,
+              aiPrompt: opportunityBrief,
+              opportunityConfig: buildSyncSettings().opportunityConfig,
+              scoringConfig: buildSyncSettings().scoringConfig,
+              threshold: priorityNotificationThreshold,
+              model: openRouterModel,
+            }),
+          });
+        } catch {}
+      }, [
+        authenticated,
+        syncToken,
+        subs,
+        opportunityBrief,
+        opportunityContext,
+        priorityNotificationThreshold,
+        openRouterModel,
+        buildSyncSettings,
+      ]);
+
       const filteredBySub = useMemo(() => {
         if (selectedSub === 'ALL') return allPosts;
         const selected = selectedSub.toLowerCase();
@@ -605,7 +946,7 @@ const {
         const q = keyword.trim().toLowerCase();
         const minScore = parseNumberFilter(minUpvoteFilter);
         const minCommentsValue = parseNumberFilter(minCommentFilter);
-        const minAiScore = parseNumberFilter(minAiRelevance);
+        const minAiScore = parseNumberFilter(minPriorityFilter);
 
         const filtered = filteredBySub.filter(post => {
           if (hiddenPosts.has(post.id)) return false;
@@ -618,10 +959,14 @@ const {
           if (minScore !== null && score < minScore) return false;
           const comments = Number(post.num_comments) || 0;
           if (minCommentsValue !== null && comments < minCommentsValue) return false;
-          // AI relevance filter
+          // Opportunity priority filter
           if (minAiScore !== null) {
-            const aiScore = postRelevanceScores.get(String(post.id));
-            if (aiScore === null || aiScore === undefined || aiScore < minAiScore) return false;
+            const aiScore = postScoreProxies.get(String(post.id));
+            const priorityScore = getPriorityScore(post.id);
+            const normalizedThreshold = minAiScore / 5;
+            const passesPriority = priorityScore !== null && priorityScore >= normalizedThreshold;
+            const passesLegacy = aiScore !== null && aiScore !== undefined && aiScore >= minAiScore;
+            if (!passesPriority && !passesLegacy) return false;
           }
           return true;
         });
@@ -654,10 +999,10 @@ const {
               break;
             }
             case 'ai-relevance': {
-              const scoreA = postRelevanceScores.get(String(a.id));
-              const scoreB = postRelevanceScores.get(String(b.id));
-              const metaA = postRelevanceMetadata.get(String(a.id));
-              const metaB = postRelevanceMetadata.get(String(b.id));
+              const scoreA = getPriorityScore(a.id);
+              const scoreB = getPriorityScore(b.id);
+              const metaA = postScoreMetadata.get(String(a.id));
+              const metaB = postScoreMetadata.get(String(b.id));
               const sourceRank = (meta) => {
                 if (meta?.source === 'llm') return 0;
                 if (meta?.source === 'heuristic') return 1;
@@ -691,7 +1036,7 @@ const {
           return ignoreMultiplier ? delta : delta * multiplier;
         });
         return sorted;
-      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minAiRelevance, sortBy, sortOrder, hiddenPosts, postRelevanceScores, scoresVersion]);
+      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, sortBy, sortOrder, hiddenPosts, postScoreProxies, postScoreMetadata, getPriorityScore, scoresVersion]);
 
       const velocityMeta = useMemo(() => {
         const nowSeconds = Date.now() / 1000;
@@ -720,25 +1065,98 @@ const {
         return { map, spiking, upvoteThreshold, commentThreshold };
       }, [visiblePosts]);
 
+      const selectedPostVelocity = useMemo(() => {
+        if (!selectedPost) return null;
+        return velocityMeta.map.get(String(selectedPost.id)) || null;
+      }, [selectedPost, velocityMeta]);
+
+      const selectedPostWhyItems = useMemo(() => {
+        if (!selectedPost) return [];
+        const meta = postScoreMetadata.get(String(selectedPost.id)) || null;
+        const opportunity = getOpportunityForPost(selectedPost.id);
+        const velocity = selectedPostVelocity;
+        const items = [];
+        if (opportunity?.classification?.type) {
+          items.push({ label: 'Opportunity', value: String(opportunity.classification.type).replace(/_/g, ' ') });
+        }
+        if (opportunity?.action?.recommended) {
+          items.push({ label: 'Recommended action', value: String(opportunity.action.recommended).replace(/_/g, ' ') });
+        }
+        if (opportunity?.explanation?.summary) {
+          items.push({ label: 'Opportunity summary', value: opportunity.explanation.summary });
+        }
+        if (meta?.reason) {
+          items.push({ label: 'AI summary', value: meta.reason });
+        }
+        if (meta?.confidence || meta?.source) {
+          items.push({
+            label: 'Score source',
+            value: [
+              meta.source === 'llm' ? 'LLM-ranked' : meta?.source === 'heuristic' ? 'Heuristic-ranked' : null,
+              meta?.confidence ? `${meta.confidence} confidence` : null
+            ].filter(Boolean).join(' • ')
+          });
+        }
+        if (meta?.debug?.matchedKeywords?.length) {
+          items.push({ label: 'Matched signals', value: meta.debug.matchedKeywords.slice(0, 5).join(', ') });
+        }
+        if (velocity) {
+          items.push({
+            label: 'Momentum',
+            value: `${formatVelocity(velocity.upvotesPerHour)}/h upvotes • ${formatVelocity(velocity.commentsPerHour)}/h comments`
+          });
+        }
+        if (selectedPost.link_flair_text) {
+          items.push({ label: 'Context', value: `Flair: ${selectedPost.link_flair_text}` });
+        }
+        if (!items.length) {
+          items.push({
+            label: 'Signal',
+            value: buildWhyLine({
+              post: selectedPost,
+              relevanceMeta: meta,
+              upvotesPerHour: velocity?.upvotesPerHour,
+              commentsPerHour: velocity?.commentsPerHour,
+            }),
+          });
+        }
+        return items;
+      }, [selectedPost, postScoreMetadata, selectedPostVelocity, getOpportunityForPost]);
+
+      const selectedPostNextAction = useMemo(() => {
+        if (!selectedPost) return '';
+        const opportunity = getOpportunityForPost(selectedPost.id);
+        const recommended = opportunity?.action?.recommended || '';
+        if (recommended === 'reply_now') return 'Recommended action: reply now while the thread is still active.';
+        if (recommended === 'dm_if_possible') return 'Recommended action: consider direct outreach if the thread context allows it.';
+        if (recommended === 'save_for_followup') return 'Recommended action: save for follow-up and revisit when you can engage well.';
+        if (recommended === 'research') return 'Recommended action: use this as market research or messaging input.';
+        if (recommended === 'ignore') return 'Recommended action: ignore unless the thread evolves.';
+        const score = postScoreProxies.get(String(selectedPost.id));
+        if (score >= 4) return 'High-priority thread. Open it now and decide whether to reply, DM, or save it.';
+        if (score >= 3) return 'Worth a quick review. Check the thread for clear intent or follow-up context.';
+        return 'Lower-confidence match. Keep it in view only if the discussion fits your goals.';
+      }, [selectedPost, postScoreProxies, getOpportunityForPost]);
+
       const aiScoreStats = useMemo(() => {
         const stats = { total: allPosts.length, scored: 0, llm: 0, high: 0, visibleHigh: 0 };
         if (!allPosts.length) return stats;
         for (const post of allPosts) {
           const postId = String(post.id);
-          const score = postRelevanceScores.get(postId);
+          const score = postScoreProxies.get(postId);
           if (score !== null && score !== undefined) {
             stats.scored += 1;
             if (score >= 4) stats.high += 1;
           }
-          const meta = postRelevanceMetadata.get(postId);
+          const meta = postScoreMetadata.get(postId);
           if (meta && meta.source === 'llm') stats.llm += 1;
         }
         for (const post of visiblePosts) {
-          const score = postRelevanceScores.get(String(post.id));
+          const score = postScoreProxies.get(String(post.id));
           if (score !== null && score !== undefined && score >= 4) stats.visibleHigh += 1;
         }
         return stats;
-      }, [allPosts, visiblePosts, postRelevanceScores, postRelevanceMetadata, scoresVersion]);
+      }, [allPosts, visiblePosts, postScoreProxies, postScoreMetadata, scoresVersion]);
 
       const { maxScore, maxComments } = useMemo(() => {
         let maxScore = 0, maxComments = 0;
@@ -764,9 +1182,10 @@ const {
       }, [data]);
 
       const runAiRanking = useCallback(async ({ perSub, triggeredByAuto = false, llmPostLimit = aiLlmPostLimit } = {}) => {
-        if (!aiEnabled || !aiGoals || !aiGoals.trim()) {
-          setPostRelevanceScores(new Map());
-          setPostRelevanceMetadata(new Map());
+        if (!opportunityEngineEnabled || !hasOpportunityGoals) {
+          setPostScoreProxies(new Map());
+          setPostScoreMetadata(new Map());
+          setPostOpportunities(new Map());
           setScoresVersion(v => v + 1);
           return;
         }
@@ -776,7 +1195,7 @@ const {
 
         try {
           // Cache versioning: invalidate if goals, model, or prompt version changed
-          const combinedGoals = `${aiGoals.trim()}||${(aiContext || '').trim()}`;
+          const combinedGoals = `${effectiveGoalText.trim()}||${effectiveContextText.trim()}`;
           const currentGoalsHash = hashGoals(combinedGoals);
           const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
           const MODEL_KEY = 'dashboard_ai_model';
@@ -798,6 +1217,7 @@ const {
           // This ensures scores are relative to the current visible feed
           let cachedScores = new Map();
           let cachedMetadata = new Map();
+          let cachedOpportunities = new Map();
           try {
             const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
             if (cacheStr) {
@@ -813,9 +1233,12 @@ const {
                       cachedMetadata.set(postId, {
                         source: data.source || 'llm',
                         confidence: data.confidence || 'medium',
-                        reason: data.reason || 'Cached relevance',
+                        reason: data.reason || 'Cached opportunity score',
                         debug: data.debug || null,
                       });
+                    }
+                    if (data.opportunity && typeof data.opportunity === 'object') {
+                      cachedOpportunities.set(postId, data.opportunity);
                     }
                   }
                 }
@@ -837,12 +1260,12 @@ const {
           const uncachedPosts = allNewPosts.filter(post => !cachedScores.has(String(post.id)));
 
           if (uncachedPosts.length > 0) {
-            const thisRequestId = ++aiRankingRequestIdRef.current;
-            setAiRankingError(null);
-            setAiRankingLoading(true);
+            const thisRequestId = ++opportunityScanRequestIdRef.current;
+            setOpportunityScanError(null);
+            setOpportunityScanLoading(true);
             
             // Two-stage ranking: heuristic prefilter + LLM rerank
-            const keywords = extractGoalKeywords(aiGoals.trim());
+            const keywords = extractGoalKeywords(effectiveGoalText.trim());
             
             // Compute heuristic scores for all uncached posts
             const postsWithHeuristic = uncachedPosts.map(post => {
@@ -875,6 +1298,7 @@ const {
             try {
               const allScores = new Map(cachedScores);
               const allMetadata = new Map(cachedMetadata); // Store metadata for all scored posts
+              const allOpportunities = new Map(cachedOpportunities);
               const cache = {};
               
               // Load existing cache
@@ -908,11 +1332,11 @@ const {
                         created_utc: p.created_utc,
                         link_flair_text: p.link_flair_text,
                       })),
-                      userGoals: aiGoals.trim(),
-                      userContext: aiContext && aiContext.trim() ? aiContext.trim() : undefined,
+                      userGoals: effectiveGoalText.trim(),
+                      userContext: effectiveContextText && effectiveContextText.trim() ? effectiveContextText.trim() : undefined,
                       scoringConfig: {
-                        lookingFor: aiGoals.trim(),
-                        avoid: aiAvoid && aiAvoid.trim() ? aiAvoid.trim() : undefined,
+                        lookingFor: effectiveGoalText.trim(),
+                        avoid: effectiveAvoidText && effectiveAvoidText.trim() ? effectiveAvoidText.trim() : undefined,
                         examples: {
                           perfect: aiExamplePerfect && aiExamplePerfect.trim() ? aiExamplePerfect.trim() : undefined,
                           strong: aiExampleStrong && aiExampleStrong.trim() ? aiExampleStrong.trim() : undefined,
@@ -943,6 +1367,7 @@ const {
                     // Current format: scores is an object map {postId: score}
                     const scoresObj = result.scores || {};
                     const metadataObj = result.metadata || {};
+                    const opportunitiesObj = result.opportunities || {};
                     if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
                       Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
                         const postIdStr = String(postId);
@@ -952,11 +1377,12 @@ const {
                           
                           // Extract metadata if available
                           const meta = metadataObj[postId] || {};
+                          const opportunity = opportunitiesObj[postId] || null;
                           const heuristicDetails = heuristicDetailsById.get(postIdStr);
                           allMetadata.set(postIdStr, {
                             source: 'llm',
                             confidence: meta.confidence || 'medium',
-                            reason: meta.reason || 'LLM-scored relevance',
+                            reason: meta.reason || 'LLM-ranked opportunity',
                             debug: buildRelevanceDebug({
                               postId: postIdStr,
                               heuristicDetails,
@@ -966,6 +1392,9 @@ const {
                               source: 'llm',
                             })
                           });
+                          if (opportunity) {
+                            allOpportunities.set(postIdStr, opportunity);
+                          }
                           
                           cache[postIdStr] = { 
                             score: relevanceScore, 
@@ -973,9 +1402,10 @@ const {
                             version: result.promptVersion || 'v3.1',
                             model: result.model || 'unknown',
                             confidence: meta.confidence || 'medium',
-                            reason: meta.reason || 'LLM-scored relevance',
+                            reason: meta.reason || 'LLM-ranked opportunity',
                             source: 'llm',
                             debug: allMetadata.get(postIdStr)?.debug || null,
+                            opportunity: opportunity || null,
                           };
                         } else {
                           // Track null scores but don't cache them
@@ -1030,7 +1460,7 @@ const {
                   allMetadata.set(postId, { 
                     source: 'heuristic', 
                     confidence: 'low', 
-                    reason: 'Keyword-based relevance',
+                    reason: 'Keyword-based opportunity',
                     debug: buildRelevanceDebug({
                       postId,
                       heuristicDetails,
@@ -1044,47 +1474,50 @@ const {
                     version: latestPromptVersion || AI_PROMPT_VERSION,
                     model: latestModel || openRouterModel,
                     confidence: 'low',
-                    reason: 'Keyword-based relevance',
+                    reason: 'Keyword-based opportunity',
                     source: 'heuristic',
                     debug: allMetadata.get(postId)?.debug || null,
+                    opportunity: null,
                   };
                 }
               });
               
               const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
 
-              if (aiRankingRequestIdRef.current !== thisRequestId) return;
-              setPostRelevanceScores(allScores);
-              setPostRelevanceMetadata(allMetadata);
+              if (opportunityScanRequestIdRef.current !== thisRequestId) return;
+              setPostScoreProxies(allScores);
+              setPostScoreMetadata(allMetadata);
+              setPostOpportunities(allOpportunities);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
               setAiScoresStale(false);
               scoresForHighRelevance = allScores;
             } catch (aiError) {
               console.error('Error in AI ranking batch processing:', aiError);
-              if (aiRankingRequestIdRef.current !== thisRequestId) return;
-              setPostRelevanceScores(cachedScores);
-              setPostRelevanceMetadata(cachedMetadata);
+              if (opportunityScanRequestIdRef.current !== thisRequestId) return;
+              setPostScoreProxies(cachedScores);
+              setPostScoreMetadata(cachedMetadata);
+              setPostOpportunities(cachedOpportunities);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
               scoresForHighRelevance = cachedScores;
             } finally {
-              setAiRankingLoading(false);
+              setOpportunityScanLoading(false);
             }
             // High-relevance notifications (use freshly computed scores)
-            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
-                  const threshold = Number(highRelevanceThreshold) || 4;
+            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
+                  const threshold = Number(priorityNotificationThreshold) || 4;
               const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
               const toNotify = [];
               for (const [postId, score] of scoresForHighRelevance.entries()) {
-                if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
+                if (score != null && score >= threshold && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
                   toNotify.push({ postId, post: idToPost.get(postId) });
                 }
               }
               toNotify.forEach(({ post }) => {
-                new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
+                new Notification('Strong opportunity found', { body: post.title, icon: '/favicon.ico' });
               });
               if (toNotify.length > 0) {
                 const toAdd = toNotify.map(({ postId }) => postId);
-                setNotifiedHighRelevancePostIds(prev => {
+                setNotifiedStrongOpportunityPostIds(prev => {
                   const n = new Set(prev);
                   toAdd.forEach(id => n.add(id));
                   return n.size <= 500 ? n : new Set([...n].slice(-500));
@@ -1094,26 +1527,27 @@ const {
           } else {
             // All posts are cached, use cached scores directly
             const highRelevanceCount = Array.from(cachedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-            setPostRelevanceScores(cachedScores);
-            setPostRelevanceMetadata(cachedMetadata);
+            setPostScoreProxies(cachedScores);
+            setPostScoreMetadata(cachedMetadata);
+            setPostOpportunities(cachedOpportunities);
             setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
             setAiScoresStale(false);
             // High-relevance notifications (use freshly computed scores)
-            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyHighRelevance && cachedScores && cachedScores.size > 0) {
-              const threshold = Number(highRelevanceThreshold) || 4;
+            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && cachedScores && cachedScores.size > 0) {
+              const threshold = Number(priorityNotificationThreshold) || 4;
               const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
               const toNotify = [];
               for (const [postId, score] of cachedScores.entries()) {
-                if (score != null && score >= threshold && !notifiedHighRelevancePostIds.has(postId) && idToPost.has(postId)) {
+                if (score != null && score >= threshold && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
                   toNotify.push({ postId, post: idToPost.get(postId) });
                 }
               }
               toNotify.forEach(({ post }) => {
-                new Notification('High relevance post', { body: post.title, icon: '/favicon.ico' });
+                new Notification('Strong opportunity found', { body: post.title, icon: '/favicon.ico' });
               });
               if (toNotify.length > 0) {
                 const toAdd = toNotify.map(({ postId }) => postId);
-                setNotifiedHighRelevancePostIds(prev => {
+                setNotifiedStrongOpportunityPostIds(prev => {
                   const n = new Set(prev);
                   toAdd.forEach(id => n.add(id));
                   return n.size <= 500 ? n : new Set([...n].slice(-500));
@@ -1123,12 +1557,12 @@ const {
           }
         } catch (aiError) {
           console.error('Error in AI ranking integration:', aiError);
-          setAiRankingLoading(false);
+          setOpportunityScanLoading(false);
           if (triggeredByAuto) {
-            setAiRankingError('AI ranking failed during auto-refresh — scores may be stale.');
+            setOpportunityScanError('Opportunity ranking failed during auto-refresh — scores may be stale.');
           }
         }
-      }, [aiEnabled, aiGoals, aiContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyHighRelevance, highRelevanceThreshold, notifiedHighRelevancePostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel, AI_PROMPT_VERSION]);
+      }, [opportunityEngineEnabled, opportunityBrief, opportunityContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyStrongOpportunities, priorityNotificationThreshold, notifiedStrongOpportunityPostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel, AI_PROMPT_VERSION]);
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);
@@ -1139,6 +1573,7 @@ const {
           setData([]);
           setFetchedAt(null);
           setSnapshotInfo(null);
+          setFetchSummary(null);
           setNextRefreshAt(null);
           return;
         }
@@ -1199,6 +1634,7 @@ const {
             setNeedsAuth(true);
             setAuthenticated(false);
             setAuthChecking(false);
+            setFetchSummary(null);
             setError('Sign in with Reddit to fetch your dashboard.');
             return;
           }
@@ -1215,6 +1651,7 @@ const {
             const isAppLimit = responseBody?.source === 'app';
             const sourceLabel = isAppLimit ? '⚡ App throttle' : '🔒 Rate limit';
             const sourceMessage = responseBody?.message || (isAppLimit ? 'Too many requests from this browser.' : 'Dashboard request limit reached.');
+            setFetchSummary(null);
             setError(`${sourceLabel}: ${sourceMessage}${retryAfterSeconds > 0 ? ` Retry in ~${retryAfterSeconds}s.` : ''}`);
             return;
           }
@@ -1286,6 +1723,9 @@ const {
           setData(perSub);
           setFetchedAt(Number(payload?.fetched_at) || Date.now());
           setSnapshotInfo(payload?.snapshot || null);
+          setFetchSummary(buildFetchSummary(payload, perSub, effectiveMaxPages === 0 || Boolean(payload?.fetch_all_pages)));
+
+          await syncDashboardSnapshot(perSub);
 
           await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
 
@@ -1325,6 +1765,7 @@ const {
         } catch (fetchError) {
           setNeedsAuth(false);
           setSnapshotInfo(null);
+          setFetchSummary(null);
           if (fetchError?.name === 'AbortError') {
             setError(`Request timed out. Reddit may be slow. Try again.`);
           } else {
@@ -1344,7 +1785,7 @@ const {
           setNextRefreshAt(pausedNext || plan.nextRefreshAt);
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit, data, rateLimitPauseUntil]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit, data, rateLimitPauseUntil, syncDashboardSnapshot]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1483,6 +1924,68 @@ const {
         };
       }, []);
 
+      useEffect(() => {
+        if (!authenticated || data.length === 0 || !syncToken) return;
+        const timeoutId = setTimeout(() => {
+          syncDashboardSnapshot();
+        }, 600);
+        return () => clearTimeout(timeoutId);
+      }, [
+        authenticated,
+        data,
+        syncToken,
+        subs,
+        opportunityBrief,
+        opportunityContext,
+        aiAvoid,
+        businessOffering,
+        idealCustomer,
+        problemsSolved,
+        preferredEngagement,
+        strategyPreset,
+        opportunityFocus,
+        opportunityStrictness,
+        openRouterModel,
+        priorityNotificationThreshold,
+        postScoreProxies,
+        postScoreMetadata,
+        postOpportunities,
+        minUpvoteFilter,
+        minCommentFilter,
+        minPriorityFilter,
+        keyword,
+        syncDashboardSnapshot,
+      ]);
+
+      useEffect(() => {
+        if (!authenticated || !syncToken || !hasOpportunityGoals) return;
+        const timeoutId = setTimeout(() => {
+          syncOpportunityConfig();
+        }, 700);
+        return () => clearTimeout(timeoutId);
+      }, [
+        authenticated,
+        syncToken,
+        hasOpportunityGoals,
+        subs,
+        opportunityBrief,
+        opportunityContext,
+        businessOffering,
+        idealCustomer,
+        problemsSolved,
+        preferredEngagement,
+        strategyPreset,
+        opportunityFocus,
+        opportunityStrictness,
+        aiAvoid,
+        aiExamplePerfect,
+        aiExampleStrong,
+        aiExampleReject,
+        priorityNotificationThreshold,
+        openRouterModel,
+        syncOpportunityConfig,
+      ]);
+
       // Save API key securely (HttpOnly cookie)
       const saveSecureApiKey = useCallback(async () => {
         if (!openRouterApiKey.trim()) return;
@@ -1530,19 +2033,47 @@ const {
 
       const applyPreset = useCallback((preset) => {
         if (!preset) return;
-        setAiEnabled(true);
-        setAiGoals(preset.goals || '');
+        setOpportunityEngineEnabled(true);
+        setOpportunityBrief(preset.goals || '');
         setAiAvoid(Array.isArray(preset.avoid) ? preset.avoid.join(', ') : '');
         setAiPresetId(preset.id || '');
         setAiPresetDismissed(true);
       }, []);
 
+      const openOnboarding = useCallback((step = 0) => {
+        setOnboardingStep(step);
+        setOnboardingOpen(true);
+      }, []);
+
+      const closeOnboarding = useCallback(() => {
+        setOnboardingOpen(false);
+      }, []);
+
+      const completeOnboarding = useCallback(async () => {
+        setOnboardingCompleted(true);
+        setOnboardingOpen(false);
+        if (subs.length > 0 && !loading) {
+          await refresh({ force: true });
+        }
+      }, [subs.length, loading, refresh]);
+
+      const handleOnboardingAddSubs = useCallback(() => {
+        const names = onboardingSubInput.split(/[,\n]+/).map(s => normalizeSubredditName(s)).filter(Boolean);
+        if (names.length === 0) return;
+        setSubs(prev => {
+          const existing = new Set(prev.map(s => s.toLowerCase()));
+          const newOnes = names.filter(n => !existing.has(n.toLowerCase()));
+          return [...prev, ...newOnes];
+        });
+        setOnboardingSubInput('');
+      }, [onboardingSubInput]);
+
       const rerankNow = useCallback(async () => {
-        if (aiRankingLoading || loading) return;
-        if (!aiEnabled || !aiGoals || !aiGoals.trim()) return;
+        if (opportunityScanLoading || loading) return;
+        if (!opportunityEngineEnabled || !hasOpportunityGoals) return;
         await runAiRanking({ perSub: data, triggeredByAuto: false, llmPostLimit: aiLlmPostLimit });
         setAiScoresStale(false);
-      }, [aiRankingLoading, loading, aiEnabled, aiGoals, data, aiLlmPostLimit, runAiRanking]);
+      }, [opportunityScanLoading, loading, opportunityEngineEnabled, hasOpportunityGoals, data, aiLlmPostLimit, runAiRanking]);
 
       const modelGroups = useMemo(() => {
         const source = availableModels.length ? availableModels : FALLBACK_MODELS;
@@ -1591,23 +2122,104 @@ const {
         return modelGroups.all.find(model => model.id === openRouterModel) || null;
       }, [modelGroups, openRouterModel]);
 
-      const aiGoalSummary = useMemo(() => truncateText(aiGoals || '', 120), [aiGoals]);
+      const aiGoalSummary = useMemo(() => truncateText(effectiveGoalText || '', 120), [effectiveGoalText]);
+      const onboardingSteps = useMemo(() => ([
+        {
+          id: 'subs',
+          title: 'Pick subreddits',
+          description: 'Start with a few communities you want to monitor.',
+        },
+        {
+          id: 'goal',
+          title: 'Choose a goal',
+          description: 'Tell the app what a useful post looks like.',
+        },
+        {
+          id: 'ai',
+          title: 'Choose engine mode',
+          description: 'Run manual search only or enable the opportunity engine.',
+        },
+        {
+          id: 'depth',
+          title: 'Set fetch depth',
+          description: 'Choose how much Reddit to scan on each refresh.',
+        },
+      ]), []);
+      const onboardingCurrentStep = onboardingSteps[onboardingStep] || onboardingSteps[0];
+      const onboardingCanContinue = useMemo(() => {
+        if (onboardingCurrentStep?.id === 'subs') return subs.length > 0;
+        if (onboardingCurrentStep?.id === 'goal') return !opportunityEngineEnabled || hasOpportunityGoals;
+        return true;
+      }, [onboardingCurrentStep, subs.length, opportunityEngineEnabled, hasOpportunityGoals]);
       const preFilterPostCount = filteredBySub.length;
       const activeFilterPills = useMemo(() => {
         const pills = [];
         if (keyword.trim()) pills.push({ key: 'keyword', label: `Keyword: ${truncateText(keyword.trim(), 24)}` });
         if (minUpvoteFilter) pills.push({ key: 'upvotes', label: `Upvotes: ${minUpvoteFilter}+` });
         if (minCommentFilter) pills.push({ key: 'comments', label: `Comments: ${minCommentFilter}+` });
-        if (minAiRelevance) pills.push({ key: 'ai', label: `AI score: ${minAiRelevance}+` });
+        if (minPriorityFilter) pills.push({ key: 'ai', label: `Priority: ${minPriorityFilter}+` });
         return pills;
-      }, [keyword, minUpvoteFilter, minCommentFilter, minAiRelevance, truncateText]);
+      }, [keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, truncateText]);
       const showingFilteredResults = visiblePosts.length !== preFilterPostCount;
 
       function clearFilterPill(key) {
         if (key === 'keyword') setKeyword('');
         if (key === 'upvotes') setMinUpvoteFilter('');
         if (key === 'comments') setMinCommentFilter('');
-        if (key === 'ai') setMinAiRelevance('');
+        if (key === 'ai') setMinPriorityFilter('');
+      }
+
+      function buildFetchSummary(payload, perSub, requestedFetchAllPages) {
+        const timedOutSubs = Array.isArray(payload?.timed_out_subreddits) ? payload.timed_out_subreddits : [];
+        const rateLimitedSubs = Array.isArray(payload?.rate_limited_subreddits) ? payload.rate_limited_subreddits : [];
+        const partialSubs = Array.isArray(perSub) ? perSub.filter(group => group?.partial).map(group => group.subreddit) : [];
+        const incompleteSubs = Array.from(new Set([
+          ...timedOutSubs,
+          ...rateLimitedSubs,
+          ...partialSubs,
+        ].filter(Boolean)));
+        const attemptedSubs = Array.isArray(perSub) ? perSub.length : 0;
+        const completedSubs = Math.max(0, attemptedSubs - incompleteSubs.length);
+
+        if (timedOutSubs.length > 0) {
+          return {
+            tone: 'warning',
+            status: 'Incomplete',
+            detail: `Stopped early on ${timedOutSubs.length} subreddit${timedOutSubs.length === 1 ? '' : 's'} because the request timed out.`,
+            completedSubs,
+            attemptedSubs,
+          };
+        }
+
+        if (rateLimitedSubs.length > 0) {
+          return {
+            tone: 'warning',
+            status: 'Incomplete',
+            detail: `Stopped early on ${rateLimitedSubs.length} subreddit${rateLimitedSubs.length === 1 ? '' : 's'} because Reddit rate-limited the request.`,
+            completedSubs,
+            attemptedSubs,
+          };
+        }
+
+        if (partialSubs.length > 0) {
+          return {
+            tone: 'warning',
+            status: 'Capped',
+            detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.`,
+            completedSubs,
+            attemptedSubs,
+          };
+        }
+
+        return {
+          tone: 'success',
+          status: 'Complete',
+          detail: requestedFetchAllPages
+            ? 'Fetched all available posts Reddit returned for the selected timeframe.'
+            : 'Fetched the requested scope for the selected timeframe.',
+          completedSubs: attemptedSubs,
+          attemptedSubs,
+        };
       }
 
       function renderStatusChip(label, value, tone = 'neutral') {
@@ -1689,7 +2301,7 @@ const {
               h('button', {
                 type: 'button',
                 onClick: () => setOpenRouterModel(model.id),
-                disabled: !aiEnabled,
+                disabled: !opportunityEngineEnabled,
                 className: 'px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed'
               }, selected ? 'Using' : 'Select')
             )
@@ -1699,7 +2311,7 @@ const {
         );
       };
 
-      const filtersActive = minUpvoteFilter || minCommentFilter || minAiRelevance || keyword;
+      const filtersActive = minUpvoteFilter || minCommentFilter || minPriorityFilter || keyword;
       const staleSubCount = (data || []).filter(group => group?.stale).length;
 
       return h('div', { 
@@ -1725,6 +2337,14 @@ const {
                 : h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                     h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' })
                   )
+              ),
+              h('button', {
+                onClick: () => openOnboarding(0),
+                className: 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                title: 'Open onboarding'
+              },
+                renderGlyph('M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z', 'w-3.5 h-3.5'),
+                onboardingCompleted ? 'Setup' : 'Finish setup'
               ),
               h('button', {
                 onClick: () => setSettingsOpen(true),
@@ -1763,16 +2383,17 @@ const {
                   : [
                       renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0),
                       fetchedAt && !loading && renderStatusChip('Updated', timeAgo(fetchedAt / 1000)),
+                      fetchSummary && !loading && renderStatusChip('Scope', fetchSummary.status, fetchSummary.tone),
                       snapshotInfo?.cached && !loading && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
                       staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
                       rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
                       autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt)),
-                      aiRankingLoading && renderStatusChip('AI', 'Ranking…', 'success'),
-                      !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && renderStatusChip('AI', 'On', 'success'),
-                      !aiRankingLoading && aiEnabled && aiGoals && aiGoals.trim() && aiScoreStats.total > 0 && renderStatusChip('AI-reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
-                      !aiRankingLoading && (!aiEnabled || !aiGoals || !aiGoals.trim()) && postRelevanceScores.size === 0 && renderStatusChip('AI', 'Off'),
+                      opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success'),
+                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success'),
+                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
+                      !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Engine', 'Off'),
                     ],
-            (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
+            (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
               className: 'text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
             }, renderStatusChip('Alerts', 'On', 'accent'))
@@ -1793,6 +2414,16 @@ const {
               disabled: loading,
               className: 'px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
             }, 'Force refresh')
+          )
+        ),
+        fetchSummary && !loading && !error && h('div', {
+          className: `border-b px-4 py-2 text-xs sm:text-sm shrink-0 ${fetchSummary.tone === 'warning'
+            ? 'bg-amber-50/80 text-amber-800 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/60'
+            : 'bg-emerald-50/70 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/60'}`
+        },
+          h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
+            h('span', { className: 'font-medium' }, fetchSummary.detail),
+            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.completedSubs}/${fetchSummary.attemptedSubs} subreddits complete`)
           )
         ),
 
@@ -1894,30 +2525,30 @@ const {
 
                 // Status dot
                 h('div', { className: `w-2 h-2 rounded-full shrink-0 ${
-                  aiRankingLoading ? 'bg-amber-400 animate-pulse' :
-                  aiEnabled && aiGoals && aiGoals.trim() ? 'bg-emerald-400' :
+                  opportunityScanLoading ? 'bg-amber-400 animate-pulse' :
+                  opportunityEngineEnabled && hasOpportunityGoals ? 'bg-emerald-400' :
                   'bg-zinc-300 dark:bg-zinc-600'
                 }` }),
 
                 // Status label + goal summary
                 h('div', { className: 'flex items-center gap-2 min-w-0 flex-1' },
                   h('span', { className: 'text-xs font-medium shrink-0 ' + (
-                    aiRankingLoading ? 'text-amber-600 dark:text-amber-400' :
-                    aiEnabled && aiGoals && aiGoals.trim() ? 'text-emerald-700 dark:text-emerald-400' :
+                    opportunityScanLoading ? 'text-amber-600 dark:text-amber-400' :
+                    opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
                     'text-zinc-500 dark:text-zinc-400'
                   )},
-                    aiRankingLoading ? 'Ranking…' :
-                    aiEnabled && aiGoals && aiGoals.trim() ? 'AI active' :
-                    'AI off'
+                    opportunityScanLoading ? 'Ranking…' :
+                    opportunityEngineEnabled && hasOpportunityGoals ? 'Opportunity engine on' :
+                    'Opportunity engine off'
                   ),
-                  aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
-                  aiEnabled && aiGoals && aiGoals.trim() && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' },
-                    aiGoalSummary || aiGoals.trim()
+                  opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
+                  opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' },
+                    aiGoalSummary || effectiveGoalText.trim()
                   )
                 ),
 
                 // Stats (when scored)
-                postRelevanceScores.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-2.5 shrink-0' },
+                postScoreProxies.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-2.5 shrink-0' },
                   h('span', { className: 'font-mono text-xs text-zinc-500 dark:text-zinc-400' },
                     `${aiScoreStats.scored} / ${aiScoreStats.total}`
                   ),
@@ -1929,16 +2560,16 @@ const {
 
                 // Actions
                 h('div', { className: 'flex items-center gap-1.5 shrink-0' },
-                  aiEnabled && aiGoals && aiGoals.trim() && h('button', {
+                  opportunityEngineEnabled && hasOpportunityGoals && h('button', {
                     onClick: rerankNow,
-                    disabled: aiRankingLoading || loading,
+                    disabled: opportunityScanLoading || loading,
                     className: 'px-2.5 py-1 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                  }, aiRankingLoading ? '…' : 'Rerank'),
+                  }, opportunityScanLoading ? '…' : 'Refresh ranking'),
                   h('button', {
                     onClick: () => setSettingsOpen(true),
                     className: 'px-2.5 py-1 rounded-lg text-xs font-medium border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
-                  }, aiEnabled && aiGoals && aiGoals.trim() ? 'Edit AI' : 'Set up AI'),
-                  postRelevanceScores.size > 0 && h('button', {
+                  }, opportunityEngineEnabled && hasOpportunityGoals ? 'Edit engine' : 'Set up engine'),
+                  postScoreProxies.size > 0 && h('button', {
                     onClick: () => setShowAiReasons(!showAiReasons),
                     className: `px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${showAiReasons ? 'border-[#0284C7] text-[#0284C7] dark:text-sky-400 dark:border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
                   }, showAiReasons ? 'Reasons on' : 'Reasons')
@@ -1980,18 +2611,18 @@ const {
                   }, preset.label)
                 )
               ),
-              // AI relevance filter (only show when AI is enabled and scores are available)
-              aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'AI score'),
+              // Opportunity priority filter (legacy AI score thresholds still apply as fallback)
+              opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-1.5' },
+                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Priority'),
                 AI_RELEVANCE_PRESETS.map(preset =>
                   h('button', {
                     key: `ai-${preset.value}`,
-                    onClick: () => setMinAiRelevance(minAiRelevance === preset.value ? '' : preset.value),
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minAiRelevance === preset.value ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
-              (alertKeywords.trim() || notifyHighRelevance || notificationsEnabled) && h('button', {
+              (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
                 onClick: () => setSettingsOpen(true),
                 className: 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Alerts settings'
@@ -2026,13 +2657,13 @@ const {
                 h('option', { value: 'comments-asc' }, 'Least comments'),
                 h('option', { value: 'velocity-upvotes-desc' }, 'Highest upvote velocity'),
                 h('option', { value: 'velocity-comments-desc' }, 'Highest comment velocity'),
-                aiEnabled && aiGoals && aiGoals.trim() && postRelevanceScores.size > 0 && [
-                  h('option', { key: 'ai-desc', value: 'ai-relevance-desc' }, 'Highest AI relevance'),
-                  h('option', { key: 'ai-asc', value: 'ai-relevance-asc' }, 'Lowest AI relevance')
+                opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
+                  h('option', { key: 'ai-desc', value: 'ai-relevance-desc' }, 'Highest opportunity priority'),
+                  h('option', { key: 'ai-asc', value: 'ai-relevance-asc' }, 'Lowest opportunity priority')
                 ]
               ),
                 filtersActive && h('button', {
-                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
+                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
                 className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }, 'Clear all')
             ),
@@ -2049,7 +2680,7 @@ const {
                 ))
               ),
               h('button', {
-                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
+                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
                 className: 'text-xs font-medium text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300'
               }, 'Clear filters')
             ),
@@ -2081,13 +2712,13 @@ const {
                             h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm mb-4' }, 'Clear one or more filters to bring posts back into view.'),
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
                               h('button', {
-                                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinAiRelevance(''); setKeyword(''); },
+                                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                               }, 'Clear filters'),
-                              minAiRelevance && h('button', {
-                                onClick: () => setMinAiRelevance(''),
+                              minPriorityFilter && h('button', {
+                                onClick: () => setMinPriorityFilter(''),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                              }, 'Remove AI score filter')
+                              }, 'Remove priority filter')
                             )
                           ]
                         : [
@@ -2096,9 +2727,9 @@ const {
                                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
                               )
                             ),
-                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, aiEnabled && aiGoals && aiGoals.trim() ? 'No strong matches yet' : 'No posts found'),
-                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, aiEnabled && aiGoals && aiGoals.trim()
-                              ? 'Try broadening your AI goals, lowering the AI score filter, or fetching more posts.'
+                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, opportunityEngineEnabled && hasOpportunityGoals ? 'No strong opportunities yet' : 'No posts found'),
+                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, opportunityEngineEnabled && hasOpportunityGoals
+                              ? 'Try broadening your opportunity settings, lowering the priority filter, or fetching more posts.'
                               : 'Try a different fetch mode or add more subreddits.'
                             ),
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
@@ -2109,7 +2740,7 @@ const {
                               h('button', {
                                 onClick: () => setSettingsOpen(true),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                              }, aiEnabled && aiGoals && aiGoals.trim() ? 'Adjust AI settings' : 'Open settings')
+                              }, opportunityEngineEnabled && hasOpportunityGoals ? 'Adjust engine settings' : 'Open settings')
                             )
                           ]
                   )
@@ -2121,8 +2752,12 @@ const {
                         const flair = post.link_flair_text;
                         const flairBg = post.link_flair_background_color || '#e4e4e7';
                         const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
-                        const relevanceScore = postRelevanceScores.get(String(post.id));
-                        const relevanceMeta = postRelevanceMetadata.get(String(post.id));
+                        const relevanceScore = postScoreProxies.get(String(post.id));
+                        const relevanceMeta = postScoreMetadata.get(String(post.id));
+                        const opportunity = getOpportunityForPost(post.id);
+                        const priorityScore = getPriorityScore(post.id);
+                        const opportunityType = getOpportunityTypeLabel(post.id);
+                        const recommendedAction = getRecommendedActionLabel(post.id);
                         const isHighlyRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
                         const isVeryHighRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
                         const velocity = velocityMeta.map.get(String(post.id));
@@ -2145,112 +2780,115 @@ const {
                           onMouseEnter: () => handlePostHoverStart(post),
                           onMouseLeave: handlePostHoverEnd
                         },
-                          h('button', {
-                            onClick: () => { setSelectedPost(post); setDetailCollapsed(false); setMobileView('detail'); },
-                            className: 'w-full text-left'
-                          },
-                            h('div', { className: 'flex gap-3' },
-                              post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' && h('img', {
-                                src: post.thumbnail,
-                                alt: '',
-                                className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200 dark:bg-zinc-700'
-                              }),
-                              h('div', { className: 'flex-1 min-w-0' },
-                                h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1.5 flex-wrap' },
-                                  h('span', null, `r/${post.subreddit}`),
-                                  flair && h('span', { 
-                                    className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
-                                    style: { backgroundColor: flairBg, color: flairTextColor }
-                                  }, flair),
-                                  h('span', null, '•'),
-                                  h('span', null, timeAgo(post.created_utc)),
-                                  isSpiking && h('span', {
-                                    className: 'px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-200'
-                                  }, 'Spiking'),
-                                  h('span', { className: 'inline-flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400' },
-                                    renderGlyph('M13 2L4 14h6l-1 8 9-12h-6l1-8z', 'w-3 h-3'),
-                                    `${formatVelocity(upvotesPerHour)}/h`
-                                  ),
-                                  relevanceScore !== undefined && relevanceScore !== null && h('span', {
-                                    className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
-                                      relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
-                                      relevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
-                                      relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
-                                      'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-                                    }`,
-                                    title: aiScoresStale ? `Cached score (may be stale) — re-run ranking for fresh results` : relevanceMeta ? `AI Relevance: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `AI Relevance: ${relevanceScore}/5`
-                                  }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
-                                ),
-                                h('h3', { className: 'text-sm font-semibold text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
-                                showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
-                                  buildWhyLine({
-                                    post,
-                                    relevanceMeta,
-                                    upvotesPerHour,
-                                    commentsPerHour
-                                  })
-                                ),
-                                h('div', { className: 'flex items-center gap-3 mt-2 text-xs' },
-                                  h('span', { className: 'inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium' },
-                                    renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'),
-                                    score
-                                  ),
-                                  h('span', { className: 'inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium' },
-                                    renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
-                                    comments
-                                  ),
-                                  commentsPerHour > 0 && h('span', { className: 'inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400' },
-                                    renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
-                                    `${formatVelocity(commentsPerHour)}/h`
-                                  ),
-                                  h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
-                                )
-                              )
-                            )
-                          ),
-                          // Quick actions menu button
-                          h('div', { className: 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity' },
-                            h('button', {
-                              onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
-                              className: 'p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors'
-                            }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z' })
-                            )),
-                            // Dropdown menu
-                            activePostMenu === post.id && h('div', { 
-                              className: 'absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 py-1 z-20 animate-fadeIn',
-                              onClick: (e) => e.stopPropagation()
-                            },
-                              h('button', {
-                                onClick: () => { window.open(post.reddit_url || post.external_url, '_blank'); setActivePostMenu(null); },
-                                className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
-                              }, 
-                                h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
-                                ),
-                                'Open in Reddit'
+                        h('button', {
+                          onClick: () => { setSelectedPost(post); setDetailCollapsed(false); setMobileView('detail'); },
+                          className: 'w-full text-left'
+                        },
+                        h('div', { className: 'flex gap-3' },
+                          post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' && h('img', {
+                            src: post.thumbnail,
+                            alt: '',
+                            className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200 dark:bg-zinc-700'
+                          }),
+                          h('div', { className: 'flex-1 min-w-0' },
+                            h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1.5 flex-wrap' },
+                              h('span', null, `r/${post.subreddit}`),
+                              flair && h('span', {
+                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
+                                style: { backgroundColor: flairBg, color: flairTextColor }
+                              }, flair),
+                              h('span', null, '•'),
+                              h('span', null, timeAgo(post.created_utc)),
+                              opportunityType && h('span', {
+                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 capitalize'
+                              }, opportunityType),
+                              recommendedAction && h('span', {
+                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 capitalize'
+                              }, recommendedAction),
+                              isSpiking && h('span', {
+                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-200'
+                              }, 'Spiking'),
+                              h('span', { className: 'inline-flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400' },
+                                renderGlyph('M13 2L4 14h6l-1 8 9-12h-6l1-8z', 'w-3 h-3'),
+                                `${formatVelocity(upvotesPerHour)}/h`
                               ),
-                              h('button', {
-                                onClick: () => handleCopyLink(post),
-                                className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
-                              },
-                                h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3' })
-                                ),
-                                'Copy link'
+                              relevanceScore !== undefined && relevanceScore !== null && h('span', {
+                                className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
+                                  relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
+                                  relevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
+                                  relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
+                                  'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                                }`,
+                                title: aiScoresStale ? 'Cached score (may be stale) — re-run ranking for fresh results' : relevanceMeta ? `Priority proxy: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `Priority proxy: ${relevanceScore}/5`
+                              }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`),
+                              priorityScore !== null && h('span', {
+                                className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
+                                title: opportunity?.explanation?.summary || `Opportunity priority ${(priorityScore * 100).toFixed(0)}/100`
+                              }, `P${Math.round(priorityScore * 100)}`)
+                            ),
+                            h('h3', { className: 'text-sm font-semibold text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
+                            showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
+                              opportunity?.explanation?.summary || buildWhyLine({
+                                post,
+                                relevanceMeta,
+                                upvotesPerHour,
+                                commentsPerHour
+                              })
+                            ),
+                            h('div', { className: 'flex items-center gap-3 mt-2 text-xs' },
+                              h('span', { className: 'inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium' },
+                                renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'),
+                                score
                               ),
-                              h('button', {
-                                onClick: () => handleHidePost(post.id),
-                                className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
-                              },
-                                h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21' })
-                                ),
-                                'Hide post'
-                              )
+                              h('span', { className: 'inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium' },
+                                renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
+                                comments
+                              ),
+                              commentsPerHour > 0 && h('span', { className: 'inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400' },
+                                renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
+                                `${formatVelocity(commentsPerHour)}/h`
+                              ),
+                              h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
                             )
                           )
-                        );
+                        )),
+                        h('div', { className: 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity' },
+                          h('button', {
+                            onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
+                            className: 'p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors'
+                          },
+                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z' })
+                          )),
+                          activePostMenu === post.id && h('div', {
+                            className: 'absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 py-1 z-20 animate-fadeIn',
+                            onClick: (e) => e.stopPropagation()
+                          },
+                          h('button', {
+                            onClick: () => { window.open(post.reddit_url || post.external_url, '_blank'); setActivePostMenu(null); },
+                            className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
+                          },
+                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
+                          ),
+                          'Open in Reddit'),
+                          h('button', {
+                            onClick: () => handleCopyLink(post),
+                            className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
+                          },
+                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3' })
+                          ),
+                          'Copy link'),
+                          h('button', {
+                            onClick: () => handleHidePost(post.id),
+                            className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
+                          },
+                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21' })
+                          ),
+                          'Hide post'))
+                        ));
                       })
                     ),
               // Hover preview tooltip
@@ -2305,6 +2943,18 @@ const {
                 : h('article', { className: 'space-y-4' },
                     h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 flex-wrap' },
                       h('span', { className: 'px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium text-xs' }, `r/${selectedPost.subreddit}`),
+                      (() => {
+                        const detailOpportunity = getOpportunityForPost(selectedPost.id);
+                        const type = detailOpportunity?.classification?.type;
+                        if (!type) return null;
+                        return h('span', { className: 'px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium text-[11px] capitalize' }, String(type).replace(/_/g, ' '));
+                      })(),
+                      (() => {
+                        const detailOpportunity = getOpportunityForPost(selectedPost.id);
+                        const action = detailOpportunity?.action?.recommended;
+                        if (!action) return null;
+                        return h('span', { className: 'px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium text-[11px] capitalize' }, String(action).replace(/_/g, ' '));
+                      })(),
                       selectedPost.link_flair_text && h('span', { 
                         className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
                         style: { backgroundColor: selectedPost.link_flair_background_color || '#e4e4e7', color: selectedPost.link_flair_text_color === 'light' ? '#fff' : '#18181b' }
@@ -2313,12 +2963,14 @@ const {
                     ),
                     h('h2', { className: 'text-lg font-bold text-zinc-900 dark:text-white leading-snug' }, selectedPost.title),
                     (() => {
-                      const detailRelevanceScore = postRelevanceScores.get(String(selectedPost.id));
-                      const detailRelevanceMeta = postRelevanceMetadata.get(String(selectedPost.id));
+                      const detailRelevanceScore = postScoreProxies.get(String(selectedPost.id));
+                      const detailRelevanceMeta = postScoreMetadata.get(String(selectedPost.id));
+                      const detailOpportunity = getOpportunityForPost(selectedPost.id);
+                      const detailPriority = getPriorityScore(selectedPost.id);
                       if (detailRelevanceScore !== undefined && detailRelevanceScore !== null) {
                         return h('div', { 
-                          className: 'flex items-center gap-2 py-1',
-                          title: detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : `AI Relevance: ${detailRelevanceScore}/5`
+                          className: 'flex items-center gap-2 py-1 flex-wrap',
+                          title: detailOpportunity?.explanation?.summary || (detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : `Opportunity score: ${detailRelevanceScore}/5`)
                         },
                           h('span', {
                             className: `px-2 py-0.5 rounded text-xs font-bold font-mono shadow-sm ${aiScoresStale ? 'opacity-50' : ''} ${
@@ -2328,6 +2980,9 @@ const {
                               'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                             }`
                           }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
+                          detailPriority !== null && h('span', {
+                            className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950'
+                          }, `Priority ${Math.round(detailPriority * 100)}`),
                           h('div', { 
                             className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
                           },
@@ -2341,13 +2996,55 @@ const {
                               style: { width: `${Math.min(100, Math.max(0, (detailRelevanceScore / 5) * 100))}%` }
                             })
                           ),
-                          showAiReasons && detailRelevanceMeta?.reason && h('span', { 
+                          showAiReasons && (detailOpportunity?.explanation?.summary || detailRelevanceMeta?.reason) && h('span', { 
                             className: 'text-xs text-zinc-600 dark:text-zinc-400 line-clamp-1'
-                          }, detailRelevanceMeta.reason)
+                          }, detailOpportunity?.explanation?.summary || detailRelevanceMeta.reason)
                         );
                       }
                       return null;
                     })(),
+                    h('section', { className: 'sticky top-0 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/12' },
+                      h('div', { className: 'flex items-start justify-between gap-3' },
+                        h('div', { className: 'min-w-0' },
+                          h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0369A1] dark:text-sky-300' }, 'Opportunity Summary'),
+                          h('p', { className: 'mt-1 text-sm font-medium text-zinc-900 dark:text-white' }, selectedPostNextAction)
+                        ),
+                        h('button', {
+                          type: 'button',
+                          onClick: () => {
+                            setShowAiReasons(true);
+                            if (mobileView !== 'detail') setMobileView('detail');
+                          },
+                          className: 'shrink-0 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-[#0369A1] hover:bg-sky-100 dark:border-[#0284C7]/30 dark:text-sky-300 dark:hover:bg-[#0284C7]/18 transition-colors'
+                        }, 'Keep visible')
+                      ),
+                      h('div', { className: 'mt-3 space-y-2' },
+                        selectedPostWhyItems.map(item =>
+                          h('div', { key: item.label, className: 'rounded-lg bg-white/70 px-3 py-2 dark:bg-zinc-900/30' },
+                            h('p', { className: 'text-[11px] font-mono uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, item.label),
+                            h('p', { className: 'mt-1 text-sm text-zinc-700 dark:text-zinc-200' }, item.value)
+                          )
+                        )
+                      ),
+                      h('div', { className: 'mt-3 flex flex-wrap items-center gap-2' },
+                        h('button', {
+                          type: 'button',
+                          onClick: () => handleCopyLink(selectedPost),
+                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200 dark:hover:bg-zinc-900/70 transition-colors'
+                        },
+                          renderGlyph('M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3', 'w-3.5 h-3.5'),
+                          'Copy link'
+                        ),
+                        h('button', {
+                          type: 'button',
+                          onClick: () => handleHidePost(selectedPost.id),
+                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200 dark:hover:bg-zinc-900/70 transition-colors'
+                        },
+                          renderGlyph('M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21', 'w-3.5 h-3.5'),
+                          'Hide post'
+                        )
+                      )
+                    ),
                     h('div', { className: 'flex items-center gap-3 text-sm' },
                       h('span', { className: 'text-emerald-700 dark:text-emerald-400 font-medium' }, `▲ ${selectedPost.score}`),
                       h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, `💬 ${selectedPost.num_comments}`),
@@ -2409,6 +3106,286 @@ const {
               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
             ),
             h('span', { className: 'text-xs font-medium' }, 'Detail')
+          )
+        ),
+
+        onboardingOpen && h('div', { className: 'fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4', onClick: closeOnboarding },
+          h('div', {
+            className: 'w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-800',
+            onClick: (e) => e.stopPropagation()
+          },
+            h('div', { className: 'border-b border-zinc-200 px-5 py-4 dark:border-zinc-700' },
+              h('div', { className: 'flex items-start justify-between gap-4' },
+                h('div', null,
+                  h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0284C7] dark:text-sky-300' }, 'Quick Setup'),
+                  h('h2', { className: 'mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-white' }, onboardingCurrentStep.title),
+                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, onboardingCurrentStep.description)
+                ),
+                h('button', {
+                  type: 'button',
+                  onClick: closeOnboarding,
+                  className: 'rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200'
+                }, renderGlyph('M6 18L18 6M6 6l12 12', 'w-5 h-5'))
+              ),
+              h('div', { className: 'mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4' },
+                onboardingSteps.map((step, index) =>
+                  h('button', {
+                    key: step.id,
+                    type: 'button',
+                    onClick: () => setOnboardingStep(index),
+                    className: `rounded-xl border px-3 py-2 text-left transition-colors ${index === onboardingStep ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
+                  },
+                    h('p', { className: `text-[11px] font-mono uppercase tracking-wide ${index === onboardingStep ? 'text-[#0284C7] dark:text-sky-300' : 'text-zinc-400 dark:text-zinc-500'}` }, `Step ${index + 1}`),
+                    h('p', { className: `mt-1 text-sm font-medium ${index === onboardingStep ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}` }, step.title)
+                  )
+                )
+              )
+            ),
+            h('div', { className: 'p-5' },
+              onboardingCurrentStep.id === 'subs' && h('div', { className: 'space-y-5' },
+                h('div', null,
+                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Selected subreddits'),
+                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, 'Pick 3 to 5 to start. You can change them later.'),
+                  h('div', { className: 'mt-3 flex min-h-12 flex-wrap gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-600 dark:bg-zinc-900/40' },
+                    subs.length
+                      ? subs.map(sub =>
+                          h('button', {
+                            key: sub,
+                            type: 'button',
+                            onClick: () => handleRemoveSub(sub),
+                            className: 'inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-[#0284C7]'
+                          }, `r/${sub}`, renderGlyph('M6 18L18 6M6 6l12 12', 'w-3 h-3'))
+                        )
+                      : h('p', { className: 'text-sm text-zinc-400 dark:text-zinc-500' }, 'No subreddits selected yet.')
+                  )
+                ),
+                h('div', { className: 'grid gap-5 lg:grid-cols-[1.1fr_0.9fr]' },
+                  h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
+                    h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Add your own list'),
+                    h('textarea', {
+                      value: onboardingSubInput,
+                      onChange: (e) => setOnboardingSubInput(e.target.value),
+                      placeholder: 'programming, webdev, javascript',
+                      rows: 4,
+                      className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0284C7] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
+                    }),
+                    h('div', { className: 'mt-3 flex items-center justify-between gap-3' },
+                      h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate names with commas or new lines.'),
+                      h('button', {
+                        type: 'button',
+                        onClick: handleOnboardingAddSubs,
+                        disabled: !onboardingSubInput.trim(),
+                        className: 'rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]'
+                      }, 'Add list')
+                    )
+                  ),
+                  h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
+                    h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Starter packs'),
+                    h('div', { className: 'mt-3 space-y-2' },
+                      STARTER_PACKS.map(pack =>
+                        h('button', {
+                          key: pack.id,
+                          type: 'button',
+                          onClick: () => handleApplyStarterPack(pack),
+                          className: 'flex w-full items-center gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-left transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'
+                        },
+                          renderStarterPackIcon(pack.id),
+                          h('div', { className: 'min-w-0' },
+                            h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, pack.label),
+                            h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, pack.subs.map(sub => `r/${sub}`).join(', '))
+                          )
+                        )
+                      )
+                    )
+                  )
+                ),
+                h('div', null,
+                  h('p', { className: 'text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Popular'),
+                  h('div', { className: 'mt-2 flex flex-wrap gap-2' },
+                    POPULAR_SUBREDDITS.slice(0, 12).map(sub =>
+                      h('button', {
+                        key: sub,
+                        type: 'button',
+                        onClick: () => handleAddSub(sub),
+                        disabled: subs.some(s => s.toLowerCase() === sub.toLowerCase()),
+                        className: 'rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600'
+                      }, `r/${sub}`)
+                    )
+                  )
+                )
+              ),
+              onboardingCurrentStep.id === 'goal' && h('div', { className: 'space-y-5' },
+                h('div', null,
+                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Preset'),
+                  h('div', { className: 'mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3' },
+                    AI_PRESETS.map(preset =>
+                      h('button', {
+                        key: preset.id,
+                        type: 'button',
+                        onClick: () => applyPreset(preset),
+                        className: `rounded-xl border p-4 text-left transition-colors ${aiPresetId === preset.id ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
+                      },
+                        h('div', { className: 'flex items-center gap-2' },
+                          renderPresetIcon(preset.id, aiPresetId === preset.id),
+                          h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, preset.label)
+                        ),
+                        h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, truncateText(preset.goals, 110))
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
+                  h('div', { className: 'flex items-center justify-between gap-3' },
+                    h('div', null,
+                      h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Opportunity brief'),
+                      h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, opportunityEngineEnabled ? 'Describe the conversations and opportunities you want surfaced first.' : 'Optional if you plan to keep the engine off.')
+                    ),
+                    aiPresetSuggestion && aiPresetSuggestion.id !== aiPresetId && h('button', {
+                      type: 'button',
+                      onClick: () => applyPreset(aiPresetSuggestion),
+                      className: 'rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-[#0369A1] transition-colors hover:bg-sky-100 dark:border-[#0284C7]/30 dark:bg-[#0284C7]/15 dark:text-sky-300'
+                    }, `Use suggested: ${aiPresetSuggestion.label}`)
+                  ),
+                  h('textarea', {
+                    value: opportunityBrief,
+                    onChange: (e) => setOpportunityBrief(e.target.value),
+                    rows: 4,
+                    placeholder: 'I want to find high-intent posts from people actively asking for help.',
+                    className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0284C7] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
+                  })
+                )
+              ),
+              onboardingCurrentStep.id === 'ai' && h('div', { className: 'grid gap-4 md:grid-cols-2' },
+                h('button', {
+                  type: 'button',
+                  onClick: () => setOpportunityEngineEnabled(false),
+                  className: `rounded-xl border p-5 text-left transition-colors ${!opportunityEngineEnabled ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
+                },
+                  h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, 'Manual scan'),
+                  h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, 'Browse Reddit posts with filters only. Best if you want a lightweight setup first.')
+                ),
+                h('button', {
+                  type: 'button',
+                  onClick: () => setOpportunityEngineEnabled(true),
+                  className: `rounded-xl border p-5 text-left transition-colors ${opportunityEngineEnabled ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
+                },
+                  h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, 'Opportunity engine'),
+                  h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, 'Rank the feed against your business profile so the strongest opportunities rise to the top.')
+                ),
+                opportunityEngineEnabled && h('div', { className: 'md:col-span-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
+                  h('div', { className: 'flex flex-wrap items-start justify-between gap-3' },
+                    h('div', null,
+                      h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Model'),
+                      h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, secureKeyStatus.hasKey ? 'You already have a secure key saved.' : 'You can save a key later in Settings if you want more model options.')
+                    ),
+                    selectedModelInfo && h('span', { className: 'rounded-full bg-zinc-100 px-3 py-1 text-xs font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200' }, selectedModelInfo.name)
+                  ),
+                  h('div', { className: 'mt-3 grid gap-3 md:grid-cols-2' },
+                    modelGroups.recommended.concat(modelGroups.latestFree.slice(0, 1)).filter((model, index, arr) => arr.findIndex(item => item.id === model.id) === index).map(model =>
+                      h('button', {
+                        key: model.id,
+                        type: 'button',
+                        onClick: () => setOpenRouterModel(model.id),
+                        className: `rounded-xl border p-3 text-left transition-colors ${openRouterModel === model.id ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
+                      },
+                        h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, model.name),
+                        h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, model.hint || model.id)
+                      )
+                    )
+                  )
+                )
+              ),
+              onboardingCurrentStep.id === 'depth' && h('div', { className: 'grid gap-5 lg:grid-cols-[1fr_0.9fr]' },
+                h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
+                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Fetch depth'),
+                  h('div', { className: 'mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3' },
+                    [1, 3, 5, 10, 0].map(value =>
+                      h('button', {
+                        key: String(value),
+                        type: 'button',
+                        onClick: () => setMaxPages(value),
+                        className: `rounded-xl border px-3 py-3 text-left transition-colors ${maxPages === value ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
+                      },
+                        h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, value === 0 ? 'All pages' : `${value} page${value === 1 ? '' : 's'}`),
+                        h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, value <= 1 ? 'Fastest' : value === 0 ? 'Deepest scan' : 'Balanced coverage')
+                      )
+                    )
+                  ),
+                  h('div', { className: 'mt-4 grid gap-4 sm:grid-cols-2' },
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Feed'),
+                      h('select', {
+                        value: mode,
+                        onChange: (e) => setMode(e.target.value),
+                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
+                      },
+                        h('option', { value: 'new' }, 'Latest posts'),
+                        h('option', { value: 'top' }, 'Top posts')
+                      )
+                    ),
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Auto-refresh'),
+                      h('select', {
+                        value: autoRefreshEnabled ? autoRefreshInterval : 0,
+                        onChange: (e) => {
+                          const nextValue = Number(e.target.value);
+                          if (nextValue === 0) {
+                            setAutoRefreshEnabled(false);
+                          } else {
+                            setAutoRefreshEnabled(true);
+                            setAutoRefreshInterval(nextValue);
+                          }
+                        },
+                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
+                      },
+                        h('option', { value: 0 }, 'Off'),
+                        AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `Every ${opt} min`))
+                      )
+                    )
+                  )
+                ),
+                h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
+                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'What happens next'),
+                  h('ul', { className: 'mt-3 space-y-3 text-sm text-zinc-600 dark:text-zinc-300' },
+                    h('li', null, `Scan ${subs.length || 0} subreddit${subs.length === 1 ? '' : 's'}.`),
+                    h('li', null, opportunityEngineEnabled ? 'The opportunity engine will rank posts against your business profile.' : 'The feed will stay manual until you enable the opportunity engine.'),
+                    h('li', null, `Fetch depth is set to ${maxPages === 0 ? 'all available pages' : `${maxPages} page${maxPages === 1 ? '' : 's'}`}.`)
+                  )
+                )
+              )
+            ),
+            h('div', { className: 'flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-700' },
+              h('div', { className: 'flex items-center gap-2' },
+                h('button', {
+                  type: 'button',
+                  onClick: () => {
+                    setOnboardingCompleted(true);
+                    setOnboardingOpen(false);
+                  },
+                  className: 'text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+                }, 'Skip for now'),
+                onboardingStep > 0 && h('button', {
+                  type: 'button',
+                  onClick: () => setOnboardingStep(step => Math.max(0, step - 1)),
+                  className: 'rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                }, 'Back')
+              ),
+              h('div', { className: 'flex items-center gap-2' },
+                onboardingStep < onboardingSteps.length - 1
+                  ? h('button', {
+                      type: 'button',
+                      onClick: () => setOnboardingStep(step => Math.min(onboardingSteps.length - 1, step + 1)),
+                      disabled: !onboardingCanContinue,
+                      className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]'
+                    }, 'Continue')
+                  : h('button', {
+                      type: 'button',
+                      onClick: completeOnboarding,
+                      disabled: !onboardingCanContinue || subs.length === 0 || loading,
+                      className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]'
+                    }, loading ? 'Loading…' : 'Finish and fetch')
+              )
+            )
           )
         ),
 
@@ -2606,24 +3583,24 @@ const {
                   ),
                   h('div', { className: 'flex items-center justify-between' },
                     h('div', null,
-                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on strong AI matches'),
-                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post reaches your AI threshold (AI ranking must be enabled)')
+                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on strong opportunities'),
+                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post reaches your threshold (opportunity engine must be enabled)')
                     ),
                     h('button', {
-                      onClick: () => setNotifyHighRelevance(!notifyHighRelevance),
-                      disabled: !aiEnabled || !aiGoals || !aiGoals.trim(),
-                      className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyHighRelevance ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                      onClick: () => setNotifyStrongOpportunities(!notifyStrongOpportunities),
+                      disabled: !opportunityEngineEnabled || !hasOpportunityGoals,
+                      className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyStrongOpportunities ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
                     },
-                      h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifyHighRelevance ? 'translate-x-5' : ''}` })
+                      h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifyStrongOpportunities ? 'translate-x-5' : ''}` })
                     )
                   ),
                   h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strong-match threshold'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum AI score (4 or 5) to trigger a notification'),
+                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strong-opportunity threshold'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum priority proxy (4 or 5) to trigger a notification'),
                     h('select', {
-                      value: highRelevanceThreshold,
-                      onChange: (e) => setHighRelevanceThreshold(Number(e.target.value) || 4),
-                      disabled: !notifyHighRelevance || !aiEnabled,
+                      value: priorityNotificationThreshold,
+                      onChange: (e) => setPriorityNotificationThreshold(Number(e.target.value) || 4),
+                      disabled: !notifyStrongOpportunities || !opportunityEngineEnabled,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
                     },
                       h('option', { value: 4 }, '4+'),
@@ -2632,30 +3609,30 @@ const {
                   )
                 )
               ),
-              // AI Relevance Ranking section
+              // Opportunity engine section
               h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
                 // Header: label + enable toggle
                 h('div', { className: 'flex items-center justify-between mb-4' },
-                  h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide' }, 'AI Relevance Ranking'),
+                  h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide' }, 'Opportunity Engine'),
                   h('button', {
-                    onClick: () => setAiEnabled(!aiEnabled),
-                    title: aiEnabled ? 'Disable AI ranking' : 'Enable AI ranking',
-                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${aiEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
+                    onClick: () => setOpportunityEngineEnabled(!opportunityEngineEnabled),
+                    title: opportunityEngineEnabled ? 'Disable opportunity engine' : 'Enable opportunity engine',
+                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${opportunityEngineEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
                   },
-                    h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${aiEnabled ? 'translate-x-5' : ''}` })
+                    h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${opportunityEngineEnabled ? 'translate-x-5' : ''}` })
                   )
                 ),
                 h('div', { className: 'space-y-4' },
 
-                  // 1. Goal
+                  // 1. Business profile
                   h('div', null,
                     h('div', { className: 'flex flex-wrap gap-1.5 mb-2' },
                       AI_PRESETS.map(preset => h('button', {
                         key: preset.id,
                         type: 'button',
                         onClick: () => applyPreset(preset),
-                        disabled: !aiEnabled,
-                        className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#0284C7] text-white border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!aiEnabled ? 'opacity-50 cursor-not-allowed' : ''}`
+                        disabled: !opportunityEngineEnabled,
+                        className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#0284C7] text-white border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!opportunityEngineEnabled ? 'opacity-50 cursor-not-allowed' : ''}`
                       },
                         h('span', { className: 'inline-flex items-center gap-1.5' },
                           renderPresetIcon(preset.id, aiPresetId === preset.id),
@@ -2663,11 +3640,98 @@ const {
                         )
                       ))
                     ),
+                    h('div', { className: 'grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3' },
+                      h('label', { className: 'block sm:col-span-2' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'What do you sell?'),
+                        h('input', {
+                          type: 'text',
+                          value: businessOffering,
+                          onChange: (e) => setBusinessOffering(e.target.value),
+                          placeholder: 'SEO consulting for B2B SaaS teams',
+                          disabled: !opportunityEngineEnabled,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                        })
+                      ),
+                      h('label', { className: 'block' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Ideal customer'),
+                        h('input', {
+                          type: 'text',
+                          value: idealCustomer,
+                          onChange: (e) => setIdealCustomer(e.target.value),
+                          placeholder: 'Founders and marketing leads at SMBs',
+                          disabled: !opportunityEngineEnabled,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                        })
+                      ),
+                      h('label', { className: 'block' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Preferred engagement'),
+                        h('select', {
+                          value: preferredEngagement,
+                          onChange: (e) => setPreferredEngagement(e.target.value),
+                          disabled: !opportunityEngineEnabled,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                        },
+                          h('option', { value: 'reply' }, 'Public reply'),
+                          h('option', { value: 'dm' }, 'DM / outreach'),
+                          h('option', { value: 'either' }, 'Either'),
+                          h('option', { value: 'research' }, 'Research only')
+                        )
+                      ),
+                      h('label', { className: 'block sm:col-span-2' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Problems you solve'),
+                        h('textarea', {
+                          value: problemsSolved,
+                          onChange: (e) => setProblemsSolved(e.target.value),
+                          placeholder: 'Traffic drops, poor search visibility, weak conversion pages',
+                          disabled: !opportunityEngineEnabled,
+                          rows: 2,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none'
+                        })
+                      ),
+                      h('label', { className: 'block' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strategy'),
+                        h('select', {
+                          value: strategyPreset,
+                          onChange: (e) => setStrategyPreset(e.target.value),
+                          disabled: !opportunityEngineEnabled,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                        },
+                          h('option', { value: 'balanced' }, 'Balanced'),
+                          h('option', { value: 'sales' }, 'Sales'),
+                          h('option', { value: 'fast_wins' }, 'Fast wins'),
+                          h('option', { value: 'research' }, 'Research')
+                        )
+                      ),
+                      h('label', { className: 'block' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strictness'),
+                        h('select', {
+                          value: opportunityStrictness,
+                          onChange: (e) => setOpportunityStrictness(e.target.value),
+                          disabled: !opportunityEngineEnabled,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                        },
+                          h('option', { value: 'strict' }, 'Strict'),
+                          h('option', { value: 'balanced' }, 'Balanced'),
+                          h('option', { value: 'broad' }, 'Broad recall')
+                        )
+                      ),
+                      h('label', { className: 'block sm:col-span-2' },
+                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Opportunity types'),
+                        h('input', {
+                          type: 'text',
+                          value: opportunityFocus,
+                          onChange: (e) => setOpportunityFocus(e.target.value),
+                          placeholder: 'lead, pain_point, tool_search',
+                          disabled: !opportunityEngineEnabled,
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                        })
+                      )
+                    ),
                     h('textarea', {
-                      value: aiGoals,
-                      onChange: (e) => setAiGoals(e.target.value),
-                      placeholder: "Describe what you're looking for — e.g., \"I run an SEO agency and am looking for small business owners asking about SEO\"",
-                      disabled: !aiEnabled,
+                      value: opportunityBrief,
+                      onChange: (e) => setOpportunityBrief(e.target.value),
+                      placeholder: 'Optional: extra instructions or nuanced opportunities to prioritize',
+                      disabled: !opportunityEngineEnabled,
                       rows: 3,
                       className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none'
                     })
@@ -2678,24 +3742,24 @@ const {
                     h('button', {
                       type: 'button',
                       onClick: () => setAiAdvancedOpen(!aiAdvancedOpen),
-                      disabled: !aiEnabled,
+                      disabled: !opportunityEngineEnabled,
                       className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
                     },
-                      h('span', null, 'Tune'),
+                      h('span', null, 'Advanced tuning'),
                       h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiAdvancedOpen ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
                       )
                     ),
                     aiAdvancedOpen && h('div', { className: 'px-3 pb-3 pt-3 space-y-3 border-t border-zinc-200 dark:border-zinc-700' },
                       h('label', { className: 'block' },
-                        h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Exclude'),
+                        h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Avoid'),
                         h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'What should score low? e.g. job posts, memes, ads'),
                         h('input', {
                           type: 'text',
                           value: aiAvoid,
                           onChange: (e) => setAiAvoid(e.target.value),
                           placeholder: 'job postings, memes, generic questions without intent',
-                          disabled: !aiEnabled,
+                          disabled: !opportunityEngineEnabled,
                           className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         })
                       ),
@@ -2708,7 +3772,7 @@ const {
                               value: aiExamplePerfect,
                               onChange: (e) => setAiExamplePerfect(e.target.value),
                               rows: 2,
-                              disabled: !aiEnabled,
+                              disabled: !opportunityEngineEnabled,
                               placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
                               className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
                             })
@@ -2719,7 +3783,7 @@ const {
                               value: aiExampleStrong,
                               onChange: (e) => setAiExampleStrong(e.target.value),
                               rows: 2,
-                              disabled: !aiEnabled,
+                              disabled: !opportunityEngineEnabled,
                               placeholder: 'How can we improve our local rankings?',
                               className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
                             })
@@ -2730,7 +3794,7 @@ const {
                               value: aiExampleReject,
                               onChange: (e) => setAiExampleReject(e.target.value),
                               rows: 2,
-                              disabled: !aiEnabled,
+                              disabled: !opportunityEngineEnabled,
                               placeholder: 'Hiring SEO specialist, $20/hr',
                               className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
                             })
@@ -2745,7 +3809,7 @@ const {
                     h('button', {
                       type: 'button',
                       onClick: () => setAiShowModelKey(!aiShowModelKey),
-                      disabled: !aiEnabled,
+                      disabled: !opportunityEngineEnabled,
                       className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
                     },
                       h('span', { className: 'flex items-center gap-2' },
@@ -2787,12 +3851,12 @@ const {
                                 value: openRouterApiKey,
                                 onChange: (e) => setOpenRouterApiKey(e.target.value),
                                 placeholder: 'sk-or-v1-...',
-                                disabled: !aiEnabled,
+                                disabled: !opportunityEngineEnabled,
                                 className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono'
                               }),
                               openRouterApiKey.trim() && h('button', {
                                 onClick: saveSecureApiKey,
-                                disabled: savingSecureKey || !aiEnabled,
+                                disabled: savingSecureKey || !opportunityEngineEnabled,
                                 className: 'px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap',
                                 title: 'Save key securely (HttpOnly cookie)'
                               }, savingSecureKey ? 'Saving...' : 'Save securely')
@@ -2817,7 +3881,7 @@ const {
                           h('select', {
                             value: openRouterModel,
                             onChange: (e) => setOpenRouterModel(e.target.value),
-                            disabled: !aiEnabled,
+                            disabled: !opportunityEngineEnabled,
                             className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                           },
                             modelGroups.all.map(model =>
@@ -2830,7 +3894,7 @@ const {
                           h('button', {
                             type: 'button',
                             onClick: () => setShowAllModels(!showAllModels),
-                            disabled: !aiEnabled,
+                            disabled: !opportunityEngineEnabled,
                             className: 'text-xs text-[#0284C7] dark:text-sky-400 hover:underline disabled:opacity-50 whitespace-nowrap shrink-0'
                           }, showAllModels ? 'Fewer' : 'All models')
                         ),
@@ -2850,20 +3914,20 @@ const {
                       h('svg', { className: `w-3 h-3 transition-transform ${aiShowPromptPreview ? 'rotate-90' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5l7 7-7 7' })
                       ),
-                      'Preview scoring prompt',
+                      'Preview engine prompt',
                       h('span', { className: 'px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 font-mono text-[10px]' }, AI_PROMPT_VERSION)
                     ),
                     aiShowPromptPreview && h('pre', { className: 'mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
-                      buildScoringPromptPreview({ goals: aiGoals, context: aiContext, avoid: aiAvoid, examples: { perfect: aiExamplePerfect, strong: aiExampleStrong, reject: aiExampleReject } })
+                      buildScoringPromptPreview({ goals: effectiveGoalText, context: effectiveContextText, avoid: effectiveAvoidText, examples: { perfect: aiExamplePerfect, strong: aiExampleStrong, reject: aiExampleReject } })
                     )
                   ),
 
                   // 6. Status banners
-                  aiRankingError && h('div', { className: 'p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2' },
-                    h('span', null, aiRankingError),
-                    h('button', { onClick: () => setAiRankingError(null), className: 'text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 font-medium' }, '\u00d7')
+                  opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2' },
+                    h('span', null, opportunityScanError),
+                    h('button', { onClick: () => setOpportunityScanError(null), className: 'text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 font-medium' }, '\u00d7')
                   ),
-                  aiScoresStale && !aiRankingError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
+                  aiScoresStale && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
                     'Scores are cached \u2014 badges show ~ prefix. Re-run for fresh results.'
                   ),
 
@@ -2872,10 +3936,10 @@ const {
                     h('button', {
                       type: 'button',
                       onClick: rerankNow,
-                      disabled: !aiEnabled || !aiGoals || !aiGoals.trim() || aiRankingLoading || loading || data.length === 0,
+                      disabled: !opportunityEngineEnabled || !hasOpportunityGoals || opportunityScanLoading || loading || data.length === 0,
                       className: 'flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                    }, aiRankingLoading ? 'Analyzing\u2026' : 'Run ranking'),
-                    aiRankingLoading && h('div', { className: 'flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 shrink-0' },
+                    }, opportunityScanLoading ? 'Analyzing\u2026' : 'Run opportunity scan'),
+                    opportunityScanLoading && h('div', { className: 'flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 shrink-0' },
                       h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' })
                     )
                   )

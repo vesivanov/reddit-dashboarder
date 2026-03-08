@@ -174,6 +174,12 @@ Keep panel shadows light or absent inside the dashboard.
 
 AI scores and numeric values use monospace and a warm accent:
 
+Product direction note:
+
+- the dashboard is moving from score-first "AI relevance" presentation to an opportunity-first presentation
+- UI should prioritize opportunity type, recommended action, and short rationale over opaque score badges
+- raw model/debug scores should remain secondary and progressively disclosed
+
 ```text
 font-mono text-xs font-medium
 bg-sky-50 dark:bg-[#0284C7]/15

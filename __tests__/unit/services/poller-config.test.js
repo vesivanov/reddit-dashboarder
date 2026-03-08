@@ -1,64 +1,54 @@
-const { beforeEach, describe, expect, test } = require('@jest/globals');
+const { describe, test, expect } = require('@jest/globals');
 
-const mockStore = new Map();
+const {
+  buildDerivedGoalText,
+  buildDerivedContextText,
+  buildSettingsFromAgentConfig,
+} = require('../../../lib/services/poller-config');
 
-jest.mock('../../../lib/storage', () => ({
-  get: jest.fn(async (key) => mockStore.get(key) ?? null),
-  set: jest.fn(async (key, value) => {
-    mockStore.set(key, value);
-  }),
-  delete: jest.fn(async (key) => {
-    mockStore.delete(key);
-  }),
-}));
+describe('poller-config opportunity mapping', () => {
+  test('builds derived goal and context text from opportunity config', () => {
+    const opportunityConfig = {
+      businessOffering: 'SEO consulting',
+      idealCustomer: 'SMB owners',
+      problemsSolved: 'Traffic drops',
+      preferredEngagement: 'reply',
+      strategyPreset: 'sales',
+      opportunityTypes: ['lead', 'pain_point'],
+      strictness: 'strict',
+    };
 
-const { loadPollerRuntimeConfig } = require('../../../lib/services/poller-config');
+    const goals = buildDerivedGoalText(opportunityConfig, 'Additional goal');
+    const context = buildDerivedContextText(opportunityConfig, 'Extra context');
 
-describe('poller-config service', () => {
-  beforeEach(() => {
-    mockStore.clear();
-    delete process.env.POLLER_OPENROUTER_MODEL;
+    expect(goals).toContain('Offering: SEO consulting');
+    expect(goals).toContain('Prioritize opportunities: lead, pain_point');
+    expect(context).toContain('public reply first');
+    expect(context).toContain('optimize for sales opportunities');
+    expect(context).toContain('favor precision');
   });
 
-  test('uses active workspace config as the canonical poller source', async () => {
-    mockStore.set('poller-active-workspace', {
-      workspaceId: 'ws_123',
-      updatedAt: '2026-03-08T12:00:00.000Z',
-    });
-    mockStore.set('agent-config:ws_123', {
-      scopeId: 'ws_123',
-      subreddits: ['persistedsub'],
-      goals: 'Persisted goals',
-      aiContext: 'Persisted context',
+  test('prefers derived opportunity text in poller settings', () => {
+    const settings = buildSettingsFromAgentConfig({
+      goals: 'Legacy goals',
+      aiContext: 'Legacy context',
       threshold: 5,
-      model: 'persisted/model',
-      scoringConfig: { lookingFor: 'Persisted goals', avoid: 'Students' },
+      model: 'openai/gpt-4o-mini',
+      opportunityConfig: {
+        businessOffering: 'Growth consulting',
+        idealCustomer: 'B2B SaaS teams',
+        problemsSolved: 'Acquisition bottlenecks',
+        preferredEngagement: 'either',
+        strategyPreset: 'balanced',
+        opportunityTypes: ['lead'],
+        strictness: 'balanced',
+      },
     });
 
-    const result = await loadPollerRuntimeConfig();
-
-    expect(result.source).toBe('agent-config');
-    expect(result.activeWorkspace).toEqual({
-      workspaceId: 'ws_123',
-      updatedAt: '2026-03-08T12:00:00.000Z',
-    });
-    expect(result.subreddits).toEqual(['persistedsub']);
-    expect(result.settings).toEqual({
-      aiGoals: 'Persisted goals',
-      aiContext: 'Persisted context',
-      aiThreshold: 5,
-      openRouterModel: 'persisted/model',
-      scoringConfig: { lookingFor: 'Persisted goals', avoid: 'Students' },
-    });
-  });
-
-  test('falls back to env-backed defaults when no config exists', async () => {
-    process.env.POLLER_OPENROUTER_MODEL = 'env/model';
-
-    const result = await loadPollerRuntimeConfig();
-
-    expect(result.source).toBe('defaults');
-    expect(result.subreddits).toEqual(['SEO', 'webdev', 'startups', 'freelance', 'marketing']);
-    expect(result.settings.openRouterModel).toBe('env/model');
+    expect(settings.aiGoals).toContain('Growth consulting');
+    expect(settings.aiContext).toContain('either public reply or direct outreach');
+    expect(settings.aiThreshold).toBe(5);
+    expect(settings.openRouterModel).toBe('openai/gpt-4o-mini');
+    expect(settings.opportunityConfig).toBeTruthy();
   });
 });

@@ -13,10 +13,10 @@ jest.mock('../../../lib/services/poller-config', () => ({
 }));
 
 const { loadPollerRuntimeConfig } = require('../../../lib/services/poller-config');
-const refreshLeadsHandler = require('../../../api/cron/refresh-leads');
+const refreshLeadsHandler = require('../../../api/cron/refresh-opportunities');
 const { runHandler } = require('../../helpers/run-handler');
 
-describe('/api/cron/refresh-leads', () => {
+describe('/api/cron/refresh-opportunities', () => {
   beforeEach(() => {
     process.env.CRON_SECRET_KEY = 'cron-secret';
     process.env.REDDIT_CLIENT_ID = 'reddit-client-id';
@@ -46,13 +46,13 @@ describe('/api/cron/refresh-leads', () => {
     mockPoll.mockResolvedValue({
       polledAt: '2026-03-08T12:00:00.000Z',
       postCount: 14,
-      hotLeadCount: 3,
+      opportunityCount: 3,
       subreddits: ['saas', 'smallbusiness'],
     });
 
     const res = await runHandler(refreshLeadsHandler, {
       method: 'GET',
-      url: '/api/cron/refresh-leads',
+      url: '/api/cron/refresh-opportunities',
       headers: {
         origin: 'http://localhost:3000',
         'x-cron-secret': 'cron-secret',
@@ -80,7 +80,7 @@ describe('/api/cron/refresh-leads', () => {
       success: true,
       polledAt: '2026-03-08T12:00:00.000Z',
       postsFetched: 14,
-      hotLeadsFound: 3,
+      opportunitiesFound: 3,
       subreddits: ['saas', 'smallbusiness'],
       subredditCount: 2,
       usingUserConfig: true,
@@ -104,13 +104,13 @@ describe('/api/cron/refresh-leads', () => {
     mockPoll.mockResolvedValue({
       polledAt: '2026-03-08T12:00:00.000Z',
       postCount: 8,
-      hotLeadCount: 1,
+      opportunityCount: 1,
       subreddits: ['SEO', 'webdev', 'startups', 'freelance', 'marketing'],
     });
 
     const res = await runHandler(refreshLeadsHandler, {
       method: 'GET',
-      url: '/api/cron/refresh-leads',
+      url: '/api/cron/refresh-opportunities',
       headers: {
         'x-cron-secret': 'cron-secret',
       },

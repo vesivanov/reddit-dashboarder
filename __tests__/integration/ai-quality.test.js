@@ -1,9 +1,9 @@
 /**
- * AI Quality Tests: Validate ranking accuracy and calibration
+ * Opportunity Ranking Quality Tests: Validate ranking accuracy and calibration
  * 
- * Tests that AI ranking:
+ * Tests that opportunity ranking:
  * - Properly calibrates scores (top 10% get ≥4)
- * - Provides relevant scores based on user goals
+ * - Provides useful score proxies based on the opportunity brief
  * - Handles edge cases (empty posts, very long content)
  * - Batches efficiently
  */
@@ -17,7 +17,7 @@ process.env.NODE_ENV = 'test';
 const aiRankHandler = require('../../lib/api-handlers/reddit/ai-rank');
 const { PROMPT_VERSION } = aiRankHandler;
 
-describe('AI Ranking Quality', () => {
+describe('Opportunity Ranking Quality', () => {
   let mockReq, mockRes;
 
   beforeEach(() => {
@@ -83,7 +83,7 @@ describe('AI Ranking Quality', () => {
     console.log(`\n✅ Calibration: ${highScores.length} posts scored ≥4 out of ${posts.length}`);
   });
 
-  test('Ranks posts by relevance to user goals', async () => {
+  test('Ranks posts according to the opportunity brief', async () => {
     const posts = [
       { id: 'post1', title: 'React hooks tutorial', selftext: 'Learn React hooks', subreddit: 'react', score: 50, num_comments: 10, created_utc: Date.now() / 1000 },
       { id: 'post2', title: 'Random cat picture', selftext: 'Cute cat', subreddit: 'aww', score: 1000, num_comments: 500, created_utc: Date.now() / 1000 },
@@ -122,7 +122,7 @@ describe('AI Ranking Quality', () => {
     // TypeScript post should rank higher than cat post
     expect(response.scores.post3).toBeGreaterThan(response.scores.post2);
     
-    console.log(`\n✅ Relevance ranking: React=${response.scores.post1}, TypeScript=${response.scores.post3}, Cat=${response.scores.post2}`);
+    console.log(`\n✅ Opportunity ranking: React=${response.scores.post1}, TypeScript=${response.scores.post3}, Cat=${response.scores.post2}`);
   });
 
   test('Batches large post lists efficiently', async () => {

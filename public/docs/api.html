@@ -46,7 +46,7 @@
             <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>Authorization: Bearer &lt;AGENT_API_KEY&gt;</code></pre>
             <p><code>/api/reddit/digest</code> requires:</p>
             <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>Authorization: Bearer &lt;DIGEST_API_KEY&gt;</code></pre>
-            <p><code>/api/cron/refresh-leads</code> requires:</p>
+            <p><code>/api/cron/refresh-opportunities</code> (or the legacy <code>/api/cron/refresh-opportunities</code> alias) requires:</p>
             <pre class="rounded-xl border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>X-Cron-Secret: &lt;CRON_SECRET_KEY&gt;</code></pre>
           </div>
         </section>
@@ -82,7 +82,7 @@
 
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
               <h3 class="mb-2 text-lg font-semibold text-white">GET /api/sync/:token</h3>
-              <p class="mb-3 text-zinc-300">Return the synced bundle plus derived hot-lead analysis.</p>
+              <p class="mb-3 text-zinc-300">Return the synced bundle plus derived opportunity analysis.</p>
               <pre class="rounded-lg border border-zinc-800 bg-[#0C0C0D] p-4 text-sm text-zinc-100"><code>curl https://your-app.example/api/sync/SYNC_TOKEN</code></pre>
             </div>
 
@@ -124,8 +124,8 @@
             </div>
 
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h3 class="mb-2 text-lg font-semibold text-white">GET /api/v1/leads/latest</h3>
-              <p class="mb-3 text-zinc-300">Returns the latest stored polled leads. This endpoint is intentionally public and read-only in the current implementation.</p>
+              <h3 class="mb-2 text-lg font-semibold text-white">GET /api/v1/opportunities/latest</h3>
+              <p class="mb-3 text-zinc-300">Returns the latest stored polled opportunities. <code>/api/v1/opportunities/latest</code> remains as a compatibility alias.</p>
             </div>
           </div>
         </section>
@@ -134,16 +134,16 @@
           <h2 class="mb-3 text-2xl font-bold text-white">Polling Endpoints</h2>
           <div class="space-y-5">
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h3 class="mb-2 text-lg font-semibold text-white">GET /api/cron/refresh-leads</h3>
+              <h3 class="mb-2 text-lg font-semibold text-white">GET /api/cron/refresh-opportunities</h3>
               <p class="mb-3 text-zinc-300">
                 Scheduled refresh endpoint. Requires <code>X-Cron-Secret</code>. Uses synced user config when available,
                 otherwise falls back to hardcoded defaults.
               </p>
             </div>
             <div class="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5">
-              <h3 class="mb-2 text-lg font-semibold text-white">GET /api/v1/leads/latest</h3>
+              <h3 class="mb-2 text-lg font-semibold text-white">GET /api/v1/opportunities/latest</h3>
               <p class="mb-3 text-zinc-300">
-                Returns the latest stored polling result including freshness metadata, hot leads, subreddit list, and total post count.
+                Returns the latest stored polling result including freshness metadata, opportunities, subreddit list, and total post count.
               </p>
             </div>
           </div>
@@ -186,7 +186,7 @@
           <h2 class="mb-3 text-2xl font-bold text-white">Operational Notes</h2>
           <ul class="space-y-2 text-zinc-300">
             <li>The digest endpoint proxies sync data; it does not fetch Reddit again.</li>
-            <li>The polling path may return useful hot leads even when AI ranking fails, using keyword-only fallback logic.</li>
+            <li>The polling path may return useful opportunities even when model ranking fails, using keyword-only fallback logic.</li>
             <li>Job data and synced data are only durable when Redis or KV is configured.</li>
           </ul>
         </section>

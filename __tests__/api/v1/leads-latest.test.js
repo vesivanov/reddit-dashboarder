@@ -8,9 +8,9 @@ jest.mock('../../../lib/storage', () => ({
 
 const storage = require('../../../lib/storage');
 const { runHandler } = require('../../helpers/run-handler');
-const leadsLatestHandler = require('../../../api/v1/leads/latest');
+const leadsLatestHandler = require('../../../api/v1/opportunities/latest');
 
-describe('/api/v1/leads/latest', () => {
+describe('/api/v1/opportunities/latest', () => {
   beforeEach(() => {
     process.env.AGENT_API_KEY = 'agent-test-key';
     storage.get.mockReset();
@@ -19,7 +19,7 @@ describe('/api/v1/leads/latest', () => {
   test('requires bearer auth', async () => {
     const res = await runHandler(leadsLatestHandler, {
       method: 'GET',
-      url: '/api/v1/leads/latest',
+      url: '/api/v1/opportunities/latest',
       headers: {
         origin: 'http://localhost:3000',
       },
@@ -32,12 +32,12 @@ describe('/api/v1/leads/latest', () => {
     });
   });
 
-  test('returns 404 when no leads have been stored yet', async () => {
+  test('returns 404 when no opportunities have been stored yet', async () => {
     storage.get.mockResolvedValue(null);
 
     const res = await runHandler(leadsLatestHandler, {
       method: 'GET',
-      url: '/api/v1/leads/latest',
+      url: '/api/v1/opportunities/latest',
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -45,32 +45,32 @@ describe('/api/v1/leads/latest', () => {
     });
 
     expect(res.status).toBe(404);
-    expect(storage.get).toHaveBeenCalledWith('latest-leads');
+    expect(storage.get).toHaveBeenCalledWith('latest-opportunities');
     expect(res.body).toEqual({
-      error: 'No leads data',
+      error: 'No opportunity data',
       message: 'No poll data found. The cron job may not have run yet.',
       polledAt: null,
-      hotLeadCount: 0,
-      hotLeads: [],
+      opportunityCount: 0,
+      opportunities: [],
     });
   });
 
-  test('returns lead data with freshness metadata', async () => {
+  test('returns opportunity data with freshness metadata', async () => {
     const originalNow = Date.now;
     Date.now = jest.fn(() => Date.parse('2026-03-08T12:00:00.000Z'));
 
     try {
       storage.get.mockResolvedValue({
         polledAt: '2026-03-08T10:30:00.000Z',
-        hotLeadCount: 2,
-        hotLeads: [{ id: 'lead-1' }, { id: 'lead-2' }],
+        opportunityCount: 2,
+        opportunities: [{ id: 'opp-1' }, { id: 'opp-2' }],
         subreddits: ['seo', 'webdev'],
         postCount: 18,
       });
 
       const res = await runHandler(leadsLatestHandler, {
         method: 'GET',
-        url: '/api/v1/leads/latest',
+        url: '/api/v1/opportunities/latest',
         headers: {
           authorization: 'Bearer agent-test-key',
         },
@@ -82,8 +82,8 @@ describe('/api/v1/leads/latest', () => {
         polledAt: '2026-03-08T10:30:00.000Z',
         ageMinutes: 90,
         isFresh: true,
-        hotLeadCount: 2,
-        hotLeads: [{ id: 'lead-1' }, { id: 'lead-2' }],
+        opportunityCount: 2,
+        opportunities: [{ id: 'opp-1' }, { id: 'opp-2' }],
         subreddits: ['seo', 'webdev'],
         totalPosts: 18,
       });
@@ -97,7 +97,7 @@ describe('/api/v1/leads/latest', () => {
 
     const res = await runHandler(leadsLatestHandler, {
       method: 'GET',
-      url: '/api/v1/leads/latest',
+      url: '/api/v1/opportunities/latest',
       headers: {
         authorization: 'Bearer agent-test-key',
       },
@@ -105,7 +105,7 @@ describe('/api/v1/leads/latest', () => {
 
     expect(res.status).toBe(500);
     expect(res.body).toEqual({
-      error: 'Failed to fetch leads',
+      error: 'Failed to fetch opportunities',
       message: 'storage unavailable',
     });
   });

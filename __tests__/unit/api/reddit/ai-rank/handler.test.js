@@ -96,4 +96,56 @@ describe('AI rank handler', () => {
     expect(payload.scores.p2).toBeNull();
     expect(payload.failedPostIds).toContain('p2');
   });
+
+  test('returns structured opportunities alongside legacy scores', async () => {
+    const req = {
+      method: 'POST',
+      body: {
+        posts: [{ id: 'post1', title: 'Need help with SEO', subreddit: 'smallbusiness', score: 14, num_comments: 5, created_utc: Date.now() / 1000 }],
+        userGoals: 'Find commercial marketing opportunities',
+        openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
+        openRouterApiKey: 'inline-key',
+      },
+      headers: { cookie: '' },
+    };
+
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: JSON.stringify([{
+              postId: 'post1',
+              score: 5,
+              confidence: 'high',
+              reason: 'Business owner needs SEO help now',
+              opportunityType: 'lead',
+              recommendedAction: 'reply_now',
+              signals: {
+                commercialIntent: 0.95,
+                serviceFit: 0.9,
+                buyerSignal: 0.8,
+                urgency: 0.85,
+                replyability: 0.8,
+                researchValue: 0.1,
+                authorityFit: 0.75,
+                risk: 0.05,
+              }
+            }])
+          }
+        }],
+      })
+    });
+
+    await handler(req, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.scores.post1).toBe(5);
+    expect(payload.opportunities.post1).toMatchObject({
+      classification: { type: 'lead' },
+      action: { recommended: 'reply_now' },
+    });
+    expect(payload.opportunities.post1.scores.priority).toBeGreaterThan(0.6);
+  });
 });

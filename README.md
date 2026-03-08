@@ -1,12 +1,39 @@
 # Reddit Dashboarder
 
-Reddit Dashboarder is a Reddit monitoring app with:
+Reddit Dashboarder is evolving from a Reddit monitoring app with AI relevance scoring into a commercial opportunity intelligence engine for sales and marketing workflows.
+
+The product direction is:
+
+- detect commercially useful Reddit conversations
+- classify the type of opportunity each conversation represents
+- rank opportunities for action
+- recommend what the user should do next
+
+The current app includes:
 
 - a marketing landing page at `/`
 - a React-based dashboard at `/app`
 - Express/Vercel API routes for Reddit fetches, OAuth, AI ranking, sync, and agent automation
 
 The current app is built from a single Express app (`app.js`) that runs locally via `server.js` and on Vercel via `api/index.js`.
+
+## Product Direction
+
+The legacy system is centered around generic AI relevance scoring. The new direction is opportunity-first:
+
+- opportunity feed instead of score feed
+- structured commercial signals instead of one opaque score
+- recommended action instead of generic "high relevance"
+
+This broader framing still supports lead discovery, but also makes room for:
+
+- pain-point discovery
+- tool-search monitoring
+- competitor mentions
+- content opportunities
+- commercial research workflows
+
+Detailed planning lives in [OPPORTUNITY_ENGINE_PLAN.md](./OPPORTUNITY_ENGINE_PLAN.md).
 
 ## What Exists Today
 
@@ -18,6 +45,8 @@ The current app is built from a single Express app (`app.js`) that runs locally 
 - Background polling helpers including `/api/cron/refresh-leads`, `/api/v1/jobs/drain`, and `/api/v1/leads/latest`
 - Secure OpenRouter key storage endpoints
 - Static docs under `/docs`
+
+The ranking stack is currently in transition from generic `aiRelevance` scoring to structured opportunity analysis.
 
 ## Stack
 

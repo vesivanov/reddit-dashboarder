@@ -38,6 +38,15 @@ describe('/api/v1/config', () => {
         aiPrompt: 'Prompt',
         aiThreshold: 4,
         openRouterModel: 'openai/gpt-4o-mini',
+        opportunityConfig: {
+          businessOffering: 'Fractional growth strategy',
+          idealCustomer: 'Developer tool founders',
+          problemsSolved: 'Positioning and acquisition',
+          preferredEngagement: 'reply',
+          strategyPreset: 'balanced',
+          opportunityTypes: ['lead', 'pain_point'],
+          strictness: 'balanced',
+        },
       },
       filters: {
         minScore: 10,
@@ -63,6 +72,15 @@ describe('/api/v1/config', () => {
       goals: 'Find React discussions',
       aiContext: '',
       aiPrompt: 'Prompt',
+      opportunityConfig: {
+        businessOffering: 'Fractional growth strategy',
+        idealCustomer: 'Developer tool founders',
+        problemsSolved: 'Positioning and acquisition',
+        preferredEngagement: 'reply',
+        strategyPreset: 'balanced',
+        opportunityTypes: ['lead', 'pain_point'],
+        strictness: 'balanced',
+      },
       scoringConfig: null,
       threshold: 4,
       model: 'openai/gpt-4o-mini',
@@ -102,6 +120,15 @@ describe('/api/v1/config', () => {
       body: {
         goals: 'New goals',
         aiContext: 'Prioritize urgent buying intent',
+        opportunityConfig: {
+          businessOffering: 'SEO consulting',
+          idealCustomer: 'SMB owners',
+          problemsSolved: 'Traffic loss and ranking drops',
+          preferredEngagement: 'reply',
+          strategyPreset: 'sales',
+          opportunityTypes: ['lead', 'pain_point', 'tool_search'],
+          strictness: 'strict',
+        },
         scoringConfig: {
           lookingFor: 'New goals',
           avoid: 'Students',
@@ -118,6 +145,15 @@ describe('/api/v1/config', () => {
     expect(mockStore.get('agent-config:scope_sync-token')).toMatchObject({
       goals: 'New goals',
       aiContext: 'Prioritize urgent buying intent',
+      opportunityConfig: {
+        businessOffering: 'SEO consulting',
+        idealCustomer: 'SMB owners',
+        problemsSolved: 'Traffic loss and ranking drops',
+        preferredEngagement: 'reply',
+        strategyPreset: 'sales',
+        opportunityTypes: ['lead', 'pain_point', 'tool_search'],
+        strictness: 'strict',
+      },
       scoringConfig: {
         lookingFor: 'New goals',
         avoid: 'Students',
@@ -136,10 +172,11 @@ describe('/api/v1/config', () => {
     });
     expect(res.body.data.auditLog).toMatchObject({
       action: 'CONFIG_UPDATE',
-      changedFields: ['goals', 'aiContext', 'scoringConfig', 'threshold', 'model'],
+      changedFields: ['goals', 'aiContext', 'opportunityConfig', 'scoringConfig', 'threshold', 'model'],
       previous: {
         goals: 'Old goals',
         aiContext: undefined,
+        opportunityConfig: null,
         scoringConfig: null,
         threshold: 3,
         model: 'old-model',

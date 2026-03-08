@@ -68,7 +68,7 @@
           </section>
 
           <section>
-            <h2 class="mb-3 text-2xl font-bold text-white">Is /api/v1/leads/latest protected?</h2>
+            <h2 class="mb-3 text-2xl font-bold text-white">Is /api/v1/opportunities/latest protected?</h2>
             <p class="text-zinc-300">
               No. It is intentionally a public read endpoint for the latest stored polling result in the current app. The
               other agent-facing v1 endpoints require <code>AGENT_API_KEY</code>.
@@ -86,9 +86,9 @@
           <section>
             <h2 class="mb-3 text-2xl font-bold text-white">How do scheduled lead refreshes work?</h2>
             <p class="text-zinc-300">
-              A scheduler calls <code>/api/cron/refresh-leads</code> with <code>X-Cron-Secret</code>. The poller uses
+              A scheduler calls <code>/api/cron/refresh-opportunities</code> (or the legacy <code>/api/cron/refresh-opportunities</code> alias) with <code>X-Cron-Secret</code>. The poller uses
               synced user config when available, otherwise it falls back to defaults and stores the latest result for
-              <code>/api/v1/leads/latest</code>.
+              <code>/api/v1/opportunities/latest</code>.
             </p>
           </section>
 

@@ -1,4 +1,4 @@
-name: Reddit Leads Poller
+name: Reddit Opportunities Poller
 
 on:
   schedule:
@@ -10,10 +10,10 @@ jobs:
   poll-reddit:
     runs-on: ubuntu-latest
     steps:
-      - name: Poll Reddit for new leads
+      - name: Poll Reddit for new opportunities
         run: |
           curl -X GET \
-            "https://reddit-dashboarder.vercel.app/api/cron/refresh-leads" \
+            "https://reddit-dashboarder.vercel.app/api/cron/refresh-opportunities" \
             -H "X-Cron-Secret: ${{ secrets.CRON_SECRET_KEY }}" \
             -H "Content-Type: application/json" \
             --max-time 90 \
