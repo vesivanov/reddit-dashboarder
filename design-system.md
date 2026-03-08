@@ -6,14 +6,14 @@ The implementation is Tailwind-first, dark-mode aware, and optimized for dense d
 
 ## Aesthetic Identity
 
-**Direction**: Signal Intelligence — a data-dense monitoring tool with an editorial edge. Purposeful, sharp, warm.
+**Direction**: Signal Intelligence — a data-dense monitoring tool. Clean, precise, product-focused. No serif, no italic, no decoration for its own sake.
 
 **Typography**
-- Display / headings: `DM Serif Display` — elegant contrast against data density
-- UI copy / body: `DM Sans` — modern, readable, distinctly not Inter
-- Numbers / data / code: `JetBrains Mono` — scores, counts, metrics, timestamps
+- UI copy / body / headings: `DM Sans` — the sole text font; use weight and size to establish hierarchy
+- Numbers / data / code / labels: `JetBrains Mono` — scores, counts, metrics, timestamps, mono labels
+- No serif font is loaded. No italic anywhere.
 
-All three fonts are loaded via Google Fonts in `index.html` and `landing.html`.
+Both fonts are loaded via Google Fonts in `index.html`, `landing.html`, `pricing.html`, and all docs pages.
 
 **Color**
 Primary accent is sky blue (`#0284C7`) — sharp, data-intelligence feel, high-contrast against zinc surfaces. Replaces generic indigo throughout.
@@ -67,9 +67,10 @@ Primary accent is sky blue (`#0284C7`) — sharp, data-intelligence feel, high-c
 - Section labels: `text-lg font-sans`
 - Metadata and dense labels: `text-xs font-sans`
 - Counts, scores, and metrics: `font-mono tabular-nums`
-- Section headings (where appropriate): `font-serif`
+- Section headings: `font-bold tracking-tight` in DM Sans — no serif
+- Mono labels (uppercase): `font-mono text-xs tracking-widest uppercase` in accent color
 
-The app assumes DM Sans for all UI text and JetBrains Mono for any numerical or code-like data.
+The app uses DM Sans for all text and JetBrains Mono for any numerical or code-like data. Do not introduce italic or serif under any circumstance.
 
 ## Focus and Interaction
 
@@ -188,6 +189,56 @@ rounded px-1.5 py-0.5
 - Right pane: reading detail, metadata, actions
 - Mobile should collapse to task-specific views instead of forcing tiny three-column layouts
 
+## AI Module
+
+### Inline AI bar (above post list)
+
+A single compact row (~40px). Never a card or multi-row block.
+
+```text
+[status dot]  [status label]  ·  [goal summary truncated]   [scored/total]  [N strong]  [Rerank] [Edit AI] [Reasons]
+```
+
+- Status dot: `bg-emerald-400` active, `bg-amber-400 animate-pulse` ranking, `bg-zinc-300` off
+- Stats: `font-mono text-xs`
+- Stale scores: append `~stale` in amber mono, and prefix `~` to every score badge
+
+### Settings panel (AI section)
+
+Structured in this order — no other order:
+
+1. Section header + enable toggle (one row)
+2. Goal — preset chips → textarea
+3. Tune (collapsible) — Exclude · Few-shot examples (vertical, PERFECT/STRONG/REJECT mono labels)
+4. Model & Key (collapsible, auto-opens when no key is saved)
+5. Prompt preview (toggle link, hidden by default)
+6. Status banners — error (rose, dismissable) then stale warning (amber)
+7. Run ranking button (full width)
+
+Do not add back Extra context, Score explanations toggle (it's in the bar), or 3-column example grids.
+
+### Score badges
+
+Tier colours are fixed:
+
+| Score | Classes |
+|-------|---------|
+| 5 | `bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30` |
+| 4 | `bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200` |
+| 3 | `bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200` |
+| 0–2 | `bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400` |
+
+When `aiScoresStale`, apply `opacity-50` and prepend `~` to the label text.
+
 ## Scope Boundary
 
-This design system is for the dashboard UI. Marketing pages such as `public/landing.html`, `public/pricing.html`, and docs pages share the same typographic identity and color tokens but may diverge in layout and presentation density.
+This design system covers both the dashboard UI and all marketing/static pages.
+
+**Shared across every surface:**
+- Font stack: DM Sans + JetBrains Mono only. No serif, no italic.
+- Accent: `#0284C7` / `#0369A1` / `#075985`
+- No light-mode on marketing pages — landing, pricing, and docs are dark-only.
+
+**Dashboard-specific:** light/dark toggle, density modes, three-pane layout.
+
+**Marketing-specific:** `nav-blur`, `.btn-primary`/`.btn-ghost` CSS classes, `.label` mono uppercase, `top-bar` 2px gradient strip.
