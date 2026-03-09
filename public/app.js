@@ -963,7 +963,7 @@ const {
           timestamp: new Date().toISOString(),
         };
 
-        if (new TextEncoder().encode(JSON.stringify(payload)).length > 450000) {
+        if (new TextEncoder().encode(JSON.stringify(payload)).length > 200000) {
           setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           return;
         }
@@ -1720,7 +1720,7 @@ const {
           if (shouldUseAsyncFetchJob) {
             setFetchMethod('paged');
             const pagedStartedAt = Date.now();
-            const pageLimit = Math.min(subsCount >= 20 ? 15 : 25, limit);
+            const pageLimit = Math.min(subsCount >= 20 ? 10 : (subsCount >= 12 ? 15 : 25), limit);
             const subStates = subs.map((sub) => ({
               subreddit: sub,
               meta: null,
@@ -1777,7 +1777,9 @@ const {
                   localPauseUntil = Date.now() + pagedRetryAfterSeconds * 1000;
                   setRateLimitPauseUntil(localPauseUntil);
                   rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
-                  state.nextAllowedAt = localPauseUntil;
+                  subStates.forEach((item) => {
+                    if (!item.done) item.nextAllowedAt = localPauseUntil;
+                  });
                   setFetchSummary({
                     tone: 'warning',
                     status: 'Cooldown',
@@ -1803,7 +1805,7 @@ const {
                 state.after = pagePayload?.after || '';
                 state.done = Boolean(pagePayload?.done);
                 state.pageCount += 1;
-                state.nextAllowedAt = Date.now() + (authMode === 'oauth' ? 1200 : 1800);
+                state.nextAllowedAt = Date.now() + (authMode === 'oauth' ? 2500 : 3500);
                 progressedThisPass = true;
 
                 setFetchSummary({
@@ -1830,7 +1832,7 @@ const {
                   });
                 }
 
-                await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 500 : 800));
+                await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 1500 : 2200));
               }
 
               if (!progressedThisPass) {
