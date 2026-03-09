@@ -84,3 +84,10 @@ http.Server.prototype.listen = function (...args) {
 
 // Increase timeout for integration tests
 jest.setTimeout(30000); // 30 seconds
+
+afterEach(async () => {
+  const { clearExpiringValue } = require('../lib/rate-limit-store');
+  if (typeof clearExpiringValue === 'function') {
+    await clearExpiringValue('reddit:upstream-cooldown');
+  }
+});

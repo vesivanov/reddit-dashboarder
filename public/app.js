@@ -668,7 +668,7 @@ const {
 
             if (Array.isArray(config.subreddits) && config.subreddits.length > 0) setSubs(config.subreddits);
             setOpportunityBrief(config.goals || '');
-            setOpportunityContext(config.opportunityContext || '');
+            setOpportunityContext(config.aiContext || '');
             setBusinessOffering(opportunityConfig.businessOffering || '');
             setIdealCustomer(opportunityConfig.idealCustomer || '');
             setProblemsSolved(opportunityConfig.problemsSolved || '');
@@ -684,7 +684,7 @@ const {
               setPriorityNotificationThreshold(Math.max(0, Math.min(5, Number(config.threshold) || 4)));
             }
             if (config.model) setOpenRouterModel(config.model);
-            if (config.opportunityConfig || config.goals || config.opportunityContext) setOpportunityEngineEnabled(true);
+            if (config.opportunityConfig || config.goals || config.aiContext) setOpportunityEngineEnabled(true);
 
             hydratedOpportunityConfigRef.current = syncToken;
           } catch {}
@@ -807,6 +807,26 @@ const {
         return String(action).replace(/_/g, ' ');
       }, [getOpportunityForPost]);
 
+      const formatSignalLabel = useCallback((key) => {
+        return String(key || '')
+          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+          .replace(/_/g, ' ')
+          .replace(/^./, (char) => char.toUpperCase());
+      }, []);
+
+      const getOpportunitySignalSummary = useCallback((opportunity) => {
+        const signalEntries = Object.entries(opportunity?.signals || {})
+          .filter(([_, value]) => Number.isFinite(Number(value)))
+          .sort((a, b) => Number(b[1]) - Number(a[1]));
+
+        if (!signalEntries.length) return '';
+
+        return signalEntries
+          .slice(0, 4)
+          .map(([key, value]) => `${formatSignalLabel(key)} ${Math.round(Number(value) * 100)}`)
+          .join(' • ');
+      }, [formatSignalLabel]);
+
       const buildSyncSettings = useCallback(() => ({
         subreddits: subs,
         opportunityBrief,
@@ -916,7 +936,7 @@ const {
               token: syncToken,
               subreddits: subs,
               goals: opportunityBrief,
-              opportunityContext,
+              aiContext: opportunityContext,
               aiPrompt: opportunityBrief,
               opportunityConfig: buildSyncSettings().opportunityConfig,
               scoringConfig: buildSyncSettings().scoringConfig,
@@ -1085,6 +1105,23 @@ const {
         if (opportunity?.explanation?.summary) {
           items.push({ label: 'Opportunity summary', value: opportunity.explanation.summary });
         }
+        if (Array.isArray(opportunity?.explanation?.bullets) && opportunity.explanation.bullets.length > 0) {
+          items.push({ label: 'Why now', value: opportunity.explanation.bullets.join(' • ') });
+        }
+        if (opportunity?.scores) {
+          const scoreBits = [
+            Number.isFinite(Number(opportunity.scores.priority)) ? `Priority ${Math.round(Number(opportunity.scores.priority) * 100)}` : null,
+            Number.isFinite(Number(opportunity.scores.clientConversionLikelihood)) ? `Conversion ${Math.round(Number(opportunity.scores.clientConversionLikelihood) * 100)}` : null,
+            Number.isFinite(Number(opportunity.scores.replyLikelihood)) ? `Reply ${Math.round(Number(opportunity.scores.replyLikelihood) * 100)}` : null,
+          ].filter(Boolean);
+          if (scoreBits.length) {
+            items.push({ label: 'Engine scores', value: scoreBits.join(' • ') });
+          }
+        }
+        const signalSummary = getOpportunitySignalSummary(opportunity);
+        if (signalSummary) {
+          items.push({ label: 'Signals', value: signalSummary });
+        }
         if (meta?.reason) {
           items.push({ label: 'AI summary', value: meta.reason });
         }
@@ -1121,7 +1158,7 @@ const {
           });
         }
         return items;
-      }, [selectedPost, postScoreMetadata, selectedPostVelocity, getOpportunityForPost]);
+      }, [selectedPost, postScoreMetadata, selectedPostVelocity, getOpportunityForPost, getOpportunitySignalSummary]);
 
       const selectedPostNextAction = useMemo(() => {
         if (!selectedPost) return '';
@@ -1733,7 +1770,7 @@ const {
           setSnapshotInfo(payload?.snapshot || null);
           setFetchSummary(buildFetchSummary(payload, perSub, {
             requestedFetchAllPages: effectiveMaxPages === 0 || Boolean(payload?.fetch_all_pages),
-            depthAutoCapped,
+            depthAutoCapped: depthAutoCapped || Boolean(payload?.request_capped),
             effectiveMaxPages,
             subsCount,
           }));

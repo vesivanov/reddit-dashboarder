@@ -73,6 +73,8 @@ describe('/api/reddit aggregation', () => {
     expect(res.status).toBe(200);
     expect(res.body.results).toHaveLength(2);
     expect(res.body.metrics).toMatchObject({ subredditCount: 2, totalPosts: 2 });
+    expect(res.body.metrics.redditRequestCount).toBeGreaterThan(0);
+    expect(res.body.metrics.sharedCooldownHit).toBe(false);
     expect(res.headers['cache-control']).toBe('public, max-age=0, s-maxage=600');
     expect(() => JSON.parse(res.headers['x-rdd-metrics'])).not.toThrow();
   });
@@ -227,7 +229,7 @@ describe('/api/reddit aggregation', () => {
     subs.forEach((sub) => {
       oauth
         .get(`/r/${sub}/top.json`)
-        .query((query) => query.limit === '100' && query.raw_json === '1' && query.t === 'day')
+        .query((query) => query.limit === '25' && query.raw_json === '1' && query.t === 'day')
         .reply(200, {
           data: {
             children: [buildPost(sub, `${sub}-1`)],
@@ -249,6 +251,42 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.results).toHaveLength(13);
     expect(res.body.results.every((result) => result.posts.length === 1)).toBe(true);
     expect(res.body.results.every((result) => result.meta?.subscribers == null)).toBe(true);
+    expect(oauth.isDone()).toBe(true);
+  });
+
+  test('server-enforces shallower fetch depth for very large subreddit batches', async () => {
+    const subs = Array.from({ length: 20 }, (_, index) => `capsub${index + 1}`);
+    const oauth = nock('https://oauth.reddit.com');
+
+    subs.forEach((sub) => {
+      oauth
+        .get(`/r/${sub}/new.json`)
+        .query((query) => query.limit === '25' && query.raw_json === '1' && !query.after)
+        .reply(200, {
+          data: {
+            children: [buildPost(sub, `${sub}-1`)],
+            after: 'next-page-that-should-not-be-fetched',
+          },
+        });
+    });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${subs.join(',')}&mode=new&limit=100&max_pages=all`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(25);
+    expect(res.body.max_pages).toBe(1);
+    expect(res.body.fetch_all_pages).toBe(false);
+    expect(res.body.request_capped).toBe(true);
+    expect(res.body.metrics.requestCapped).toBe(true);
+    expect(res.headers['x-rdd-request-capped']).toBe('1');
+    expect(res.body.results).toHaveLength(20);
     expect(oauth.isDone()).toBe(true);
   });
 
@@ -277,6 +315,73 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.rate_limited_subreddits).toEqual([firstSub, ...otherSubs]);
     expect(res.body.metrics.rateLimitedCount).toBe(3);
     expect(oauth.isDone()).toBe(true);
+  });
+
+  test('reuses upstream cooldown across separate requests', async () => {
+    const firstSub = 'sharedcooldownalpha';
+    const secondSub = 'sharedcooldownbeta';
+    const oauth = nock('https://oauth.reddit.com');
+
+    oauth
+      .get(`/r/${firstSub}/about.json`)
+      .reply(429, 'Too Many Requests', { 'Retry-After': '8' });
+
+    const firstResponse = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${firstSub}&mode=top`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    const secondResponse = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${secondSub}&mode=top`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body.rate_limited).toBe(true);
+    expect(secondResponse.status).toBe(200);
+    expect(secondResponse.body.rate_limited).toBe(true);
+    expect(secondResponse.body.rate_limited_subreddits).toEqual([secondSub]);
+    expect(secondResponse.body.retry_after_seconds).toBeGreaterThan(0);
+    expect(secondResponse.body.metrics.sharedCooldownHit).toBe(true);
+    expect(secondResponse.body.metrics.redditRequestCount).toBe(0);
+    expect(oauth.isDone()).toBe(true);
+  });
+
+  test('rejects requests above the server subreddit cap', async () => {
+    const previousMax = process.env.REDDIT_MAX_SUBREDDITS;
+    process.env.REDDIT_MAX_SUBREDDITS = '3';
+
+    try {
+      const res = await runHandler(redditHandler, {
+        method: 'GET',
+        url: '/api/reddit?subs=one,two,three,four&mode=top',
+        headers: {
+          cookie: authCookie(),
+          origin: 'http://localhost:3000',
+        },
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        error: 'Too many subreddits',
+        max_subreddits: 3,
+        requested_subreddits: 4,
+      });
+    } finally {
+      if (previousMax === undefined) {
+        delete process.env.REDDIT_MAX_SUBREDDITS;
+      } else {
+        process.env.REDDIT_MAX_SUBREDDITS = previousMax;
+      }
+    }
   });
 
   test('flags timed_out when execution budget is exhausted', async () => {

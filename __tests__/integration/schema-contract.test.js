@@ -20,6 +20,9 @@ function expectRedditResponseSchema(body) {
       totalPosts: expect.any(Number),
       rateLimitedCount: expect.any(Number),
       durationMs: expect.any(Number),
+      redditRequestCount: expect.any(Number),
+      sharedCooldownHit: expect.any(Boolean),
+      requestCapped: expect.any(Boolean),
     }),
   });
 
