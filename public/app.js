@@ -835,7 +835,7 @@ const {
       }, [formatSignalLabel]);
 
       const buildSyncSettings = useCallback(() => ({
-        subreddits: subs,
+        subreddits: subs.map(normalizeSubredditName).filter(Boolean),
         opportunityBrief,
         opportunityContext,
         aiAvoid,
@@ -879,6 +879,7 @@ const {
         strategyPreset,
         normalizedOpportunityFocus,
         opportunityStrictness,
+        normalizeSubredditName,
       ]);
 
       const buildSyncFilters = useCallback(() => ({
@@ -962,7 +963,7 @@ const {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               token: syncToken,
-              subreddits: subs,
+              subreddits: subs.map(normalizeSubredditName).filter(Boolean),
               goals: opportunityBrief,
               aiContext: opportunityContext,
               aiPrompt: opportunityBrief,
@@ -982,6 +983,7 @@ const {
         priorityNotificationThreshold,
         openRouterModel,
         buildSyncSettings,
+        normalizeSubredditName,
       ]);
 
       const filteredBySub = useMemo(() => {
@@ -1653,11 +1655,11 @@ const {
           effectiveLimit = Math.min(25, effectiveLimit);
         }
         if (subsCount >= 20) {
-          effectiveMaxPages = Math.min(effectiveMaxPages, 1);
-        } else if (subsCount >= 12) {
           effectiveMaxPages = Math.min(effectiveMaxPages, 2);
-        } else if (subsCount >= 8) {
+        } else if (subsCount >= 12) {
           effectiveMaxPages = Math.min(effectiveMaxPages, 3);
+        } else if (subsCount >= 8) {
+          effectiveMaxPages = Math.min(effectiveMaxPages, 4);
         }
         const depthAutoCapped = effectiveMaxPages !== maxPages;
 

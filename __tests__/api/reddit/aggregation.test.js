@@ -294,7 +294,15 @@ describe('/api/reddit aggregation', () => {
         .reply(200, {
           data: {
             children: [buildPost(sub, `${sub}-1`)],
-            after: 'next-page-that-should-not-be-fetched',
+            after: 'page-2',
+          },
+        })
+        .get(`/r/${sub}/new.json`)
+        .query((query) => query.limit === '25' && query.raw_json === '1' && query.after === 'page-2')
+        .reply(200, {
+          data: {
+            children: [buildPost(sub, `${sub}-2`)],
+            after: 'page-3-that-should-not-be-fetched',
           },
         });
     });
@@ -310,7 +318,7 @@ describe('/api/reddit aggregation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.limit).toBe(25);
-    expect(res.body.max_pages).toBe(1);
+    expect(res.body.max_pages).toBe(2);
     expect(res.body.fetch_all_pages).toBe(false);
     expect(res.body.request_capped).toBe(true);
     expect(res.body.metrics.requestCapped).toBe(true);
