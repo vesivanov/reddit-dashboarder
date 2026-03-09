@@ -291,6 +291,7 @@ const {
       const [opportunityScanLoading, setOpportunityScanLoading] = useState(false);
       const [aiScoresStale, setAiScoresStale] = useState(false);
       const [opportunityScanError, setOpportunityScanError] = useState(null);
+      const [aiRateLimitPauseUntil, setAiRateLimitPauseUntil] = useState(null);
       const [aiShowModelKey, setAiShowModelKey] = useState(() => !secureKeyStatus.hasKey);
       const [aiShowPromptPreview, setAiShowPromptPreview] = useState(false);
       const [availableModels, setAvailableModels] = useState([]);
@@ -1235,6 +1236,12 @@ const {
 
         const groups = Array.isArray(perSub) ? perSub : data;
         const effectiveLlmLimit = Math.max(10, Math.min(MAX_LLM_POST_LIMIT, Number(llmPostLimit) || DEFAULT_LLM_POST_LIMIT));
+        if (aiRateLimitPauseUntil && aiRateLimitPauseUntil > Date.now()) {
+          if (triggeredByAuto) {
+            setOpportunityScanError(`Opportunity ranking cooling down for ${formatTimeUntil(aiRateLimitPauseUntil)}.`);
+          }
+          return;
+        }
 
         try {
           // Cache versioning: invalidate if goals, model, or prompt version changed
@@ -1331,12 +1338,6 @@ const {
               postsWithHeuristic.map(entry => [String(entry.post.id), entry.heuristicDetails])
             );
             
-            // Batch posts into chunks of 50 to avoid payload size limits
-            const BATCH_SIZE = 50;
-            const batches = [];
-            for (let i = 0; i < topPosts.length; i += BATCH_SIZE) {
-              batches.push(topPosts.slice(i, i + BATCH_SIZE));
-            }
             let scoresForHighRelevance = null;
             try {
               const allScores = new Map(cachedScores);
@@ -1352,123 +1353,111 @@ const {
                 }
               } catch {}
               
-              // Process batches sequentially to avoid overwhelming the API
-              for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-                const batch = batches[batchIdx];
-                const batchPostMap = new Map(batch.map(p => [String(p.id), p]));
-                try {
-                  const response = await fetch('/api/reddit/ai-rank', {
-                    method: 'POST',
-                    credentials: 'include', // Include cookies for secure API key
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      posts: batch.map(p => ({
-                        id: p.id,
-                        title: p.title,
-                        selftext: p.selftext || '',
-                        subreddit: p.subreddit,
-                        url: p.reddit_url,
-                        external_url: p.external_url,
-                        domain: p.domain,
-                        score: p.score,
-                        num_comments: p.num_comments,
-                        created_utc: p.created_utc,
-                        link_flair_text: p.link_flair_text,
-                      })),
-                      userGoals: effectiveGoalText.trim(),
-                      userContext: effectiveContextText && effectiveContextText.trim() ? effectiveContextText.trim() : undefined,
-                      scoringConfig: {
-                        lookingFor: effectiveGoalText.trim(),
-                        avoid: effectiveAvoidText && effectiveAvoidText.trim() ? effectiveAvoidText.trim() : undefined,
-                        examples: {
-                          perfect: aiExamplePerfect && aiExamplePerfect.trim() ? aiExamplePerfect.trim() : undefined,
-                          strong: aiExampleStrong && aiExampleStrong.trim() ? aiExampleStrong.trim() : undefined,
-                          reject: aiExampleReject && aiExampleReject.trim() ? aiExampleReject.trim() : undefined,
-                        },
-                      },
-                      // Only send key in body if not stored securely (fallback for migration)
-                      openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
-                      openRouterModel: openRouterModel.trim(), // Always required - has default in useState
-                      modelTemperature: AI_FIXED_TEMPERATURE,
-                      modelTopP: AI_FIXED_TOP_P
-                    }),
-                  });
+              const scoredPostMap = new Map(topPosts.map(p => [String(p.id), p]));
+              const response = await fetch('/api/reddit/ai-rank', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  posts: topPosts.map(p => ({
+                    id: p.id,
+                    title: p.title,
+                    selftext: p.selftext || '',
+                    subreddit: p.subreddit,
+                    url: p.reddit_url,
+                    external_url: p.external_url,
+                    domain: p.domain,
+                    score: p.score,
+                    num_comments: p.num_comments,
+                    created_utc: p.created_utc,
+                    link_flair_text: p.link_flair_text,
+                  })),
+                  userGoals: effectiveGoalText.trim(),
+                  userContext: effectiveContextText && effectiveContextText.trim() ? effectiveContextText.trim() : undefined,
+                  scoringConfig: {
+                    lookingFor: effectiveGoalText.trim(),
+                    avoid: effectiveAvoidText && effectiveAvoidText.trim() ? effectiveAvoidText.trim() : undefined,
+                    examples: {
+                      perfect: aiExamplePerfect && aiExamplePerfect.trim() ? aiExamplePerfect.trim() : undefined,
+                      strong: aiExampleStrong && aiExampleStrong.trim() ? aiExampleStrong.trim() : undefined,
+                      reject: aiExampleReject && aiExampleReject.trim() ? aiExampleReject.trim() : undefined,
+                    },
+                  },
+                  openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
+                  openRouterModel: openRouterModel.trim(),
+                  modelTemperature: AI_FIXED_TEMPERATURE,
+                  modelTopP: AI_FIXED_TOP_P
+                }),
+              });
 
-                  if (response.ok) {
-                    const result = await response.json();
-                    const resultPromptVersion = result.promptVersion || AI_PROMPT_VERSION;
-                    const resultModel = result.model || openRouterModel;
-                    latestPromptVersion = resultPromptVersion;
-                    latestModel = resultModel;
-                    if (result.model) localStorage.setItem(MODEL_KEY, result.model);
-                    if (result.promptVersion) localStorage.setItem(PROMPT_VERSION_KEY, result.promptVersion);
-                    const updatedCacheVersion = `${currentGoalsHash}_${resultPromptVersion}_${resultModel}`;
-                    if (updatedCacheVersion !== currentCacheVersion) {
-                      localStorage.removeItem('dashboard_ai_scores_cache');
-                      localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
+              if (!response.ok) {
+                let retryAfterSeconds = Number(response.headers.get('Retry-After')) || 0;
+                let parsedError = null;
+                try { parsedError = await response.json(); } catch {}
+                retryAfterSeconds = Number(parsedError?.retryAfter) || retryAfterSeconds || 0;
+                if (response.status === 429 && retryAfterSeconds > 0) {
+                  const pauseUntil = Date.now() + retryAfterSeconds * 1000;
+                  setAiRateLimitPauseUntil(pauseUntil);
+                  setOpportunityScanError(`Opportunity ranking rate-limited. Cooling down ~${retryAfterSeconds}s.`);
+                }
+                throw new Error(parsedError?.message || `AI ranking failed with HTTP ${response.status}`);
+              }
+
+              setAiRateLimitPauseUntil(null);
+              const result = await response.json();
+              const resultPromptVersion = result.promptVersion || AI_PROMPT_VERSION;
+              const resultModel = result.model || openRouterModel;
+              latestPromptVersion = resultPromptVersion;
+              latestModel = resultModel;
+              if (result.model) localStorage.setItem(MODEL_KEY, result.model);
+              if (result.promptVersion) localStorage.setItem(PROMPT_VERSION_KEY, result.promptVersion);
+              const updatedCacheVersion = `${currentGoalsHash}_${resultPromptVersion}_${resultModel}`;
+              if (updatedCacheVersion !== currentCacheVersion) {
+                localStorage.removeItem('dashboard_ai_scores_cache');
+                localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
+              }
+              const scoresObj = result.scores || {};
+              const metadataObj = result.metadata || {};
+              const opportunitiesObj = result.opportunities || {};
+              if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
+                Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
+                  const postIdStr = String(postId);
+                  if (relevanceScore !== null && relevanceScore !== undefined) {
+                    allScores.set(postIdStr, relevanceScore);
+                    const meta = metadataObj[postId] || {};
+                    const opportunity = opportunitiesObj[postId] || null;
+                    const heuristicDetails = heuristicDetailsById.get(postIdStr);
+                    allMetadata.set(postIdStr, {
+                      source: 'llm',
+                      confidence: meta.confidence || 'medium',
+                      reason: meta.reason || 'LLM-ranked opportunity',
+                      debug: buildRelevanceDebug({
+                        postId: postIdStr,
+                        heuristicDetails,
+                        postMap: scoredPostMap,
+                        llmReason: meta.reason,
+                        llmConfidence: meta.confidence,
+                        source: 'llm',
+                      })
+                    });
+                    if (opportunity) {
+                      allOpportunities.set(postIdStr, opportunity);
                     }
-                    // Current format: scores is an object map {postId: score}
-                    const scoresObj = result.scores || {};
-                    const metadataObj = result.metadata || {};
-                    const opportunitiesObj = result.opportunities || {};
-                    if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
-                      Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
-                        const postIdStr = String(postId);
-                        // Only cache non-null scores (null means failed to score)
-                        if (relevanceScore !== null && relevanceScore !== undefined) {
-                          allScores.set(postIdStr, relevanceScore);
-                          
-                          // Extract metadata if available
-                          const meta = metadataObj[postId] || {};
-                          const opportunity = opportunitiesObj[postId] || null;
-                          const heuristicDetails = heuristicDetailsById.get(postIdStr);
-                          allMetadata.set(postIdStr, {
-                            source: 'llm',
-                            confidence: meta.confidence || 'medium',
-                            reason: meta.reason || 'LLM-ranked opportunity',
-                            debug: buildRelevanceDebug({
-                              postId: postIdStr,
-                              heuristicDetails,
-                              postMap: batchPostMap,
-                              llmReason: meta.reason,
-                              llmConfidence: meta.confidence,
-                              source: 'llm',
-                            })
-                          });
-                          if (opportunity) {
-                            allOpportunities.set(postIdStr, opportunity);
-                          }
-                          
-                          cache[postIdStr] = { 
-                            score: relevanceScore, 
-                            timestamp: Date.now(),
-                            version: result.promptVersion || 'v3.1',
-                            model: result.model || 'unknown',
-                            confidence: meta.confidence || 'medium',
-                            reason: meta.reason || 'LLM-ranked opportunity',
-                            source: 'llm',
-                            debug: allMetadata.get(postIdStr)?.debug || null,
-                            opportunity: opportunity || null,
-                          };
-                        } else {
-                          // Track null scores but don't cache them
-                          allScores.set(postIdStr, null);
-                        }
-                      });
-                    }
-                    
+                    cache[postIdStr] = {
+                      score: relevanceScore,
+                      timestamp: Date.now(),
+                      version: result.promptVersion || 'v3.1',
+                      model: result.model || 'unknown',
+                      confidence: meta.confidence || 'medium',
+                      reason: meta.reason || 'LLM-ranked opportunity',
+                      source: 'llm',
+                      debug: allMetadata.get(postIdStr)?.debug || null,
+                      opportunity: opportunity || null,
+                    };
                   } else {
-                    const errorText = await response.text();
-                    console.error(`AI ranking API error for batch ${batchIdx + 1}:`, response.status, errorText);
+                    allScores.set(postIdStr, null);
                   }
-                } catch (batchError) {
-                  console.error(`Error processing batch ${batchIdx + 1}:`, batchError);
-                }
-                
-                // Small delay between batches to avoid rate limiting
-                if (batchIdx < batches.length - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                }
+                });
               }
               
               // Save updated cache with LRU eviction (max 5000 entries)
@@ -1613,7 +1602,7 @@ const {
             setOpportunityScanError('Opportunity ranking failed during auto-refresh — scores may be stale.');
           }
         }
-      }, [opportunityEngineEnabled, opportunityBrief, opportunityContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyStrongOpportunities, priorityNotificationThreshold, notifiedStrongOpportunityPostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel, AI_PROMPT_VERSION]);
+      }, [opportunityEngineEnabled, opportunityBrief, opportunityContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyStrongOpportunities, priorityNotificationThreshold, notifiedStrongOpportunityPostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel, AI_PROMPT_VERSION, aiRateLimitPauseUntil, formatTimeUntil]);
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);

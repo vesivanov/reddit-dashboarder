@@ -136,4 +136,34 @@ describe('/api/settings/opportunity-config', () => {
       version: 3,
     });
   });
+
+  test('POST accepts larger subreddit lists for synced workspaces', async () => {
+    const subreddits = Array.from({ length: 20 }, (_, index) => `subreddit${index + 1}`);
+    mockStore.set('sync-token', {
+      token: 'sync-token',
+      settings: { subreddits },
+      filters: {},
+      syncedAt: '2026-03-08T10:00:00.000Z',
+      timestamp: '2026-03-08T09:59:00.000Z',
+      expiresAt: Date.parse('2026-03-09T10:00:00.000Z'),
+    });
+    const accessCookie = makeSignedCookie('access', 'access-token');
+
+    const res = await runHandler(handler, {
+      method: 'POST',
+      url: '/api/settings/opportunity-config',
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        token: 'sync-token',
+        subreddits,
+        goals: 'Find opportunities across a larger watchlist',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.config.subreddits).toHaveLength(20);
+  });
 });

@@ -125,4 +125,33 @@ describe('/api/reddit/ai-rank', () => {
     expect(res.body.failedPostIds).toEqual(expect.arrayContaining(['p1', 'p2']));
     expect(Object.values(res.body.scores).every((score) => score === null)).toBe(true);
   });
+
+  test('accepts larger single-request post payloads for server-side batching', async () => {
+    const posts = Array.from({ length: 120 }, (_, index) => ({
+      id: `p${index + 1}`,
+      title: `Post ${index + 1}`,
+      subreddit: 'programming',
+      selftext: '',
+      score: index + 1,
+      num_comments: index % 10,
+      created_utc: Math.floor(Date.now() / 1000),
+    }));
+
+    nock('https://openrouter.ai')
+      .post('/api/v1/chat/completions')
+      .times(4)
+      .reply(200, {
+        choices: [{ message: { content: JSON.stringify([]) } }]
+      });
+
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: { ...basePayload, posts, openRouterApiKey: 'test-key' },
+      headers: { origin: 'http://localhost:3000' }
+    });
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.scores)).toHaveLength(120);
+  });
 });
