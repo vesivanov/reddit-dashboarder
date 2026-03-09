@@ -1720,6 +1720,8 @@ const {
           if (shouldUseAsyncFetchJob) {
             setFetchMethod('paged');
             const pagedStartedAt = Date.now();
+            const skipMetaForLargeBatch = subsCount >= 12;
+            const skipSyncForLargeBatch = subsCount >= 12;
             const pageLimit = Math.min(subsCount >= 20 ? 10 : (subsCount >= 12 ? 15 : 25), limit);
             const subStates = subs.map((sub) => ({
               subreddit: sub,
@@ -1750,7 +1752,7 @@ const {
                   time,
                   days: String(days),
                   limit: String(pageLimit),
-                  include_meta: state.pageCount === 0 ? '1' : '0',
+                  include_meta: !skipMetaForLargeBatch && state.pageCount === 0 ? '1' : '0',
                 });
                 if (state.after) params.set('after', state.after);
                 if (forceRefresh) params.set('_ts', `${Date.now()}_${subIdx}_${state.pageCount}`);
@@ -1805,7 +1807,7 @@ const {
                 state.after = pagePayload?.after || '';
                 state.done = Boolean(pagePayload?.done);
                 state.pageCount += 1;
-                state.nextAllowedAt = Date.now() + (authMode === 'oauth' ? 2500 : 3500);
+                state.nextAllowedAt = Date.now() + (authMode === 'oauth' ? 3500 : 5000);
                 progressedThisPass = true;
 
                 setFetchSummary({
@@ -1832,7 +1834,7 @@ const {
                   });
                 }
 
-                await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 1500 : 2200));
+                await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
               }
 
               if (!progressedThisPass) {
@@ -1937,7 +1939,7 @@ const {
               subsCount,
             }));
 
-            if (payload?.auth_mode !== 'public') {
+            if (payload?.auth_mode !== 'public' && !skipSyncForLargeBatch) {
               await syncDashboardSnapshot(perSub);
             }
             await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
