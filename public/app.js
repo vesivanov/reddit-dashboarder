@@ -895,11 +895,32 @@ const {
         const posts = groups.flatMap(group => (group.posts || []).map(post => {
           const postId = String(post.id);
           const opportunity = postOpportunities.get(postId) || null;
+          const metadata = postScoreMetadata.get(postId) || post.aiMetadata || null;
           return {
-            ...post,
+            id: post.id,
+            subreddit: post.subreddit,
+            title: post.title,
+            selftext: (post.selftext || '').slice(0, 2000),
+            author: post.author || '',
+            reddit_url: post.reddit_url,
+            external_url: post.external_url,
+            domain: post.domain,
+            score: post.score,
+            num_comments: post.num_comments,
+            created_utc: post.created_utc,
+            link_flair_text: post.link_flair_text || '',
             aiRelevance: postScoreProxies.get(postId) ?? post.aiRelevance ?? null,
-            aiMetadata: postScoreMetadata.get(postId) || post.aiMetadata || null,
-            aiOpportunity: opportunity || post.aiOpportunity || null,
+            aiMetadata: metadata ? {
+              source: metadata.source || null,
+              confidence: metadata.confidence || null,
+              reason: metadata.reason || null,
+            } : null,
+            aiOpportunity: opportunity ? {
+              classification: opportunity.classification || null,
+              scores: opportunity.scores || null,
+              action: opportunity.action || null,
+              explanation: opportunity.explanation ? { summary: opportunity.explanation.summary || '' } : null,
+            } : (post.aiOpportunity || null),
             aiPriority: opportunity?.scores?.priority ?? post.aiPriority ?? null,
           };
         }));
@@ -1235,7 +1256,12 @@ const {
         }
 
         const groups = Array.isArray(perSub) ? perSub : data;
-        const effectiveLlmLimit = Math.max(10, Math.min(MAX_LLM_POST_LIMIT, Number(llmPostLimit) || DEFAULT_LLM_POST_LIMIT));
+        let effectiveLlmLimit = Math.max(10, Math.min(MAX_LLM_POST_LIMIT, Number(llmPostLimit) || DEFAULT_LLM_POST_LIMIT));
+        if (groups.length >= 20) {
+          effectiveLlmLimit = Math.min(effectiveLlmLimit, 40);
+        } else if (groups.length >= 12) {
+          effectiveLlmLimit = Math.min(effectiveLlmLimit, 60);
+        }
         if (aiRateLimitPauseUntil && aiRateLimitPauseUntil > Date.now()) {
           if (triggeredByAuto) {
             setOpportunityScanError(`Opportunity ranking cooling down for ${formatTimeUntil(aiRateLimitPauseUntil)}.`);
