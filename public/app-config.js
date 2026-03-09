@@ -41,7 +41,7 @@
       { value: '20', label: '20+' },
       { value: '50', label: '50+' },
     ];
-    const AI_RELEVANCE_PRESETS = [
+    const OPPORTUNITY_PRIORITY_PRESETS = [
       { value: '', label: 'Any' },
       { value: '3', label: '3+' },
       { value: '4', label: '4+' },
@@ -119,7 +119,7 @@
     POPULAR_SUBREDDITS,
     UPVOTE_PRESETS,
     COMMENT_PRESETS,
-    AI_RELEVANCE_PRESETS,
+    OPPORTUNITY_PRIORITY_PRESETS,
     AUTO_REFRESH_OPTIONS,
     MIN_AUTO_REFRESH_MINUTES,
     DEFAULT_OPENROUTER_MODEL,

@@ -17,7 +17,7 @@ const {
   POPULAR_SUBREDDITS,
   UPVOTE_PRESETS,
   COMMENT_PRESETS,
-  AI_RELEVANCE_PRESETS,
+  OPPORTUNITY_PRIORITY_PRESETS,
   AUTO_REFRESH_OPTIONS,
   MIN_AUTO_REFRESH_MINUTES,
   DEFAULT_OPENROUTER_MODEL,
@@ -192,11 +192,17 @@ const {
       });
       const [previousPostScores, setPreviousPostScores] = useState(new Map());
       const [notifyStrongOpportunities, setNotifyStrongOpportunities] = useState(() => {
-        try { return localStorage.getItem('dashboard_notify_high_relevance') === '1'; } catch { return false; }
+        try {
+          return (localStorage.getItem('dashboard_notify_strong_opportunities')
+            ?? localStorage.getItem('dashboard_notify_high_relevance')) === '1';
+        } catch { return false; }
       });
       const [priorityNotificationThreshold, setPriorityNotificationThreshold] = useState(() => {
         try { 
-          const val = Number(localStorage.getItem('dashboard_high_relevance_threshold')) || 4;
+          const val = Number(
+            localStorage.getItem('dashboard_strong_opportunity_threshold')
+            ?? localStorage.getItem('dashboard_high_relevance_threshold')
+          ) || 4;
           // Clamp to valid range 0-5 (AI scores only go up to 5)
           return Math.max(0, Math.min(5, val));
         } catch { return 4; }
@@ -375,10 +381,10 @@ const {
         try { localStorage.setItem('dashboard_alert_keywords', alertKeywords); } catch {}
       }, [alertKeywords]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_notify_high_relevance', notifyStrongOpportunities ? '1' : '0'); } catch {}
+        try { localStorage.setItem('dashboard_notify_strong_opportunities', notifyStrongOpportunities ? '1' : '0'); } catch {}
       }, [notifyStrongOpportunities]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_high_relevance_threshold', String(priorityNotificationThreshold)); } catch {}
+        try { localStorage.setItem('dashboard_strong_opportunity_threshold', String(priorityNotificationThreshold)); } catch {}
       }, [priorityNotificationThreshold]);
 
       // AI settings persistence
@@ -1018,7 +1024,7 @@ const {
               delta = velA - velB;
               break;
             }
-            case 'ai-relevance': {
+            case 'priority': {
               const scoreA = getPriorityScore(a.id);
               const scoreB = getPriorityScore(b.id);
               const metaA = postScoreMetadata.get(String(a.id));
@@ -1541,11 +1547,15 @@ const {
             }
             // High-relevance notifications (use freshly computed scores)
             if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
-                  const threshold = Number(priorityNotificationThreshold) || 4;
+              const threshold = Number(priorityNotificationThreshold) || 4;
+              const priorityThreshold = threshold / 5;
               const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
               const toNotify = [];
               for (const [postId, score] of scoresForHighRelevance.entries()) {
-                if (score != null && score >= threshold && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
+                const opportunityPriority = Number(allOpportunities.get(postId)?.scores?.priority);
+                const passesPriority = Number.isFinite(opportunityPriority) && opportunityPriority >= priorityThreshold;
+                const passesLegacy = score != null && score >= threshold;
+                if ((passesPriority || passesLegacy) && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
                   toNotify.push({ postId, post: idToPost.get(postId) });
                 }
               }
@@ -1572,10 +1582,14 @@ const {
             // High-relevance notifications (use freshly computed scores)
             if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && cachedScores && cachedScores.size > 0) {
               const threshold = Number(priorityNotificationThreshold) || 4;
+              const priorityThreshold = threshold / 5;
               const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
               const toNotify = [];
               for (const [postId, score] of cachedScores.entries()) {
-                if (score != null && score >= threshold && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
+                const opportunityPriority = Number(cachedOpportunities.get(postId)?.scores?.priority);
+                const passesPriority = Number.isFinite(opportunityPriority) && opportunityPriority >= priorityThreshold;
+                const passesLegacy = score != null && score >= threshold;
+                if ((passesPriority || passesLegacy) && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
                   toNotify.push({ postId, post: idToPost.get(postId) });
                 }
               }
@@ -2678,7 +2692,7 @@ const {
               // Opportunity priority filter (legacy AI score thresholds still apply as fallback)
               opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-1.5' },
                 h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Priority'),
-                AI_RELEVANCE_PRESETS.map(preset =>
+                OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
                   h('button', {
                     key: `ai-${preset.value}`,
                     onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
@@ -2697,10 +2711,13 @@ const {
                 value: `${sortBy}-${sortOrder}`,
                 onChange: (e) => {
                   const value = e.target.value;
-                  // Handle special case: "ai-relevance-desc" or "ai-relevance-asc"
+                  // Handle special case: "priority-desc" or legacy "ai-relevance-desc"
                   let by, order;
-                  if (value.startsWith('ai-relevance-')) {
-                    by = 'ai-relevance';
+                  if (value.startsWith('priority-')) {
+                    by = 'priority';
+                    order = value.replace('priority-', '');
+                  } else if (value.startsWith('ai-relevance-')) {
+                    by = 'priority';
                     order = value.replace('ai-relevance-', '');
                   } else {
                     // For other sorts like "date-desc", "upvotes-asc", etc.
@@ -2722,8 +2739,8 @@ const {
                 h('option', { value: 'velocity-upvotes-desc' }, 'Highest upvote velocity'),
                 h('option', { value: 'velocity-comments-desc' }, 'Highest comment velocity'),
                 opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
-                  h('option', { key: 'ai-desc', value: 'ai-relevance-desc' }, 'Highest opportunity priority'),
-                  h('option', { key: 'ai-asc', value: 'ai-relevance-asc' }, 'Lowest opportunity priority')
+                  h('option', { key: 'priority-desc', value: 'priority-desc' }, 'Highest opportunity priority'),
+                  h('option', { key: 'priority-asc', value: 'priority-asc' }, 'Lowest opportunity priority')
                 ]
               ),
                 filtersActive && h('button', {
@@ -2822,8 +2839,13 @@ const {
                         const priorityScore = getPriorityScore(post.id);
                         const opportunityType = getOpportunityTypeLabel(post.id);
                         const recommendedAction = getRecommendedActionLabel(post.id);
-                        const isHighlyRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
-                        const isVeryHighRelevant = relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
+                        const hasPriority = priorityScore !== null;
+                        const isHighlyRelevant = hasPriority
+                          ? priorityScore >= 0.65
+                          : relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
+                        const isVeryHighRelevant = hasPriority
+                          ? priorityScore >= 0.85
+                          : relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
                         const velocity = velocityMeta.map.get(String(post.id));
                         const isSpiking = velocityMeta.spiking.has(String(post.id));
                         const upvotesPerHour = velocity?.upvotesPerHour || 0;
@@ -2876,19 +2898,19 @@ const {
                                 renderGlyph('M13 2L4 14h6l-1 8 9-12h-6l1-8z', 'w-3 h-3'),
                                 `${formatVelocity(upvotesPerHour)}/h`
                               ),
-                              relevanceScore !== undefined && relevanceScore !== null && h('span', {
+                              priorityScore !== null && h('span', {
+                                className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
+                                title: opportunity?.explanation?.summary || `Opportunity priority ${(priorityScore * 100).toFixed(0)}/100`
+                              }, `P${Math.round(priorityScore * 100)}`),
+                              !hasPriority && relevanceScore !== undefined && relevanceScore !== null && h('span', {
                                 className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
                                   relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
                                   relevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
                                   relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                                   'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                                 }`,
-                                title: aiScoresStale ? 'Cached score (may be stale) — re-run ranking for fresh results' : relevanceMeta ? `Priority proxy: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `Priority proxy: ${relevanceScore}/5`
-                              }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`),
-                              priorityScore !== null && h('span', {
-                                className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
-                                title: opportunity?.explanation?.summary || `Opportunity priority ${(priorityScore * 100).toFixed(0)}/100`
-                              }, `P${Math.round(priorityScore * 100)}`)
+                                title: aiScoresStale ? 'Cached score proxy (may be stale) — re-run ranking for fresh results' : relevanceMeta ? `Legacy score proxy: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `Legacy score proxy: ${relevanceScore}/5`
+                              }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
                             ),
                             h('h3', { className: 'text-sm font-semibold text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
                             showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
@@ -3031,12 +3053,15 @@ const {
                       const detailRelevanceMeta = postScoreMetadata.get(String(selectedPost.id));
                       const detailOpportunity = getOpportunityForPost(selectedPost.id);
                       const detailPriority = getPriorityScore(selectedPost.id);
-                      if (detailRelevanceScore !== undefined && detailRelevanceScore !== null) {
+                      if (detailPriority !== null || (detailRelevanceScore !== undefined && detailRelevanceScore !== null)) {
                         return h('div', { 
                           className: 'flex items-center gap-2 py-1 flex-wrap',
-                          title: detailOpportunity?.explanation?.summary || (detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : `Opportunity score: ${detailRelevanceScore}/5`)
+                          title: detailOpportunity?.explanation?.summary || (detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : (detailPriority !== null ? `Opportunity priority ${Math.round(detailPriority * 100)}/100` : `Opportunity score: ${detailRelevanceScore}/5`))
                         },
-                          h('span', {
+                          detailPriority !== null && h('span', {
+                            className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950'
+                          }, `Priority ${Math.round(detailPriority * 100)}`),
+                          detailPriority === null && h('span', {
                             className: `px-2 py-0.5 rounded text-xs font-bold font-mono shadow-sm ${aiScoresStale ? 'opacity-50' : ''} ${
                               detailRelevanceScore >= 5 ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
                               detailRelevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
@@ -3044,10 +3069,7 @@ const {
                               'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                             }`
                           }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
-                          detailPriority !== null && h('span', {
-                            className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950'
-                          }, `Priority ${Math.round(detailPriority * 100)}`),
-                          h('div', { 
+                          detailPriority === null && h('div', { 
                             className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
                           },
                             h('div', { 

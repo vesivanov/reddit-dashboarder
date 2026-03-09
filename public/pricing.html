@@ -88,6 +88,24 @@
     }
     .check { color: #34d399; }
     .cross { color: #52525b; }
+    .input-dark {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border-mid);
+      color: #fff;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .input-dark:focus {
+      outline: none;
+      border-color: var(--signal);
+      background: rgba(255,255,255,0.06);
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18);
+    }
+    .input-dark::placeholder {
+      color: #71717a;
+    }
+    .status-note {
+      min-height: 1.25rem;
+    }
   </style>
 </head>
 <body class="bg-[#0C0C0D] text-zinc-100 antialiased">
@@ -156,8 +174,8 @@
             <span class="text-zinc-300">Velocity signals</span>
           </li>
           <li class="flex items-start gap-3">
-            <svg class="w-4 h-4 cross shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            <span class="text-zinc-600">No AI ranking</span>
+            <svg class="w-4 h-4 check shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-zinc-300">AI ranking with your own OpenRouter key</span>
           </li>
           <li class="flex items-start gap-3">
             <svg class="w-4 h-4 cross shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -186,10 +204,25 @@
         </div>
         <p class="text-xs text-sky-400 font-mono mb-8">Early bird pricing — lock it in now</p>
 
-        <button id="notify-pro" class="btn-primary inline-flex items-center justify-center font-semibold text-sm px-5 py-3 rounded-lg mb-2">
-          Notify Me When Available →
-        </button>
-        <p class="text-xs text-center text-zinc-600 font-mono mb-8">Launching soon</p>
+        <form id="pro-waitlist-form" class="mb-8">
+          <label for="pro-email" class="sr-only">Email address</label>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input
+              id="pro-email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+              placeholder="you@company.com"
+              class="input-dark w-full rounded-lg px-4 py-3 text-sm"
+            />
+            <button id="notify-pro" type="submit" class="btn-primary inline-flex items-center justify-center whitespace-nowrap font-semibold text-sm px-5 py-3 rounded-lg">
+              Join Pro Waitlist →
+            </button>
+          </div>
+          <p class="text-xs text-left text-zinc-600 font-mono mt-3">Launching soon. No spam.</p>
+          <p id="pro-waitlist-status" class="status-note mt-2 text-xs font-mono text-zinc-500" aria-live="polite"></p>
+        </form>
 
         <ul class="space-y-3 text-sm">
           <li class="flex items-start gap-3">
@@ -238,7 +271,7 @@
         </div>
         <div class="border-b divider pb-8">
           <h3 class="text-sm font-semibold text-white mb-2">Do I need an OpenRouter API key?</h3>
-          <p class="text-zinc-500 text-sm leading-relaxed">For Free tier with AI ranking, yes — get one free at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">openrouter.ai/keys</a>. Pro tier includes server-side AI credits.</p>
+          <p class="text-zinc-500 text-sm leading-relaxed">If you want AI ranking on the self-serve plan, yes — bring your own key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">openrouter.ai/keys</a>. Pro is intended to include server-side credits and automation.</p>
         </div>
         <div class="border-b divider pb-8">
           <h3 class="text-sm font-semibold text-white mb-2">What's the refund policy?</h3>
@@ -286,13 +319,25 @@
   </footer>
 
   <script>
-    document.getElementById('notify-pro').addEventListener('click', async () => {
-      const email = prompt('Enter your email to get notified when Pro launches:');
-      if (!email) return;
-      const button = document.getElementById('notify-pro');
-      const originalText = button.textContent;
-      button.textContent = 'Subscribing...';
-      button.disabled = true;
+    const waitlistForm = document.getElementById('pro-waitlist-form');
+    const waitlistInput = document.getElementById('pro-email');
+    const waitlistButton = document.getElementById('notify-pro');
+    const waitlistStatus = document.getElementById('pro-waitlist-status');
+
+    waitlistForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const email = waitlistInput.value.trim();
+      if (!email) {
+        waitlistStatus.textContent = 'Enter a valid email address.';
+        waitlistStatus.className = 'status-note mt-2 text-xs font-mono text-amber-400';
+        waitlistInput.focus();
+        return;
+      }
+
+      const originalText = waitlistButton.textContent;
+      waitlistStatus.textContent = '';
+      waitlistButton.textContent = 'Joining...';
+      waitlistButton.disabled = true;
       try {
         const res = await fetch('/api/notify-me', {
           method: 'POST',
@@ -300,12 +345,18 @@
           body: JSON.stringify({ email, tier: 'pro' })
         });
         const data = await res.json();
-        alert(data.message || "Thanks! We'll notify you when Pro launches.");
+        if (!res.ok) {
+          throw new Error(data.message || 'Failed to join waitlist.');
+        }
+        waitlistStatus.textContent = data.message || "Thanks! We'll notify you when Pro launches.";
+        waitlistStatus.className = 'status-note mt-2 text-xs font-mono text-emerald-400';
+        waitlistForm.reset();
       } catch {
-        alert('Failed to subscribe. Please try again.');
+        waitlistStatus.textContent = 'Failed to subscribe. Please try again.';
+        waitlistStatus.className = 'status-note mt-2 text-xs font-mono text-rose-400';
       } finally {
-        button.textContent = originalText;
-        button.disabled = false;
+        waitlistButton.textContent = originalText;
+        waitlistButton.disabled = false;
       }
     });
   </script>
