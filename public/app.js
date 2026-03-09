@@ -1647,13 +1647,7 @@ const {
         }
 
         const subsCount = subs.length;
-        let effectiveLimit = limit;
         let effectiveMaxPages = maxPages;
-        if (subsCount >= 12) {
-          effectiveLimit = Math.min(25, effectiveLimit);
-        } else if (subsCount >= 6) {
-          effectiveLimit = Math.min(25, effectiveLimit);
-        }
         if (subsCount >= 20) {
           effectiveMaxPages = Math.min(effectiveMaxPages, 2);
         } else if (subsCount >= 12) {
@@ -1661,7 +1655,7 @@ const {
         } else if (subsCount >= 8) {
           effectiveMaxPages = Math.min(effectiveMaxPages, 4);
         }
-        const depthAutoCapped = effectiveMaxPages !== maxPages;
+        const wantsDeepFetch = maxPages === 0 || maxPages > 4;
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1673,71 +1667,170 @@ const {
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
-          const params = new URLSearchParams({
-            subs: subs.join(','),
+          setFetchMethod('server');
+          const determineChunkSize = () => {
+            if (subsCount > 21) return wantsDeepFetch ? 6 : 7;
+            if (subsCount > 14) return 7;
+            if (subsCount > 7 && wantsDeepFetch) return 7;
+            return subsCount;
+          };
+          const chunkSize = determineChunkSize();
+          const subChunks = [];
+          for (let i = 0; i < subs.length; i += chunkSize) {
+            subChunks.push(subs.slice(i, i + chunkSize));
+          }
+
+          const shapeForChunk = (chunkLength) => {
+            let chunkLimit = limit;
+            let chunkMaxPages = maxPages;
+            if (chunkLength >= 12) {
+              chunkLimit = Math.min(25, chunkLimit);
+            } else if (chunkLength >= 6) {
+              chunkLimit = Math.min(25, chunkLimit);
+            }
+            if (chunkLength >= 20) {
+              chunkMaxPages = Math.min(chunkMaxPages, 2);
+            } else if (chunkLength >= 12) {
+              chunkMaxPages = Math.min(chunkMaxPages, 3);
+            } else if (chunkLength >= 8) {
+              chunkMaxPages = Math.min(chunkMaxPages, 4);
+            }
+            return {
+              chunkLimit,
+              chunkMaxPages,
+              chunkWasCapped: chunkLimit !== limit || chunkMaxPages !== maxPages,
+            };
+          };
+
+          const mergedRequestStartedAt = Date.now();
+          const mergedPayload = {
             mode,
             time,
-            days: String(days),
-            limit: String(effectiveLimit)
-          });
-          params.set('max_pages', effectiveMaxPages === 0 ? 'all' : String(effectiveMaxPages));
-          if (forceRefresh) {
-            params.set('_ts', String(Date.now()));
-            params.set('fresh', '1');
-          }
+            days,
+            limit: limit,
+            max_pages: maxPages,
+            fetch_all_pages: maxPages === 0,
+            results: [],
+            fetched_at: Date.now(),
+            request_capped: false,
+            rate_limited: false,
+            rate_limited_subreddits: [],
+            retry_after_seconds: 0,
+            timed_out: false,
+            timed_out_subreddits: [],
+            auth_mode: null,
+            metrics: {
+              subredditCount: 0,
+              totalPosts: 0,
+              rateLimitedCount: 0,
+              durationMs: 0,
+              timedOutCount: 0,
+              retryAfterSeconds: 0,
+              redditRequestCount: 0,
+              sharedCooldownHit: false,
+              requestCapped: false,
+            },
+          };
+          let sawRateLimitedHeader = false;
 
-          setFetchMethod('server');
-          const requestUrl = `${DEFAULT_API_URL}?${params.toString()}`;
-          let response = await fetch(requestUrl, {
-            signal: controller.signal,
-            ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
-          });
+          for (let chunkIdx = 0; chunkIdx < subChunks.length; chunkIdx++) {
+            const chunkSubs = subChunks[chunkIdx];
+            const { chunkLimit, chunkMaxPages, chunkWasCapped } = shapeForChunk(chunkSubs.length);
+            const params = new URLSearchParams({
+              subs: chunkSubs.join(','),
+              mode,
+              time,
+              days: String(days),
+              limit: String(chunkLimit)
+            });
+            params.set('max_pages', chunkMaxPages === 0 ? 'all' : String(chunkMaxPages));
+            if (forceRefresh) {
+              params.set('_ts', `${Date.now()}_${chunkIdx}`);
+              params.set('fresh', '1');
+            }
 
-          // Forced fresh fetch can exceed backend limits for large subreddit sets.
-          // Fall back to snapshot cache instead of surfacing a hard 500 to the UI.
-          if (forceRefresh && response.status >= 500) {
-            const fallbackParams = new URLSearchParams(params);
-            fallbackParams.delete('_ts');
-            fallbackParams.delete('fresh');
-            const fallbackUrl = `${DEFAULT_API_URL}?${fallbackParams.toString()}`;
-            const fallbackResponse = await fetch(fallbackUrl, { signal: controller.signal });
-            if (fallbackResponse.ok) {
-              response = fallbackResponse;
+            const requestUrl = `${DEFAULT_API_URL}?${params.toString()}`;
+            let response = await fetch(requestUrl, {
+              signal: controller.signal,
+              ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
+            });
+
+            if (forceRefresh && response.status >= 500) {
+              const fallbackParams = new URLSearchParams(params);
+              fallbackParams.delete('_ts');
+              fallbackParams.delete('fresh');
+              const fallbackUrl = `${DEFAULT_API_URL}?${fallbackParams.toString()}`;
+              const fallbackResponse = await fetch(fallbackUrl, { signal: controller.signal });
+              if (fallbackResponse.ok) {
+                response = fallbackResponse;
+              }
+            }
+
+            if (response.status === 401) {
+              setNeedsAuth(true);
+              setAuthenticated(false);
+              setAuthChecking(false);
+              setFetchSummary(null);
+              setError('Sign in with Reddit to fetch your dashboard.');
+              return;
+            }
+
+            if (response.status === 429) {
+              let responseBody = null;
+              try { responseBody = await response.json(); } catch (e) {}
+              const retryHeader = Number(response.headers.get('Retry-After')) || 0;
+              const retryAfterSeconds = Number(responseBody?.retryAfter) || retryHeader || 0;
+              if (retryAfterSeconds > 0) {
+                localPauseUntil = Date.now() + retryAfterSeconds * 1000;
+                setRateLimitPauseUntil(localPauseUntil);
+              }
+              const isAppLimit = responseBody?.source === 'app';
+              const sourceLabel = isAppLimit ? '⚡ App throttle' : '🔒 Rate limit';
+              const sourceMessage = responseBody?.message || (isAppLimit ? 'Too many requests from this browser.' : 'Dashboard request limit reached.');
+              setFetchSummary(null);
+              setError(`${sourceLabel}: ${sourceMessage}${retryAfterSeconds > 0 ? ` Retry in ~${retryAfterSeconds}s.` : ''}`);
+              return;
+            }
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            sawRateLimitedHeader = sawRateLimitedHeader || response.headers.get('X-Rate-Limited') === '1';
+            const chunkPayload = await response.json();
+            const chunkRetryAfter = Number(chunkPayload?.retry_after_seconds) || Number(response.headers.get('Retry-After')) || 0;
+            mergedPayload.results.push(...(Array.isArray(chunkPayload.results) ? chunkPayload.results : []));
+            mergedPayload.rate_limited = mergedPayload.rate_limited || Boolean(chunkPayload.rate_limited);
+            mergedPayload.timed_out = mergedPayload.timed_out || Boolean(chunkPayload.timed_out);
+            mergedPayload.retry_after_seconds = Math.max(mergedPayload.retry_after_seconds, chunkRetryAfter);
+            mergedPayload.rate_limited_subreddits.push(...(Array.isArray(chunkPayload.rate_limited_subreddits) ? chunkPayload.rate_limited_subreddits : []));
+            mergedPayload.timed_out_subreddits.push(...(Array.isArray(chunkPayload.timed_out_subreddits) ? chunkPayload.timed_out_subreddits : []));
+            mergedPayload.auth_mode = mergedPayload.auth_mode || chunkPayload?.auth_mode || null;
+            mergedPayload.metrics.subredditCount += Number(chunkPayload?.metrics?.subredditCount) || chunkSubs.length;
+            mergedPayload.metrics.totalPosts += Number(chunkPayload?.metrics?.totalPosts) || 0;
+            mergedPayload.metrics.rateLimitedCount += Number(chunkPayload?.metrics?.rateLimitedCount) || 0;
+            mergedPayload.metrics.timedOutCount += Number(chunkPayload?.metrics?.timedOutCount) || 0;
+            mergedPayload.metrics.retryAfterSeconds = Math.max(mergedPayload.metrics.retryAfterSeconds, Number(chunkPayload?.metrics?.retryAfterSeconds) || chunkRetryAfter || 0);
+            mergedPayload.metrics.redditRequestCount += Number(chunkPayload?.metrics?.redditRequestCount) || 0;
+            mergedPayload.metrics.sharedCooldownHit = mergedPayload.metrics.sharedCooldownHit || Boolean(chunkPayload?.metrics?.sharedCooldownHit);
+            mergedPayload.request_capped = mergedPayload.request_capped || Boolean(chunkPayload?.request_capped) || chunkWasCapped;
+            mergedPayload.metrics.requestCapped = mergedPayload.metrics.requestCapped || Boolean(chunkPayload?.metrics?.requestCapped) || mergedPayload.request_capped;
+
+            if (chunkPayload?.rate_limited || response.headers.get('X-Rate-Limited') === '1') {
+              break;
+            }
+
+            if (chunkIdx < subChunks.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 400));
             }
           }
 
-          if (response.status === 401) {
-            setNeedsAuth(true);
-            setAuthenticated(false);
-            setAuthChecking(false);
-            setFetchSummary(null);
-            setError('Sign in with Reddit to fetch your dashboard.');
-            return;
-          }
+          mergedPayload.fetched_at = Date.now();
+          mergedPayload.rate_limited_subreddits = Array.from(new Set(mergedPayload.rate_limited_subreddits));
+          mergedPayload.timed_out_subreddits = Array.from(new Set(mergedPayload.timed_out_subreddits));
+          mergedPayload.metrics.durationMs = Date.now() - mergedRequestStartedAt;
 
-          if (response.status === 429) {
-            let responseBody = null;
-            try { responseBody = await response.json(); } catch (e) {}
-            const retryHeader = Number(response.headers.get('Retry-After')) || 0;
-            const retryAfterSeconds = Number(responseBody?.retryAfter) || retryHeader || 0;
-            if (retryAfterSeconds > 0) {
-              localPauseUntil = Date.now() + retryAfterSeconds * 1000;
-              setRateLimitPauseUntil(localPauseUntil);
-            }
-            const isAppLimit = responseBody?.source === 'app';
-            const sourceLabel = isAppLimit ? '⚡ App throttle' : '🔒 Rate limit';
-            const sourceMessage = responseBody?.message || (isAppLimit ? 'Too many requests from this browser.' : 'Dashboard request limit reached.');
-            setFetchSummary(null);
-            setError(`${sourceLabel}: ${sourceMessage}${retryAfterSeconds > 0 ? ` Retry in ~${retryAfterSeconds}s.` : ''}`);
-            return;
-          }
-
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          const rateLimitedHeader = response.headers.get('X-Rate-Limited') === '1';
-          const payload = await response.json();
-          const retryAfterHeader = Number(response.headers.get('Retry-After')) || 0;
-          const retryAfterSeconds = Number(payload?.retry_after_seconds) || retryAfterHeader || 0;
+          const payload = mergedPayload;
+          const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
+          const rateLimitedHeader = sawRateLimitedHeader;
           if (rateLimitedHeader || payload.rate_limited) {
             if (retryAfterSeconds > 0) {
               localPauseUntil = Date.now() + retryAfterSeconds * 1000;
@@ -1794,19 +1887,21 @@ const {
             };
           });
           setNeedsAuth(false);
-          setAuthenticated(true);
+          setAuthenticated(payload?.auth_mode !== 'public');
           setAuthChecking(false);
           setData(perSub);
           setFetchedAt(Number(payload?.fetched_at) || Date.now());
           setSnapshotInfo(payload?.snapshot || null);
           setFetchSummary(buildFetchSummary(payload, perSub, {
-            requestedFetchAllPages: effectiveMaxPages === 0 || Boolean(payload?.fetch_all_pages),
-            depthAutoCapped: depthAutoCapped || Boolean(payload?.request_capped),
-            effectiveMaxPages,
+            requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
+            depthAutoCapped: Boolean(payload?.request_capped),
+            effectiveMaxPages: payload?.request_capped ? effectiveMaxPages : maxPages,
             subsCount,
           }));
 
-          await syncDashboardSnapshot(perSub);
+          if (payload?.auth_mode !== 'public') {
+            await syncDashboardSnapshot(perSub);
+          }
 
           await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
 
