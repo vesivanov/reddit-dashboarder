@@ -24,12 +24,10 @@ test.describe('Pricing page', () => {
     await expect(proPrice).toBeVisible();
   });
 
-  test('Start Free links to app', async ({ page }) => {
-    // There are two "Start Free" links; both must point to /app
-    const links = page.getByRole('link', { name: /Start Free/i });
-    for (const link of await links.all()) {
-      await expect(link).toHaveAttribute('href', '/app');
-    }
+  test('primary pricing CTAs stay on marketing routes', async ({ page }) => {
+    await expect(page.getByRole('link', { name: 'Back Home →' })).toHaveAttribute('href', '/');
+    await expect(page.getByRole('link', { name: 'View Overview →' })).toHaveAttribute('href', '/');
+    await expect(page.getByRole('link', { name: 'Back to Overview →' })).toHaveAttribute('href', '/');
   });
 
   test('FAQ section is present', async ({ page }) => {
