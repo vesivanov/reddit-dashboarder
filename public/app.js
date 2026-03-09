@@ -1712,7 +1712,7 @@ const {
         setNeedsAuth(false);
         const controller = new AbortController();
         const timeoutMs = shouldUseAsyncFetchJob
-          ? 10 * 60 * 1000
+          ? 30 * 60 * 1000
           : Math.min(65000, 10000 + subs.length * 3500);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -1720,31 +1720,40 @@ const {
           if (shouldUseAsyncFetchJob) {
             setFetchMethod('paged');
             const pagedStartedAt = Date.now();
-            const pagedResults = [];
+            const pageLimit = Math.min(subsCount >= 20 ? 15 : 25, limit);
+            const subStates = subs.map((sub) => ({
+              subreddit: sub,
+              meta: null,
+              posts: [],
+              after: '',
+              done: false,
+              partial: false,
+              pageCount: 0,
+              nextAllowedAt: 0,
+            }));
             let authMode = null;
             let rateLimitedSubs = [];
             let pagedRetryAfterSeconds = 0;
+            let completedSubs = 0;
 
-            for (let subIdx = 0; subIdx < subs.length; subIdx += 1) {
-              const sub = subs[subIdx];
-              let subMeta = null;
-              let subPosts = [];
-              let after = '';
-              let done = false;
-              let partial = false;
-              let pageCount = 0;
-
-              while (!done) {
+            while (subStates.some((state) => !state.done)) {
+              let progressedThisPass = false;
+              for (let subIdx = 0; subIdx < subStates.length; subIdx += 1) {
+                const state = subStates[subIdx];
+                if (state.done) continue;
+                const waitForSubMs = state.nextAllowedAt - Date.now();
+                if (waitForSubMs > 0) continue;
+                const sub = state.subreddit;
                 const params = new URLSearchParams({
                   sub,
                   mode,
                   time,
                   days: String(days),
-                  limit: String(Math.min(25, limit)),
-                  include_meta: pageCount === 0 ? '1' : '0',
+                  limit: String(pageLimit),
+                  include_meta: state.pageCount === 0 ? '1' : '0',
                 });
-                if (after) params.set('after', after);
-                if (forceRefresh) params.set('_ts', `${Date.now()}_${subIdx}_${pageCount}`);
+                if (state.after) params.set('after', state.after);
+                if (forceRefresh) params.set('_ts', `${Date.now()}_${subIdx}_${state.pageCount}`);
 
                 const pageResponse = await fetch(`/api/reddit/page?${params.toString()}`, {
                   signal: controller.signal,
@@ -1768,14 +1777,16 @@ const {
                   localPauseUntil = Date.now() + pagedRetryAfterSeconds * 1000;
                   setRateLimitPauseUntil(localPauseUntil);
                   rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
+                  state.nextAllowedAt = localPauseUntil;
                   setFetchSummary({
                     tone: 'warning',
                     status: 'Cooldown',
-                    detail: `Reddit asked for cooldown while fetching r/${sub}. Waiting ~${pagedRetryAfterSeconds}s.`,
-                    completedSubs: subIdx,
+                    detail: `Reddit asked for cooldown while fetching r/${sub}. Waiting ~${pagedRetryAfterSeconds}s before retrying.`,
+                    completedSubs,
                     attemptedSubs: subsCount,
                   });
                   await new Promise((resolve) => setTimeout(resolve, Math.max(1500, pagedRetryAfterSeconds * 1000)));
+                  progressedThisPass = true;
                   continue;
                 }
 
@@ -1785,47 +1796,57 @@ const {
 
                 const pagePayload = await pageResponse.json();
                 authMode = authMode || pagePayload?.auth_mode || null;
-                subMeta = pagePayload?.meta || subMeta;
+                state.meta = pagePayload?.meta || state.meta;
                 if (Array.isArray(pagePayload?.posts)) {
-                  subPosts.push(...pagePayload.posts);
+                  state.posts.push(...pagePayload.posts);
                 }
-                after = pagePayload?.after || '';
-                done = Boolean(pagePayload?.done);
-                pageCount += 1;
+                state.after = pagePayload?.after || '';
+                state.done = Boolean(pagePayload?.done);
+                state.pageCount += 1;
+                state.nextAllowedAt = Date.now() + (authMode === 'oauth' ? 1200 : 1800);
+                progressedThisPass = true;
 
                 setFetchSummary({
                   tone: 'accent',
                   status: 'Running',
-                  detail: `Fetched ${subIdx}/${subsCount} subreddits. Collecting r/${sub} page ${pageCount}. ${subPosts.length} posts in this subreddit so far.`,
-                  completedSubs: subIdx,
+                  detail: `Fetched ${completedSubs}/${subsCount} subreddits. Collecting r/${sub} page ${state.pageCount}. ${state.posts.length} posts in this subreddit so far.`,
+                  completedSubs,
                   attemptedSubs: subsCount,
                 });
 
-                if (!done && maxPages !== 0 && pageCount >= maxPages) {
-                  partial = Boolean(after);
-                  done = true;
+                if (!state.done && maxPages !== 0 && state.pageCount >= maxPages) {
+                  state.partial = Boolean(state.after);
+                  state.done = true;
                 }
 
-                if (!done) {
-                  await new Promise((resolve) => setTimeout(resolve, 250));
+                if (state.done) {
+                  completedSubs += 1;
+                  setFetchSummary({
+                    tone: 'accent',
+                    status: 'Running',
+                    detail: `Fetched ${completedSubs}/${subsCount} subreddits. ${subStates.reduce((sum, item) => sum + (item.posts?.length || 0), 0)} posts collected so far.`,
+                    completedSubs,
+                    attemptedSubs: subsCount,
+                  });
                 }
+
+                await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 500 : 800));
               }
 
-              pagedResults.push({
-                subreddit: sub,
-                meta: subMeta,
-                posts: subPosts,
-                partial,
-                error: null,
-              });
-              setFetchSummary({
-                tone: 'accent',
-                status: 'Running',
-                detail: `Fetched ${subIdx + 1}/${subsCount} subreddits. ${pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0)} posts collected so far.`,
-                completedSubs: subIdx + 1,
-                attemptedSubs: subsCount,
-              });
+              if (!progressedThisPass) {
+                const nextAllowedAt = Math.min(...subStates.filter((state) => !state.done).map((state) => state.nextAllowedAt || (Date.now() + 500)));
+                const waitMs = Math.max(250, nextAllowedAt - Date.now());
+                await new Promise((resolve) => setTimeout(resolve, waitMs));
+              }
             }
+
+            const pagedResults = subStates.map((state) => ({
+              subreddit: state.subreddit,
+              meta: state.meta,
+              posts: state.posts,
+              partial: state.partial,
+              error: null,
+            }));
 
             const payload = {
               mode,
