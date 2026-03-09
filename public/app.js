@@ -1733,6 +1733,7 @@ const {
           ? 30 * 60 * 1000
           : Math.min(65000, 10000 + subs.length * 3500);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        let keepCoverageController = false;
 
         try {
           if (shouldUseCheckpointedCoverage) {
@@ -1893,7 +1894,8 @@ const {
               attemptedSubs: subsCount,
             });
             const continueCoverageInBackground = async () => {
-              while (true) {
+              try {
+                while (true) {
                 if (!isCurrentCoverageRun()) return;
                 const { completedSubs, totalPosts } = computeProgress();
                 const pendingSubs = subs.filter((sub) => {
@@ -2018,10 +2020,10 @@ const {
 
                   await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
                 }
-              }
+                }
 
-              if (!isCurrentCoverageRun()) return;
-              const pagedResults = subs.map((sub) => {
+                if (!isCurrentCoverageRun()) return;
+                const pagedResults = subs.map((sub) => {
                 const subKey = String(sub || '').toLowerCase();
                 const state = coverageStates.get(subKey);
                 const result = coverageResults.get(subKey);
@@ -2035,7 +2037,7 @@ const {
                 };
               });
 
-              const payload = {
+                const payload = {
                 mode,
                 time,
                 days,
@@ -2067,47 +2069,53 @@ const {
                 },
               };
 
-              const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
-              if (payload.rate_limited && retryAfterSeconds > 0) {
-                localPauseUntil = Date.now() + retryAfterSeconds * 1000;
-                setRateLimitPauseUntil(localPauseUntil);
-              } else {
-                localPauseUntil = null;
-                setRateLimitPauseUntil(null);
+                const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
+                if (payload.rate_limited && retryAfterSeconds > 0) {
+                  localPauseUntil = Date.now() + retryAfterSeconds * 1000;
+                  setRateLimitPauseUntil(localPauseUntil);
+                } else {
+                  localPauseUntil = null;
+                  setRateLimitPauseUntil(null);
+                }
+
+                const perSub = buildPerSubFromCoverage();
+
+                setNeedsAuth(false);
+                setAuthenticated(payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated);
+                setAuthChecking(false);
+                setData(perSub);
+                setFetchedAt(Number(payload?.fetched_at) || Date.now());
+                setSnapshotInfo(null);
+                setFetchSummary(buildFetchSummary(payload, perSub, {
+                  requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
+                  depthAutoCapped: false,
+                  effectiveMaxPages: maxPages,
+                  subsCount,
+                }));
+
+                if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
+                  await syncDashboardSnapshot(perSub);
+                }
+                await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
+
+                const plan = getAutoRefreshPlan({
+                  autoRefreshEnabled,
+                  subsLength: subs.length,
+                  intervalMinutes: autoRefreshInterval,
+                  now: Date.now(),
+                  minMinutes: MIN_AUTO_REFRESH_MINUTES,
+                });
+                const pausedNext = localPauseUntil && localPauseUntil > Date.now() ? localPauseUntil : null;
+                setNextRefreshAt(pausedNext || plan.nextRefreshAt);
+                if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
+              } finally {
+                if (coverageAbortRef.current === controller) {
+                  coverageAbortRef.current = null;
+                }
               }
-
-              const perSub = buildPerSubFromCoverage();
-
-              setNeedsAuth(false);
-              setAuthenticated(payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated);
-              setAuthChecking(false);
-              setData(perSub);
-              setFetchedAt(Number(payload?.fetched_at) || Date.now());
-              setSnapshotInfo(null);
-              setFetchSummary(buildFetchSummary(payload, perSub, {
-                requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
-                depthAutoCapped: false,
-                effectiveMaxPages: maxPages,
-                subsCount,
-              }));
-
-              if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
-                await syncDashboardSnapshot(perSub);
-              }
-              await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
-
-              const plan = getAutoRefreshPlan({
-                autoRefreshEnabled,
-                subsLength: subs.length,
-                intervalMinutes: autoRefreshInterval,
-                now: Date.now(),
-                minMinutes: MIN_AUTO_REFRESH_MINUTES,
-              });
-              const pausedNext = localPauseUntil && localPauseUntil > Date.now() ? localPauseUntil : null;
-              setNextRefreshAt(pausedNext || plan.nextRefreshAt);
-              if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
             };
 
+            keepCoverageController = true;
             void continueCoverageInBackground().catch((fetchError) => {
               if (!isCurrentCoverageRun()) return;
               setNeedsAuth(false);
@@ -2405,7 +2413,7 @@ const {
           }
         } finally {
           clearTimeout(timeoutId);
-          if (coverageAbortRef.current === controller) {
+          if (!keepCoverageController && coverageAbortRef.current === controller) {
             coverageAbortRef.current = null;
           }
           setLoading(false);
