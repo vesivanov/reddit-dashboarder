@@ -238,6 +238,30 @@ describe('Authentication', () => {
     expect(res.status).toBe(413);
     expect(res.body.error).toBe('Payload too large');
   });
+
+  it('returns 503 when sync storage is temporarily unavailable', async () => {
+    storage.set.mockRejectedValueOnce(new Error('redis unavailable'));
+
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    const cookieValue = accessCookie.split(';')[0];
+    const res = await runHandler(syncHandler, {
+      method: 'POST',
+      url: '/api/sync',
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+      cookies: cookieValue,
+      body: {
+        token: 'sync-token',
+        posts: [{ id: 'p1', title: 'small enough' }],
+      },
+    });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      error: 'Sync unavailable',
+    });
+  });
 });
 
 describe('Input Validation', () => {

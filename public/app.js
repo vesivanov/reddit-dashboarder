@@ -982,6 +982,8 @@ const {
             setSnapshotInfo(prev => ({ ...(prev || {}), syncToken }));
           } else if (response.status === 413) {
             setSyncPauseUntil(Date.now() + 15 * 60 * 1000);
+          } else if (response.status >= 500) {
+            setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           }
         } catch {}
       }, [
@@ -1021,6 +1023,8 @@ const {
             setConfigSyncPauseUntil(null);
           } else if (response.status === 400 || response.status === 413) {
             setConfigSyncPauseUntil(Date.now() + 15 * 60 * 1000);
+          } else if (response.status >= 500) {
+            setConfigSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           }
         } catch {}
       }, [
@@ -1939,6 +1943,7 @@ const {
                     days,
                     target_window_days: targetWindowDays,
                     limit: pageLimit,
+                    include_meta: subsCount < 12 && pageCount === 0,
                     scopeId: coverageScopeId,
                   }),
                 });
