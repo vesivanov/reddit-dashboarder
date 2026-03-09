@@ -315,6 +315,8 @@ const {
         }
       });
       const [fetchSummary, setFetchSummary] = useState(null);
+      const [syncPauseUntil, setSyncPauseUntil] = useState(null);
+      const [configSyncPauseUntil, setConfigSyncPauseUntil] = useState(null);
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
       const opportunityScanRequestIdRef = useRef(0);
@@ -835,29 +837,29 @@ const {
       }, [formatSignalLabel]);
 
       const buildSyncSettings = useCallback(() => ({
-        subreddits: subs.map(normalizeSubredditName).filter(Boolean),
-        opportunityBrief,
-        opportunityContext,
-        aiAvoid,
-        aiPrompt: opportunityBrief,
+        subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
+        opportunityBrief: opportunityBrief.trim().slice(0, 500),
+        opportunityContext: opportunityContext.trim().slice(0, 600),
+        aiAvoid: aiAvoid.trim().slice(0, 800),
+        aiPrompt: opportunityBrief.trim().slice(0, 500),
         aiThreshold: priorityNotificationThreshold,
         openRouterModel,
         scoringConfig: {
-          lookingFor: effectiveGoalText.trim() || opportunityBrief.trim(),
-          avoid: effectiveAvoidText.trim() || undefined,
+          lookingFor: (effectiveGoalText.trim() || opportunityBrief.trim()).slice(0, 1200),
+          avoid: effectiveAvoidText.trim().slice(0, 800) || undefined,
           examples: {
-            perfect: aiExamplePerfect.trim() || undefined,
-            strong: aiExampleStrong.trim() || undefined,
-            reject: aiExampleReject.trim() || undefined,
+            perfect: aiExamplePerfect.trim().slice(0, 1200) || undefined,
+            strong: aiExampleStrong.trim().slice(0, 1200) || undefined,
+            reject: aiExampleReject.trim().slice(0, 1200) || undefined,
           },
         },
         opportunityConfig: {
-          businessOffering: businessOffering.trim(),
-          idealCustomer: idealCustomer.trim(),
-          problemsSolved: problemsSolved.trim(),
+          businessOffering: businessOffering.trim().slice(0, 300),
+          idealCustomer: idealCustomer.trim().slice(0, 300),
+          problemsSolved: problemsSolved.trim().slice(0, 600),
           preferredEngagement,
           strategyPreset,
-          opportunityTypes: normalizedOpportunityFocus,
+          opportunityTypes: normalizedOpportunityFocus.slice(0, 8),
           strictness: opportunityStrictness,
         },
       }), [
@@ -889,93 +891,136 @@ const {
         keyword: keyword.trim() || undefined,
       }), [minUpvoteFilter, minCommentFilter, minPriorityFilter, keyword]);
 
-      const syncDashboardSnapshot = useCallback(async (groupsOverride) => {
-        const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
-        if (!authenticated || !syncToken || !Array.isArray(groups) || groups.length === 0) return;
+      const buildSyncPosts = useCallback((groups) => {
+        const MAX_SYNC_POSTS = 160;
+        const MAX_SYNC_TEXT_LENGTH = 280;
+        const allPosts = groups.flatMap(group => group.posts || []);
+        const ranked = [...allPosts].sort((a, b) => {
+          const aPriority = Number(postOpportunities.get(String(a.id))?.scores?.priority ?? a.aiPriority ?? -1);
+          const bPriority = Number(postOpportunities.get(String(b.id))?.scores?.priority ?? b.aiPriority ?? -1);
+          if (bPriority !== aPriority) return bPriority - aPriority;
+          const aComments = Number(a.num_comments) || 0;
+          const bComments = Number(b.num_comments) || 0;
+          if (bComments !== aComments) return bComments - aComments;
+          return (Number(b.score) || 0) - (Number(a.score) || 0);
+        });
 
-        const posts = groups.flatMap(group => (group.posts || []).map(post => {
+        return ranked.slice(0, MAX_SYNC_POSTS).map(post => {
           const postId = String(post.id);
           const opportunity = postOpportunities.get(postId) || null;
           const metadata = postScoreMetadata.get(postId) || post.aiMetadata || null;
           return {
             id: post.id,
-            subreddit: post.subreddit,
-            title: post.title,
-            selftext: (post.selftext || '').slice(0, 2000),
-            author: post.author || '',
+            subreddit: String(post.subreddit || '').slice(0, 80),
+            title: String(post.title || '').slice(0, 240),
+            selftext: String(post.selftext || '').slice(0, MAX_SYNC_TEXT_LENGTH),
+            author: String(post.author || '').slice(0, 80),
             reddit_url: post.reddit_url,
             external_url: post.external_url,
-            domain: post.domain,
-            score: post.score,
-            num_comments: post.num_comments,
+            domain: String(post.domain || '').slice(0, 120),
+            score: Number(post.score) || 0,
+            num_comments: Number(post.num_comments) || 0,
             created_utc: post.created_utc,
-            link_flair_text: post.link_flair_text || '',
+            link_flair_text: String(post.link_flair_text || '').slice(0, 80),
             aiRelevance: postScoreProxies.get(postId) ?? post.aiRelevance ?? null,
             aiMetadata: metadata ? {
               source: metadata.source || null,
               confidence: metadata.confidence || null,
-              reason: metadata.reason || null,
+              reason: String(metadata.reason || '').slice(0, 160) || null,
             } : null,
             aiOpportunity: opportunity ? {
-              classification: opportunity.classification || null,
-              scores: opportunity.scores || null,
-              action: opportunity.action || null,
-              explanation: opportunity.explanation ? { summary: opportunity.explanation.summary || '' } : null,
-            } : (post.aiOpportunity || null),
+              classification: opportunity.classification ? {
+                type: opportunity.classification.type || null,
+                label: opportunity.classification.label || null,
+              } : null,
+              scores: opportunity.scores ? {
+                overall: opportunity.scores.overall ?? null,
+                priority: opportunity.scores.priority ?? null,
+              } : null,
+              action: opportunity.action ? {
+                recommended: opportunity.action.recommended || null,
+                label: opportunity.action.label || null,
+              } : null,
+              explanation: opportunity.explanation ? {
+                summary: String(opportunity.explanation.summary || '').slice(0, 180),
+              } : null,
+            } : null,
             aiPriority: opportunity?.scores?.priority ?? post.aiPriority ?? null,
           };
-        }));
+        });
+      }, [postOpportunities, postScoreMetadata, postScoreProxies]);
+
+      const syncDashboardSnapshot = useCallback(async (groupsOverride) => {
+        const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
+        if (!authenticated || !syncToken || !Array.isArray(groups) || groups.length === 0) return;
+        if (syncPauseUntil && syncPauseUntil > Date.now()) return;
+        const posts = buildSyncPosts(groups);
+        const payload = {
+          token: syncToken,
+          posts,
+          settings: buildSyncSettings(),
+          filters: buildSyncFilters(),
+          timestamp: new Date().toISOString(),
+        };
+
+        if (new TextEncoder().encode(JSON.stringify(payload)).length > 450000) {
+          setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
+          return;
+        }
 
         try {
           const response = await fetch('/api/sync', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token: syncToken,
-              posts,
-              settings: buildSyncSettings(),
-              filters: buildSyncFilters(),
-              timestamp: new Date().toISOString(),
-            }),
+            body: JSON.stringify(payload),
           });
           if (response.ok) {
+            setSyncPauseUntil(null);
             setSnapshotInfo(prev => ({ ...(prev || {}), syncToken }));
+          } else if (response.status === 413) {
+            setSyncPauseUntil(Date.now() + 15 * 60 * 1000);
           }
         } catch {}
       }, [
         data,
         authenticated,
         syncToken,
-        postOpportunities,
-        postScoreProxies,
-        postScoreMetadata,
+        syncPauseUntil,
+        buildSyncPosts,
         buildSyncSettings,
         buildSyncFilters,
       ]);
 
       const syncOpportunityConfig = useCallback(async () => {
         if (!authenticated || !syncToken) return;
+        if (configSyncPauseUntil && configSyncPauseUntil > Date.now()) return;
         try {
-          await fetch('/api/settings/opportunity-config', {
+          const response = await fetch('/api/settings/opportunity-config', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               token: syncToken,
-              subreddits: subs.map(normalizeSubredditName).filter(Boolean),
-              goals: opportunityBrief,
-              aiContext: opportunityContext,
-              aiPrompt: opportunityBrief,
+              subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
+              goals: opportunityBrief.trim().slice(0, 500),
+              aiContext: opportunityContext.trim().slice(0, 600),
+              aiPrompt: opportunityBrief.trim().slice(0, 500),
               opportunityConfig: buildSyncSettings().opportunityConfig,
               scoringConfig: buildSyncSettings().scoringConfig,
-              threshold: priorityNotificationThreshold,
-              model: openRouterModel,
+              threshold: Math.max(0, Math.min(5, Number(priorityNotificationThreshold) || 4)),
+              model: String(openRouterModel || '').slice(0, 100),
             }),
           });
+          if (response.ok) {
+            setConfigSyncPauseUntil(null);
+          } else if (response.status === 400 || response.status === 413) {
+            setConfigSyncPauseUntil(Date.now() + 15 * 60 * 1000);
+          }
         } catch {}
       }, [
         authenticated,
+        configSyncPauseUntil,
         syncToken,
         subs,
         opportunityBrief,
