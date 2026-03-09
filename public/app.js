@@ -995,6 +995,7 @@ const {
       const syncOpportunityConfig = useCallback(async () => {
         if (!authenticated || !syncToken) return;
         if (configSyncPauseUntil && configSyncPauseUntil > Date.now()) return;
+        if (snapshotInfo?.syncToken !== syncToken) return;
         try {
           const response = await fetch('/api/settings/opportunity-config', {
             method: 'POST',
@@ -1022,6 +1023,7 @@ const {
         authenticated,
         configSyncPauseUntil,
         syncToken,
+        snapshotInfo,
         subs,
         opportunityBrief,
         opportunityContext,
@@ -2343,6 +2345,7 @@ const {
 
       useEffect(() => {
         if (!authenticated || !syncToken || !hasOpportunityGoals) return;
+        if (snapshotInfo?.syncToken !== syncToken) return;
         const timeoutId = setTimeout(() => {
           syncOpportunityConfig();
         }, 700);
@@ -2351,6 +2354,7 @@ const {
         authenticated,
         syncToken,
         hasOpportunityGoals,
+        snapshotInfo,
         subs,
         opportunityBrief,
         opportunityContext,

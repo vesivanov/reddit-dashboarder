@@ -100,7 +100,8 @@ describe('/api/reddit/jobs', () => {
     expect(poll1.status).toBe(200);
     expect(poll1.body.job.status).toBe('running');
     expect(poll1.body.job.progress.completedSubreddits).toBe(0);
-    expect(poll1.body.job.results[0].posts).toHaveLength(1);
+    expect(poll1.body.job.results[0].post_count).toBe(1);
+    expect(poll1.body.job.results[0].posts).toBeUndefined();
 
     const poll2 = await runHandler(jobsHandler, {
       method: 'GET',
