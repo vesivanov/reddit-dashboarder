@@ -317,6 +317,7 @@ const {
       const [fetchSummary, setFetchSummary] = useState(null);
       const [syncPauseUntil, setSyncPauseUntil] = useState(null);
       const [configSyncPauseUntil, setConfigSyncPauseUntil] = useState(null);
+      const [sidecarSyncSuppressedUntil, setSidecarSyncSuppressedUntil] = useState(null);
       const loadingRef = useRef(false);
       const addSubInputRef = useRef(null);
       const opportunityScanRequestIdRef = useRef(0);
@@ -954,6 +955,7 @@ const {
         const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
         if (!authenticated || !syncToken || !Array.isArray(groups) || groups.length === 0) return;
         if (syncPauseUntil && syncPauseUntil > Date.now()) return;
+        if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         const posts = buildSyncPosts(groups);
         const payload = {
           token: syncToken,
@@ -987,6 +989,7 @@ const {
         authenticated,
         syncToken,
         syncPauseUntil,
+        sidecarSyncSuppressedUntil,
         buildSyncPosts,
         buildSyncSettings,
         buildSyncFilters,
@@ -995,6 +998,7 @@ const {
       const syncOpportunityConfig = useCallback(async () => {
         if (!authenticated || !syncToken) return;
         if (configSyncPauseUntil && configSyncPauseUntil > Date.now()) return;
+        if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         if (snapshotInfo?.syncToken !== syncToken) return;
         try {
           const response = await fetch('/api/settings/opportunity-config', {
@@ -1022,6 +1026,7 @@ const {
       }, [
         authenticated,
         configSyncPauseUntil,
+        sidecarSyncSuppressedUntil,
         syncToken,
         snapshotInfo,
         subs,
@@ -1703,7 +1708,7 @@ const {
           effectiveMaxPages = Math.min(effectiveMaxPages, 4);
         }
         const wantsDeepFetch = maxPages === 0 || maxPages > 4;
-        const shouldUseAsyncFetchJob = (subsCount > 14) || (wantsDeepFetch && subsCount > 7);
+        const shouldUseCheckpointedCoverage = (subsCount > 14) || (wantsDeepFetch && subsCount > 7);
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1711,59 +1716,234 @@ const {
         setError('');
         setNeedsAuth(false);
         const controller = new AbortController();
-        const timeoutMs = shouldUseAsyncFetchJob
+        const timeoutMs = shouldUseCheckpointedCoverage
           ? 30 * 60 * 1000
           : Math.min(65000, 10000 + subs.length * 3500);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
-          if (shouldUseAsyncFetchJob) {
+          if (shouldUseCheckpointedCoverage) {
             setFetchMethod('paged');
             const pagedStartedAt = Date.now();
-            const skipMetaForLargeBatch = subsCount >= 12;
             const skipSyncForLargeBatch = subsCount >= 12;
+            if (skipSyncForLargeBatch) {
+              setSidecarSyncSuppressedUntil(Date.now() + 30 * 60 * 1000);
+            } else {
+              setSidecarSyncSuppressedUntil(null);
+            }
             const pageLimit = Math.min(subsCount >= 20 ? 10 : (subsCount >= 12 ? 15 : 25), limit);
-            const subStates = subs.map((sub) => ({
-              subreddit: sub,
-              meta: null,
-              posts: [],
-              after: '',
-              done: false,
-              partial: false,
-              pageCount: 0,
-              nextAllowedAt: 0,
-            }));
+            const targetWindowDays = Math.max(1, Math.min(days, 5));
+            const coverageQuery = new URLSearchParams({
+              subs: subs.join(','),
+              mode,
+              time,
+              days: String(days),
+              target_window_days: String(targetWindowDays),
+            });
+            const coverageStates = new Map();
+            const coverageResults = new Map();
             let authMode = null;
             let rateLimitedSubs = [];
             let pagedRetryAfterSeconds = 0;
-            let completedSubs = 0;
+            let globalCooldownUntil = 0;
 
-            while (subStates.some((state) => !state.done)) {
-              let progressedThisPass = false;
-              for (let subIdx = 0; subIdx < subStates.length; subIdx += 1) {
-                const state = subStates[subIdx];
-                if (state.done) continue;
-                const waitForSubMs = state.nextAllowedAt - Date.now();
-                if (waitForSubMs > 0) continue;
-                const sub = state.subreddit;
-                const params = new URLSearchParams({
-                  sub,
-                  mode,
-                  time,
-                  days: String(days),
-                  limit: String(pageLimit),
-                  include_meta: !skipMetaForLargeBatch && state.pageCount === 0 ? '1' : '0',
+            const goalCutoffUtc = () => Math.floor(Date.now() / 1000) - (targetWindowDays * 86400);
+            const isCoverageComplete = (state) => {
+              if (!state) return false;
+              if (state.status === 'complete') return true;
+              const coveredThrough = Number(state.covered_through_utc) || 0;
+              return coveredThrough > 0 && coveredThrough <= goalCutoffUtc();
+            };
+            const isPageCapped = (state) => (
+              effectiveMaxPages !== 0
+              && Number(state?.page_count || 0) >= effectiveMaxPages
+              && !isCoverageComplete(state)
+            );
+            const applyCoverage = (summary, results = []) => {
+              if (summary && Array.isArray(summary.subreddits)) {
+                summary.subreddits.forEach((entry) => {
+                  coverageStates.set(String(entry.subreddit || '').toLowerCase(), entry);
                 });
-                if (state.after) params.set('after', state.after);
-                if (forceRefresh) params.set('_ts', `${Date.now()}_${subIdx}_${state.pageCount}`);
+              }
+              if (Array.isArray(results)) {
+                results.forEach((entry) => {
+                  const subKey = String(entry?.subreddit || '').toLowerCase();
+                  if (!subKey) return;
+                  coverageResults.set(subKey, entry);
+                  if (entry?.state) {
+                    coverageStates.set(subKey, entry.state);
+                  }
+                });
+              }
+            };
+            const computeProgress = () => {
+              const completedSubs = subs.filter((sub) => {
+                const state = coverageStates.get(String(sub || '').toLowerCase());
+                return isCoverageComplete(state) || isPageCapped(state);
+              }).length;
+              const totalPosts = subs.reduce((sum, sub) => {
+                const result = coverageResults.get(String(sub || '').toLowerCase());
+                return sum + (Array.isArray(result?.posts) ? result.posts.length : 0);
+              }, 0);
+              return { completedSubs, totalPosts };
+            };
+            const buildCoverageCounts = () => ({
+              complete1dCount: subs.filter((sub) => {
+                const state = coverageStates.get(String(sub || '').toLowerCase());
+                return Boolean(state?.complete_1d);
+              }).length,
+              complete3dCount: subs.filter((sub) => {
+                const state = coverageStates.get(String(sub || '').toLowerCase());
+                return Boolean(state?.complete_3d);
+              }).length,
+              complete5dCount: subs.filter((sub) => {
+                const state = coverageStates.get(String(sub || '').toLowerCase());
+                return Boolean(state?.complete_5d);
+              }).length,
+            });
+            const buildPerSubFromCoverage = () => {
+              const previousBySub = new Map((data || []).map(item => [String(item.subreddit || '').toLowerCase(), item]));
+              return subs.map((sub) => {
+                const subKey = String(sub || '').toLowerCase();
+                const state = coverageStates.get(subKey);
+                const result = coverageResults.get(subKey);
+                const previous = previousBySub.get(subKey);
 
-                const pageResponse = await fetch(`/api/reddit/page?${params.toString()}`, {
+                if (result) {
+                  return {
+                    subreddit: sub,
+                    meta: result?.state?.meta || result?.meta || state?.meta || previous?.meta || null,
+                    posts: Array.isArray(result?.posts) ? result.posts : (previous?.posts || []),
+                    partial: isPageCapped(state),
+                    coverage_state: state || null,
+                    error: state?.last_error || null,
+                    stale: false,
+                  };
+                }
+
+                return {
+                  subreddit: sub,
+                  posts: previous?.posts || [],
+                  meta: previous?.meta || state?.meta || null,
+                  partial: isPageCapped(state),
+                  coverage_state: state || previous?.coverage_state || null,
+                  error: state?.last_error || null,
+                  stale: Boolean(previous),
+                  stale_reason: previous ? 'coverage_pending' : null,
+                };
+              });
+            };
+            const syncVisibleCoverageState = (summaryOverride = null) => {
+              const perSub = buildPerSubFromCoverage();
+              setData(perSub);
+              setFetchedAt(Date.now());
+              setSnapshotInfo(null);
+              if (summaryOverride) {
+                setFetchSummary(summaryOverride);
+              }
+              return perSub;
+            };
+
+            const initialCoverageResponse = await fetch(`/api/reddit/coverage?${coverageQuery.toString()}`, {
+              method: forceRefresh ? 'DELETE' : 'GET',
+              signal: controller.signal,
+              credentials: 'include',
+              ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
+            });
+            if (!initialCoverageResponse.ok) {
+              throw new Error(`HTTP ${initialCoverageResponse.status}`);
+            }
+
+            const coverageResponse = forceRefresh
+              ? await fetch(`/api/reddit/coverage?${coverageQuery.toString()}`, {
                   signal: controller.signal,
                   credentials: 'include',
-                  ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
+                  headers: { 'Cache-Control': 'no-cache' },
+                })
+              : initialCoverageResponse;
+            if (!coverageResponse.ok) {
+              throw new Error(`HTTP ${coverageResponse.status}`);
+            }
+            const initialCoverage = await coverageResponse.json();
+            const coverageScopeId = initialCoverage?.scopeId || null;
+            applyCoverage(initialCoverage?.summary, initialCoverage?.results);
+            syncVisibleCoverageState({
+              tone: 'accent',
+              status: 'Running',
+              detail: `Loaded cached coverage for ${subsCount} subreddits. Resuming any missing pages now.`,
+              completedSubs: computeProgress().completedSubs,
+              attemptedSubs: subsCount,
+            });
+
+            while (true) {
+              const { completedSubs, totalPosts } = computeProgress();
+              const pendingSubs = subs.filter((sub) => {
+                const subKey = String(sub || '').toLowerCase();
+                const state = coverageStates.get(subKey);
+                if (isCoverageComplete(state) || isPageCapped(state)) return false;
+                if (Number(state?.cooldown_until || 0) > Date.now()) return false;
+                if (globalCooldownUntil > Date.now()) return false;
+                return true;
+              });
+
+              if (!pendingSubs.length) {
+                const nextCooldownUntil = Math.min(...subs
+                  .map((sub) => {
+                    const state = coverageStates.get(String(sub || '').toLowerCase());
+                    if (isCoverageComplete(state) || isPageCapped(state)) return Infinity;
+                    return Number(state?.cooldown_until || 0) || Infinity;
+                  })
+                  .concat(globalCooldownUntil > Date.now() ? [globalCooldownUntil] : []));
+                if (Number.isFinite(nextCooldownUntil) && nextCooldownUntil > Date.now()) {
+                  const waitMs = Math.max(750, Math.min(10000, nextCooldownUntil - Date.now()));
+                  setFetchSummary({
+                    tone: 'warning',
+                    status: 'Cooldown',
+                    detail: `Coverage is checkpointed. Waiting ~${Math.ceil(waitMs / 1000)}s for Reddit cooldowns before resuming.`,
+                    completedSubs,
+                    attemptedSubs: subsCount,
+                  });
+                  syncVisibleCoverageState();
+                  await new Promise((resolve) => setTimeout(resolve, waitMs));
+                  continue;
+                }
+                break;
+              }
+
+              for (let subIdx = 0; subIdx < pendingSubs.length; subIdx += 1) {
+                const sub = pendingSubs[subIdx];
+                const subKey = String(sub || '').toLowerCase();
+                const state = coverageStates.get(subKey);
+                const pageCount = Number(state?.page_count || 0);
+                setFetchSummary({
+                  tone: 'accent',
+                  status: 'Running',
+                  detail: `Checkpointing coverage for r/${sub}. ${completedSubs}/${subsCount} subreddits are already covered or capped. ${totalPosts} posts stored so far.`,
+                  completedSubs,
+                  attemptedSubs: subsCount,
                 });
 
-                if (pageResponse.status === 401) {
+                const advanceResponse = await fetch('/api/reddit/advance', {
+                  method: 'POST',
+                  signal: controller.signal,
+                  credentials: 'include',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
+                  },
+                  body: JSON.stringify({
+                    subs,
+                    sub,
+                    mode,
+                    time,
+                    days,
+                    target_window_days: targetWindowDays,
+                    limit: pageLimit,
+                    scopeId: coverageScopeId,
+                  }),
+                });
+
+                if (advanceResponse.status === 401) {
                   setNeedsAuth(true);
                   setAuthenticated(false);
                   setAuthChecking(false);
@@ -1772,85 +1952,68 @@ const {
                   return;
                 }
 
-                if (pageResponse.status === 429) {
+                if (advanceResponse.status === 429) {
                   let rateBody = null;
-                  try { rateBody = await pageResponse.json(); } catch (e) {}
+                  try { rateBody = await advanceResponse.json(); } catch (e) {}
                   pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 15;
-                  localPauseUntil = Date.now() + pagedRetryAfterSeconds * 1000;
+                  globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
+                  localPauseUntil = globalCooldownUntil;
                   setRateLimitPauseUntil(localPauseUntil);
                   rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
-                  subStates.forEach((item) => {
-                    if (!item.done) item.nextAllowedAt = localPauseUntil;
-                  });
-                  setFetchSummary({
+                  if (rateBody?.summary) {
+                    applyCoverage(rateBody.summary);
+                  }
+                  syncVisibleCoverageState({
                     tone: 'warning',
                     status: 'Cooldown',
-                    detail: `Reddit asked for cooldown while fetching r/${sub}. Waiting ~${pagedRetryAfterSeconds}s before retrying.`,
+                    detail: `Reddit rate-limited r/${sub}. Saved coverage so far and pausing ~${pagedRetryAfterSeconds}s before retrying.`,
                     completedSubs,
                     attemptedSubs: subsCount,
                   });
-                  await new Promise((resolve) => setTimeout(resolve, Math.max(1500, pagedRetryAfterSeconds * 1000)));
-                  progressedThisPass = true;
-                  continue;
+                  break;
                 }
 
-                if (!pageResponse.ok) {
-                  throw new Error(`HTTP ${pageResponse.status}`);
+                if (!advanceResponse.ok) {
+                  throw new Error(`HTTP ${advanceResponse.status}`);
                 }
 
-                const pagePayload = await pageResponse.json();
-                authMode = authMode || pagePayload?.auth_mode || null;
-                state.meta = pagePayload?.meta || state.meta;
-                if (Array.isArray(pagePayload?.posts)) {
-                  state.posts.push(...pagePayload.posts);
+                const advancePayload = await advanceResponse.json();
+                authMode = authMode || advancePayload?.auth_mode || null;
+                applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
+                if (!isCoverageComplete(coverageStates.get(subKey)) && effectiveMaxPages !== 0 && (pageCount + 1) >= effectiveMaxPages) {
+                  coverageStates.set(subKey, {
+                    ...(coverageStates.get(subKey) || {}),
+                    status: 'capped',
+                  });
                 }
-                state.after = pagePayload?.after || '';
-                state.done = Boolean(pagePayload?.done);
-                state.pageCount += 1;
-                state.nextAllowedAt = Date.now() + (authMode === 'oauth' ? 3500 : 5000);
-                progressedThisPass = true;
-
-                setFetchSummary({
+                const progressAfterAdvance = computeProgress();
+                syncVisibleCoverageState({
                   tone: 'accent',
                   status: 'Running',
-                  detail: `Fetched ${completedSubs}/${subsCount} subreddits. Collecting r/${sub} page ${state.pageCount}. ${state.posts.length} posts in this subreddit so far.`,
-                  completedSubs,
+                  detail: `Checkpointing coverage for r/${sub}. ${progressAfterAdvance.completedSubs}/${subsCount} subreddits are already covered or capped. ${progressAfterAdvance.totalPosts} posts stored so far.`,
+                  completedSubs: progressAfterAdvance.completedSubs,
                   attemptedSubs: subsCount,
                 });
-
-                if (!state.done && maxPages !== 0 && state.pageCount >= maxPages) {
-                  state.partial = Boolean(state.after);
-                  state.done = true;
-                }
-
-                if (state.done) {
-                  completedSubs += 1;
-                  setFetchSummary({
-                    tone: 'accent',
-                    status: 'Running',
-                    detail: `Fetched ${completedSubs}/${subsCount} subreddits. ${subStates.reduce((sum, item) => sum + (item.posts?.length || 0), 0)} posts collected so far.`,
-                    completedSubs,
-                    attemptedSubs: subsCount,
-                  });
-                }
 
                 await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
               }
 
-              if (!progressedThisPass) {
-                const nextAllowedAt = Math.min(...subStates.filter((state) => !state.done).map((state) => state.nextAllowedAt || (Date.now() + 500)));
-                const waitMs = Math.max(250, nextAllowedAt - Date.now());
-                await new Promise((resolve) => setTimeout(resolve, waitMs));
-              }
+              if (controller.signal.aborted) break;
             }
 
-            const pagedResults = subStates.map((state) => ({
-              subreddit: state.subreddit,
-              meta: state.meta,
-              posts: state.posts,
-              partial: state.partial,
-              error: null,
-            }));
+            const pagedResults = subs.map((sub) => {
+              const subKey = String(sub || '').toLowerCase();
+              const state = coverageStates.get(subKey);
+              const result = coverageResults.get(subKey);
+              return {
+                subreddit: sub,
+                meta: result?.state?.meta || result?.meta || state?.meta || null,
+                posts: Array.isArray(result?.posts) ? result.posts : [],
+                partial: isPageCapped(state),
+                coverage_state: state || null,
+                error: state?.last_error || null,
+              };
+            });
 
             const payload = {
               mode,
@@ -1864,10 +2027,17 @@ const {
               fetched_at: Date.now(),
               request_capped: false,
               rate_limited: rateLimitedSubs.length > 0,
-              rate_limited_subreddits: rateLimitedSubs,
+              rate_limited_subreddits: Array.from(new Set([
+                ...rateLimitedSubs,
+                ...subs.filter((sub) => {
+                  const state = coverageStates.get(String(sub || '').toLowerCase());
+                  return state?.status === 'cooldown' || state?.last_error === 'RATE_LIMITED';
+                }),
+              ])),
               retry_after_seconds: pagedRetryAfterSeconds,
               timed_out: false,
               timed_out_subreddits: [],
+              coverage_summary: buildCoverageCounts(),
               metrics: {
                 subredditCount: pagedResults.length,
                 totalPosts: pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0),
@@ -1886,48 +2056,10 @@ const {
               setRateLimitPauseUntil(null);
             }
 
-            const results = Array.isArray(payload.results) ? payload.results : [];
-            const previousBySub = new Map((data || []).map(item => [String(item.subreddit || '').toLowerCase(), item]));
-            const perSub = subs.map(sub => {
-              const subKey = sub.toLowerCase();
-              const match = results.find(r => (r.subreddit || '').toLowerCase() === subKey);
-              const previous = previousBySub.get(subKey);
-
-              if (!match && previous) {
-                return { ...previous, subreddit: sub, stale: true, stale_reason: 'missing_result' };
-              }
-              if (match?.error && previous) {
-                return {
-                  ...previous,
-                  subreddit: sub,
-                  stale: true,
-                  stale_reason: match.error_code || 'fetch_error',
-                  error: match.error || null,
-                };
-              }
-              if (match) {
-                return {
-                  subreddit: match.subreddit,
-                  meta: match.meta || previous?.meta || null,
-                  posts: Array.isArray(match.posts) ? match.posts : [],
-                  partial: Boolean(match.partial),
-                  error: match.error || null,
-                  stale: false,
-                };
-              }
-              return {
-                subreddit: sub,
-                posts: previous?.posts || [],
-                meta: previous?.meta || null,
-                partial: false,
-                error: null,
-                stale: Boolean(previous),
-                stale_reason: previous ? 'fallback_previous' : null,
-              };
-            });
+            const perSub = buildPerSubFromCoverage();
 
             setNeedsAuth(false);
-            setAuthenticated(payload?.auth_mode !== 'public');
+            setAuthenticated(payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated);
             setAuthChecking(false);
             setData(perSub);
             setFetchedAt(Number(payload?.fetched_at) || Date.now());
@@ -1939,7 +2071,7 @@ const {
               subsCount,
             }));
 
-            if (payload?.auth_mode !== 'public' && !skipSyncForLargeBatch) {
+            if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
               await syncDashboardSnapshot(perSub);
             }
             await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
@@ -1947,6 +2079,7 @@ const {
           }
 
           setFetchMethod('server');
+          setSidecarSyncSuppressedUntil(null);
           const determineChunkSize = () => {
             if (subsCount > 21) return wantsDeepFetch ? 6 : 7;
             if (subsCount > 14) return 7;
@@ -2144,16 +2277,17 @@ const {
               };
             }
 
-            if (match) {
-              return {
-                subreddit: match.subreddit,
-                meta: match.meta || previous?.meta || null,
-                posts: Array.isArray(match.posts) ? match.posts : [],
-                partial: Boolean(match.partial),
-                error: match.error || null,
-                stale: false,
-              };
-            }
+              if (match) {
+                return {
+                  subreddit: match.subreddit,
+                  meta: match.meta || previous?.meta || null,
+                  posts: Array.isArray(match.posts) ? match.posts : [],
+                  partial: Boolean(match.partial),
+                  coverage_state: match.coverage_state || null,
+                  error: match.error || null,
+                  stale: false,
+                };
+              }
 
             return {
               subreddit: sub,
@@ -2381,6 +2515,7 @@ const {
 
       useEffect(() => {
         if (!authenticated || data.length === 0 || !syncToken) return;
+        if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         const timeoutId = setTimeout(() => {
           syncDashboardSnapshot();
         }, 600);
@@ -2389,6 +2524,7 @@ const {
         authenticated,
         data,
         syncToken,
+        sidecarSyncSuppressedUntil,
         subs,
         opportunityBrief,
         opportunityContext,
@@ -2414,6 +2550,7 @@ const {
 
       useEffect(() => {
         if (!authenticated || !syncToken || !hasOpportunityGoals) return;
+        if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         if (snapshotInfo?.syncToken !== syncToken) return;
         const timeoutId = setTimeout(() => {
           syncOpportunityConfig();
@@ -2423,6 +2560,7 @@ const {
         authenticated,
         syncToken,
         hasOpportunityGoals,
+        sidecarSyncSuppressedUntil,
         snapshotInfo,
         subs,
         opportunityBrief,
@@ -2634,19 +2772,23 @@ const {
         const timedOutSubs = Array.isArray(payload?.timed_out_subreddits) ? payload.timed_out_subreddits : [];
         const rateLimitedSubs = Array.isArray(payload?.rate_limited_subreddits) ? payload.rate_limited_subreddits : [];
         const partialSubs = Array.isArray(perSub) ? perSub.filter(group => group?.partial).map(group => group.subreddit) : [];
+        const attemptedSubs = Array.isArray(perSub) ? perSub.length : 0;
+        const coverageSummary = payload?.coverage_summary || {};
+        const coverageDetail = coverageSummary && attemptedSubs > 0
+          ? ` Coverage: ${Number(coverageSummary.complete1dCount) || 0}/${attemptedSubs} at 1d, ${Number(coverageSummary.complete3dCount) || 0}/${attemptedSubs} at 3d, ${Number(coverageSummary.complete5dCount) || 0}/${attemptedSubs} at 5d.`
+          : '';
         const incompleteSubs = Array.from(new Set([
           ...timedOutSubs,
           ...rateLimitedSubs,
           ...partialSubs,
         ].filter(Boolean)));
-        const attemptedSubs = Array.isArray(perSub) ? perSub.length : 0;
         const completedSubs = Math.max(0, attemptedSubs - incompleteSubs.length);
 
         if (timedOutSubs.length > 0) {
           return {
             tone: 'warning',
             status: 'Incomplete',
-            detail: `Stopped early on ${timedOutSubs.length} subreddit${timedOutSubs.length === 1 ? '' : 's'} because the request timed out.`,
+            detail: `Stopped early on ${timedOutSubs.length} subreddit${timedOutSubs.length === 1 ? '' : 's'} because the request timed out.${coverageDetail}`,
             completedSubs,
             attemptedSubs,
           };
@@ -2656,7 +2798,7 @@ const {
           return {
             tone: 'warning',
             status: 'Incomplete',
-            detail: `Stopped early on ${rateLimitedSubs.length} subreddit${rateLimitedSubs.length === 1 ? '' : 's'} because Reddit rate-limited the request.`,
+            detail: `Stopped early on ${rateLimitedSubs.length} subreddit${rateLimitedSubs.length === 1 ? '' : 's'} because Reddit rate-limited the request.${coverageDetail}`,
             completedSubs,
             attemptedSubs,
           };
@@ -2666,7 +2808,7 @@ const {
           return {
             tone: 'warning',
             status: 'Capped',
-            detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.`,
+            detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.${coverageDetail}`,
             completedSubs,
             attemptedSubs,
           };
@@ -2676,7 +2818,7 @@ const {
           return {
             tone: 'warning',
             status: 'Capped',
-            detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.`,
+            detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.${coverageDetail}`,
             completedSubs,
             attemptedSubs,
           };
@@ -2686,8 +2828,8 @@ const {
           tone: 'success',
           status: 'Complete',
           detail: requestedFetchAllPages
-            ? 'Fetched all available posts Reddit returned for the selected timeframe.'
-            : 'Fetched the requested scope for the selected timeframe.',
+            ? `Fetched all available posts Reddit returned for the selected timeframe.${coverageDetail}`
+            : `Fetched the requested scope for the selected timeframe.${coverageDetail}`,
           completedSubs: attemptedSubs,
           attemptedSubs,
         };
@@ -2714,6 +2856,14 @@ const {
         return h('svg', { className, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
           h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: path })
         );
+      }
+
+      function renderCoveragePill(label, active) {
+        return h('span', {
+          className: `inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+            : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-700 dark:text-zinc-500'}`
+        }, label);
       }
 
       function renderStarterPackIcon(packId) {
@@ -2784,6 +2934,16 @@ const {
 
       const filtersActive = minUpvoteFilter || minCommentFilter || minPriorityFilter || keyword;
       const staleSubCount = (data || []).filter(group => group?.stale).length;
+      const coverageStateBySub = new Map((data || []).map(group => [
+        String(group?.subreddit || '').toLowerCase(),
+        group?.coverage_state || null,
+      ]));
+      const coverageCounts = Array.from(coverageStateBySub.values()).reduce((acc, state) => {
+        if (state?.complete_1d) acc.complete1d += 1;
+        if (state?.complete_3d) acc.complete3d += 1;
+        if (state?.complete_5d) acc.complete5d += 1;
+        return acc;
+      }, { complete1d: 0, complete3d: 0, complete5d: 0 });
 
       return h('div', { 
         className: 'h-screen flex flex-col',
@@ -2855,6 +3015,9 @@ const {
                       renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0),
                       fetchedAt && !loading && renderStatusChip('Updated', timeAgo(fetchedAt / 1000)),
                       fetchSummary && !loading && renderStatusChip('Scope', fetchSummary.status, fetchSummary.tone),
+                      data.length > 0 && !loading && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral'),
+                      data.length > 0 && !loading && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral'),
+                      data.length > 0 && !loading && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral'),
                       snapshotInfo?.cached && !loading && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
                       staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
                       rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
@@ -2959,7 +3122,8 @@ const {
                     ...subs.map(sub => {
                       const postCount = allPosts.filter(p => p.subreddit?.toLowerCase() === sub.toLowerCase()).length;
                       const isSelected = selectedSub.toLowerCase() === sub.toLowerCase();
-                    const meta = subMetaMap.get(sub) || {};
+                      const meta = subMetaMap.get(sub) || {};
+                      const coverageState = coverageStateBySub.get(String(sub || '').toLowerCase()) || null;
                       return h('div', {
                       key: sub,
                         className: `group rounded-lg transition-colors ${isSelected ? 'bg-sky-50 dark:bg-[#0284C7]/15' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
@@ -2981,7 +3145,14 @@ const {
                               ))
                             )
                           ),
-                          meta.subscribers && h('div', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5' }, `${formatSubs(meta.subscribers)} members`)
+                          h('div', { className: 'mt-1 flex items-center gap-1.5 flex-wrap' },
+                            meta.subscribers && h('div', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500' }, `${formatSubs(meta.subscribers)} members`),
+                            coverageState && renderCoveragePill('1d', Boolean(coverageState.complete_1d)),
+                            coverageState && renderCoveragePill('3d', Boolean(coverageState.complete_3d)),
+                            coverageState && renderCoveragePill('5d', Boolean(coverageState.complete_5d)),
+                            coverageState?.status === 'cooldown' && h('span', { className: 'text-[10px] text-amber-600 dark:text-amber-400 font-medium' }, 'cooldown'),
+                            coverageState?.status === 'capped' && h('span', { className: 'text-[10px] text-amber-600 dark:text-amber-400 font-medium' }, 'capped')
+                          )
                         )
                       );
                     })

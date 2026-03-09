@@ -188,6 +188,56 @@ describe('Authentication', () => {
     expect(res.status).toBe(200);
     expect(storage.set).toHaveBeenCalled();
   });
+
+  it('returns 413 when the sync payload is too large before storage write', async () => {
+    storage.set.mockResolvedValue();
+
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    const cookieValue = accessCookie.split(';')[0];
+    const hugePost = {
+      id: 'p1',
+      title: 'x'.repeat(210000),
+      selftext: '',
+    };
+    const res = await runHandler(syncHandler, {
+      method: 'POST',
+      url: '/api/sync',
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+      cookies: cookieValue,
+      body: {
+        token: 'sync-token',
+        posts: [hugePost],
+      },
+    });
+
+    expect(res.status).toBe(413);
+    expect(storage.set).not.toHaveBeenCalled();
+    expect(res.body.error).toBe('Payload too large');
+  });
+
+  it('returns 413 when the storage backend rejects the sync payload as too large', async () => {
+    storage.set.mockRejectedValueOnce(new Error('payload too large for backend'));
+
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    const cookieValue = accessCookie.split(';')[0];
+    const res = await runHandler(syncHandler, {
+      method: 'POST',
+      url: '/api/sync',
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+      cookies: cookieValue,
+      body: {
+        token: 'sync-token',
+        posts: [{ id: 'p1', title: 'small enough' }],
+      },
+    });
+
+    expect(res.status).toBe(413);
+    expect(res.body.error).toBe('Payload too large');
+  });
 });
 
 describe('Input Validation', () => {
