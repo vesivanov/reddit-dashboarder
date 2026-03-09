@@ -159,8 +159,16 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
       },
     });
 
-    expect(advanceRes.status).toBe(429);
+    expect(advanceRes.status).toBe(200);
+    expect(advanceRes.body.advanced).toBe(false);
+    expect(advanceRes.body.rate_limited).toBe(true);
     expect(advanceRes.body.retryAfter).toBe(12);
+    expect(advanceRes.body.result).toMatchObject({
+      subreddit: sub,
+      state: expect.objectContaining({
+        status: 'cooldown',
+      }),
+    });
     expect(advanceRes.body.summary.subreddits[0]).toMatchObject({
       subreddit: sub,
       status: 'cooldown',

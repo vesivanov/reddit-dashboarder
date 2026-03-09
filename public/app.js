@@ -840,14 +840,24 @@ const {
           .join(' • ');
       }, [formatSignalLabel]);
 
+      const normalizeEnum = useCallback((value, allowed, fallback) => {
+        const normalized = String(value || '').trim().toLowerCase();
+        return allowed.includes(normalized) ? normalized : fallback;
+      }, []);
+
+      const sanitizeModelId = useCallback((value) => {
+        const normalized = String(value || '').trim().slice(0, 100);
+        return /^[a-zA-Z0-9_.:\-\/]+$/.test(normalized) ? normalized : '';
+      }, []);
+
       const buildSyncSettings = useCallback(() => ({
         subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
         opportunityBrief: opportunityBrief.trim().slice(0, 500),
         opportunityContext: opportunityContext.trim().slice(0, 600),
         aiAvoid: aiAvoid.trim().slice(0, 800),
         aiPrompt: opportunityBrief.trim().slice(0, 500),
-        aiThreshold: priorityNotificationThreshold,
-        openRouterModel,
+        aiThreshold: Math.max(0, Math.min(5, Math.round(Number(priorityNotificationThreshold) || 4))),
+        openRouterModel: sanitizeModelId(openRouterModel),
         scoringConfig: {
           lookingFor: (effectiveGoalText.trim() || opportunityBrief.trim()).slice(0, 1200),
           avoid: effectiveAvoidText.trim().slice(0, 800) || undefined,
@@ -861,10 +871,10 @@ const {
           businessOffering: businessOffering.trim().slice(0, 300),
           idealCustomer: idealCustomer.trim().slice(0, 300),
           problemsSolved: problemsSolved.trim().slice(0, 600),
-          preferredEngagement,
-          strategyPreset,
+          preferredEngagement: normalizeEnum(preferredEngagement, ['reply', 'dm', 'either', 'research'], 'reply'),
+          strategyPreset: normalizeEnum(strategyPreset, ['balanced', 'sales', 'fast_wins', 'research'], 'balanced'),
           opportunityTypes: normalizedOpportunityFocus.slice(0, 8),
-          strictness: opportunityStrictness,
+          strictness: normalizeEnum(opportunityStrictness, ['strict', 'balanced', 'broad'], 'balanced'),
         },
       }), [
         subs,
@@ -886,6 +896,8 @@ const {
         normalizedOpportunityFocus,
         opportunityStrictness,
         normalizeSubredditName,
+        normalizeEnum,
+        sanitizeModelId,
       ]);
 
       const buildSyncFilters = useCallback(() => ({
@@ -1918,9 +1930,9 @@ const {
                   if (Number.isFinite(nextCooldownUntil) && nextCooldownUntil > Date.now()) {
                     const waitMs = Math.max(750, Math.min(10000, nextCooldownUntil - Date.now()));
                     setFetchSummary({
-                      tone: 'warning',
-                      status: 'Cooldown',
-                      detail: `Coverage is checkpointed. Waiting ~${Math.ceil(waitMs / 1000)}s for Reddit cooldowns before resuming.`,
+                      tone: 'accent',
+                      status: 'Paused',
+                      detail: `Coverage is checkpointed. Waiting about ${Math.ceil(waitMs / 1000)}s before the next Reddit request.`,
                       completedSubs,
                       attemptedSubs: subsCount,
                     });
@@ -1975,32 +1987,29 @@ const {
                     return;
                   }
 
-                  if (advanceResponse.status === 429) {
-                    let rateBody = null;
-                    try { rateBody = await advanceResponse.json(); } catch (e) {}
-                    pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 15;
-                    globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
-                    localPauseUntil = globalCooldownUntil;
-                    setRateLimitPauseUntil(localPauseUntil);
-                    rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
-                    if (rateBody?.summary) {
-                      applyCoverage(rateBody.summary);
-                    }
-                    syncVisibleCoverageState({
-                      tone: 'warning',
-                      status: 'Cooldown',
-                      detail: `Reddit rate-limited r/${sub}. Saved coverage so far and pausing ~${pagedRetryAfterSeconds}s before retrying.`,
-                      completedSubs,
-                      attemptedSubs: subsCount,
-                    });
-                    break;
-                  }
-
                   if (!advanceResponse.ok) {
                     throw new Error(`HTTP ${advanceResponse.status}`);
                   }
 
                   const advancePayload = await advanceResponse.json();
+                  if (advancePayload?.rate_limited) {
+                    pagedRetryAfterSeconds = Number(advancePayload?.retryAfter) || pagedRetryAfterSeconds || 15;
+                    globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
+                    localPauseUntil = globalCooldownUntil;
+                    setRateLimitPauseUntil(localPauseUntil);
+                    rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
+                    if (advancePayload?.summary || advancePayload?.result) {
+                      applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
+                    }
+                    syncVisibleCoverageState({
+                      tone: 'accent',
+                      status: 'Paused',
+                      detail: `Saved progress for r/${sub}. Reddit asked for a short cooldown, so coverage will resume in about ${pagedRetryAfterSeconds}s.`,
+                      completedSubs,
+                      attemptedSubs: subsCount,
+                    });
+                    break;
+                  }
                   authMode = authMode || advancePayload?.auth_mode || null;
                   applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
                   if (!isCoverageComplete(coverageStates.get(subKey)) && effectiveMaxPages !== 0 && (pageCount + 1) >= effectiveMaxPages) {
@@ -3108,7 +3117,9 @@ const {
         fetchSummary && !loading && !error && h('div', {
           className: `border-b px-4 py-2 text-xs sm:text-sm shrink-0 ${fetchSummary.tone === 'warning'
             ? 'bg-amber-50/80 text-amber-800 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/60'
-            : 'bg-emerald-50/70 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/60'}`
+            : fetchSummary.tone === 'accent'
+              ? 'bg-sky-50/80 text-sky-900 border-sky-200 dark:bg-sky-950/30 dark:text-sky-200 dark:border-sky-900/60'
+              : 'bg-emerald-50/70 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/60'}`
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, fetchSummary.detail),
