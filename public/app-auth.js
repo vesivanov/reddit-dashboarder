@@ -4,8 +4,10 @@
       function LoginPage({ showPreview = true }) {
         const [isDark, setIsDark] = useState(() => {
           if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('theme');
-            if (saved) return saved === 'dark';
+            const saved = localStorage.getItem('dashboard_dark_mode');
+            if (saved !== null) return saved === '1';
+            const legacy = localStorage.getItem('theme');
+            if (legacy) return legacy === 'dark';
             return window.matchMedia('(prefers-color-scheme: dark)').matches;
           }
           return false;
@@ -17,6 +19,7 @@
           } else {
             document.documentElement.classList.remove('dark');
           }
+          localStorage.setItem('dashboard_dark_mode', isDark ? '1' : '0');
           localStorage.setItem('theme', isDark ? 'dark' : 'light');
         }, [isDark]);
 

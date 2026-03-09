@@ -166,6 +166,8 @@ const {
         try {
           const saved = localStorage.getItem('dashboard_dark_mode');
           if (saved !== null) return saved === '1';
+          const legacy = localStorage.getItem('theme');
+          if (legacy) return legacy === 'dark';
           return window.matchMedia('(prefers-color-scheme: dark)').matches;
         } catch { return false; }
       });
@@ -358,6 +360,7 @@ const {
       // Dark mode persistence and class toggle
       useEffect(() => {
         try { localStorage.setItem('dashboard_dark_mode', darkMode ? '1' : '0'); } catch {}
+        try { localStorage.setItem('theme', darkMode ? 'dark' : 'light'); } catch {}
         if (darkMode) {
           document.documentElement.classList.add('dark');
         } else {
@@ -3014,7 +3017,7 @@ const {
         onTouchEnd: handleTouchEnd
       },
         // Header
-        h('header', { className: 'bg-stone-50/95 dark:bg-zinc-900/95 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
+        h('header', { className: 'bg-stone-50/95 dark:bg-zinc-950/95 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
             h('div', { className: 'flex items-center gap-3' },
             h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder'),
             ),
@@ -3063,7 +3066,7 @@ const {
         ),
 
         // Status bar
-        h('div', { className: 'bg-white/85 dark:bg-zinc-900/70 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+        h('div', { className: 'bg-white/85 dark:bg-zinc-950/85 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex flex-wrap items-center gap-2' },
             loading
               ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
@@ -3130,7 +3133,7 @@ const {
         // Main content area
         h('div', { className: 'flex-1 flex overflow-hidden' },
           // Left sidebar - Subreddits
-          h('aside', { className: `w-52 bg-stone-50 dark:bg-zinc-900 border-r border-stone-200 dark:border-zinc-800 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
+          h('aside', { className: `w-52 bg-stone-50 dark:bg-zinc-950 border-r border-stone-200 dark:border-zinc-800 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
             h('div', { className: 'p-3 border-b border-stone-200 dark:border-zinc-800 flex items-center justify-between' },
               h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
@@ -3178,7 +3181,7 @@ const {
                     h('button', {
                       key: 'all',
                       onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-stone-200 shadow-sm dark:bg-zinc-900 dark:text-sky-200 dark:ring-zinc-800' : 'hover:bg-white/80 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300'}`
                     },
                       h('div', { className: 'flex items-center justify-between' },
                         h('span', null, 'All'),
@@ -3192,7 +3195,7 @@ const {
                       const coverageState = coverageStateBySub.get(String(sub || '').toLowerCase()) || null;
                       return h('div', {
                       key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800'}`
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-stone-200 shadow-sm dark:bg-zinc-900 dark:ring-zinc-800' : 'hover:bg-white/80 dark:hover:bg-zinc-900/70'}`
                       },
                         h('button', {
                       onClick: () => setSelectedSub(sub),
@@ -3228,7 +3231,7 @@ const {
 
           // Center - Post list
           h('main', { className: `flex-1 flex-col bg-stone-100 dark:bg-zinc-950 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-stone-200 dark:lg:border-zinc-800'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white/90 dark:bg-zinc-900 border-b border-stone-200 dark:border-zinc-800 shrink-0 backdrop-blur' },
+            subs.length > 0 && h('section', { className: 'bg-white/90 dark:bg-zinc-950/90 border-b border-stone-200 dark:border-zinc-800 shrink-0 backdrop-blur' },
               h('div', { className: 'flex items-center gap-3 px-4 py-2.5 min-w-0' },
 
                 // Status dot
