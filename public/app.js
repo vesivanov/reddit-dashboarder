@@ -1701,6 +1701,7 @@ const {
           effectiveMaxPages = Math.min(effectiveMaxPages, 4);
         }
         const wantsDeepFetch = maxPages === 0 || maxPages > 4;
+        const shouldUseAsyncFetchJob = (subsCount > 14) || (wantsDeepFetch && subsCount > 7);
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1708,10 +1709,172 @@ const {
         setError('');
         setNeedsAuth(false);
         const controller = new AbortController();
-        const timeoutMs = Math.min(65000, 10000 + subs.length * 3500);
+        const timeoutMs = shouldUseAsyncFetchJob
+          ? 10 * 60 * 1000
+          : Math.min(65000, 10000 + subs.length * 3500);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
+          if (shouldUseAsyncFetchJob) {
+            setFetchMethod('job');
+            const createResponse = await fetch('/api/reddit/jobs', {
+              method: 'POST',
+              signal: controller.signal,
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                subs,
+                mode,
+                time,
+                days,
+                limit,
+                max_pages: maxPages === 0 ? 'all' : maxPages,
+              }),
+            });
+            if (!createResponse.ok) {
+              throw new Error(`HTTP ${createResponse.status}`);
+            }
+
+            const created = await createResponse.json();
+            const jobId = created?.job?.id;
+            if (!jobId) {
+              throw new Error('Failed to create fetch job');
+            }
+
+            let finalJob = null;
+            while (!finalJob) {
+              const pollResponse = await fetch(`/api/reddit/jobs/${encodeURIComponent(jobId)}`, {
+                signal: controller.signal,
+                credentials: 'include',
+              });
+              if (!pollResponse.ok) {
+                throw new Error(`HTTP ${pollResponse.status}`);
+              }
+              const pollPayload = await pollResponse.json();
+              const job = pollPayload?.job;
+              if (!job) {
+                throw new Error('Fetch job payload missing');
+              }
+
+              const progress = job.progress || {};
+              setFetchSummary({
+                tone: 'accent',
+                status: job.status === 'cooldown' ? 'Cooldown' : 'Running',
+                detail: job.status === 'cooldown'
+                  ? `Reddit asked for cooldown. Resuming in ~${job.retry_after_seconds || 0}s.`
+                  : `Fetched ${progress.completedSubreddits || 0}/${progress.totalSubreddits || subsCount} subreddits. ${progress.totalPosts || 0} posts collected so far.`,
+                completedSubs: progress.completedSubreddits || 0,
+                attemptedSubs: progress.totalSubreddits || subsCount,
+              });
+
+              if (job.status === 'completed') {
+                finalJob = job;
+                break;
+              }
+              if (job.status === 'failed') {
+                throw new Error(job.error?.message || 'Fetch job failed');
+              }
+
+              const waitMs = job.status === 'cooldown'
+                ? Math.max(1500, (Number(job.retry_after_seconds) || 1) * 1000)
+                : 800;
+              await new Promise((resolve) => setTimeout(resolve, waitMs));
+            }
+
+            const payload = {
+              mode: finalJob.mode,
+              time: finalJob.time,
+              days: finalJob.days,
+              limit: finalJob.limit,
+              max_pages: finalJob.max_pages,
+              fetch_all_pages: Boolean(finalJob.fetch_all_pages),
+              auth_mode: finalJob.auth_mode,
+              results: Array.isArray(finalJob.results) ? finalJob.results : [],
+              fetched_at: finalJob.completed_at ? Date.parse(finalJob.completed_at) : Date.now(),
+              request_capped: false,
+              rate_limited: Array.isArray(finalJob.rate_limited_subreddits) && finalJob.rate_limited_subreddits.length > 0,
+              rate_limited_subreddits: finalJob.rate_limited_subreddits || [],
+              retry_after_seconds: Number(finalJob.retry_after_seconds) || 0,
+              timed_out: Array.isArray(finalJob.timed_out_subreddits) && finalJob.timed_out_subreddits.length > 0,
+              timed_out_subreddits: finalJob.timed_out_subreddits || [],
+              metrics: finalJob.metrics || {
+                subredditCount: subsCount,
+                totalPosts: 0,
+                rateLimitedCount: 0,
+                durationMs: 0,
+                timedOutCount: 0,
+              },
+            };
+
+            const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
+            if (payload.rate_limited && retryAfterSeconds > 0) {
+              localPauseUntil = Date.now() + retryAfterSeconds * 1000;
+              setRateLimitPauseUntil(localPauseUntil);
+            } else {
+              localPauseUntil = null;
+              setRateLimitPauseUntil(null);
+            }
+
+            const results = Array.isArray(payload.results) ? payload.results : [];
+            const previousBySub = new Map((data || []).map(item => [String(item.subreddit || '').toLowerCase(), item]));
+            const perSub = subs.map(sub => {
+              const subKey = sub.toLowerCase();
+              const match = results.find(r => (r.subreddit || '').toLowerCase() === subKey);
+              const previous = previousBySub.get(subKey);
+
+              if (!match && previous) {
+                return { ...previous, subreddit: sub, stale: true, stale_reason: 'missing_result' };
+              }
+              if (match?.error && previous) {
+                return {
+                  ...previous,
+                  subreddit: sub,
+                  stale: true,
+                  stale_reason: match.error_code || 'fetch_error',
+                  error: match.error || null,
+                };
+              }
+              if (match) {
+                return {
+                  subreddit: match.subreddit,
+                  meta: match.meta || previous?.meta || null,
+                  posts: Array.isArray(match.posts) ? match.posts : [],
+                  partial: Boolean(match.partial),
+                  error: match.error || null,
+                  stale: false,
+                };
+              }
+              return {
+                subreddit: sub,
+                posts: previous?.posts || [],
+                meta: previous?.meta || null,
+                partial: false,
+                error: null,
+                stale: Boolean(previous),
+                stale_reason: previous ? 'fallback_previous' : null,
+              };
+            });
+
+            setNeedsAuth(false);
+            setAuthenticated(payload?.auth_mode !== 'public');
+            setAuthChecking(false);
+            setData(perSub);
+            setFetchedAt(Number(payload?.fetched_at) || Date.now());
+            setSnapshotInfo(null);
+            setFetchSummary(buildFetchSummary(payload, perSub, {
+              requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
+              depthAutoCapped: false,
+              effectiveMaxPages: maxPages,
+              subsCount,
+            }));
+
+            if (payload?.auth_mode !== 'public') {
+              await syncDashboardSnapshot(perSub);
+            }
+            await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
+            return;
+          }
+
           setFetchMethod('server');
           const determineChunkSize = () => {
             if (subsCount > 21) return wantsDeepFetch ? 6 : 7;
