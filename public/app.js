@@ -1749,6 +1749,10 @@ const {
                 signal: controller.signal,
                 credentials: 'include',
               });
+              if ([502, 503, 504].includes(pollResponse.status)) {
+                await new Promise((resolve) => setTimeout(resolve, 2500));
+                continue;
+              }
               if (!pollResponse.ok) {
                 throw new Error(`HTTP ${pollResponse.status}`);
               }
@@ -1779,7 +1783,7 @@ const {
 
               const waitMs = job.status === 'cooldown'
                 ? Math.max(1500, (Number(job.retry_after_seconds) || 1) * 1000)
-                : 800;
+                : 1500;
               await new Promise((resolve) => setTimeout(resolve, waitMs));
             }
 
