@@ -1718,96 +1718,136 @@ const {
 
         try {
           if (shouldUseAsyncFetchJob) {
-            setFetchMethod('job');
-            const createResponse = await fetch('/api/reddit/jobs', {
-              method: 'POST',
-              signal: controller.signal,
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                subs,
-                mode,
-                time,
-                days,
-                limit,
-                max_pages: maxPages === 0 ? 'all' : maxPages,
-              }),
-            });
-            if (!createResponse.ok) {
-              throw new Error(`HTTP ${createResponse.status}`);
-            }
+            setFetchMethod('paged');
+            const pagedStartedAt = Date.now();
+            const pagedResults = [];
+            let authMode = null;
+            let rateLimitedSubs = [];
+            let pagedRetryAfterSeconds = 0;
 
-            const created = await createResponse.json();
-            const jobId = created?.job?.id;
-            if (!jobId) {
-              throw new Error('Failed to create fetch job');
-            }
+            for (let subIdx = 0; subIdx < subs.length; subIdx += 1) {
+              const sub = subs[subIdx];
+              let subMeta = null;
+              let subPosts = [];
+              let after = '';
+              let done = false;
+              let partial = false;
+              let pageCount = 0;
 
-            let finalJob = null;
-            while (!finalJob) {
-              const pollResponse = await fetch(`/api/reddit/jobs/${encodeURIComponent(jobId)}`, {
-                signal: controller.signal,
-                credentials: 'include',
+              while (!done) {
+                const params = new URLSearchParams({
+                  sub,
+                  mode,
+                  time,
+                  days: String(days),
+                  limit: String(Math.min(25, limit)),
+                  include_meta: pageCount === 0 ? '1' : '0',
+                });
+                if (after) params.set('after', after);
+                if (forceRefresh) params.set('_ts', `${Date.now()}_${subIdx}_${pageCount}`);
+
+                const pageResponse = await fetch(`/api/reddit/page?${params.toString()}`, {
+                  signal: controller.signal,
+                  credentials: 'include',
+                  ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
+                });
+
+                if (pageResponse.status === 401) {
+                  setNeedsAuth(true);
+                  setAuthenticated(false);
+                  setAuthChecking(false);
+                  setFetchSummary(null);
+                  setError('Sign in with Reddit to fetch your dashboard.');
+                  return;
+                }
+
+                if (pageResponse.status === 429) {
+                  let rateBody = null;
+                  try { rateBody = await pageResponse.json(); } catch (e) {}
+                  pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 15;
+                  localPauseUntil = Date.now() + pagedRetryAfterSeconds * 1000;
+                  setRateLimitPauseUntil(localPauseUntil);
+                  rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
+                  setFetchSummary({
+                    tone: 'warning',
+                    status: 'Cooldown',
+                    detail: `Reddit asked for cooldown while fetching r/${sub}. Waiting ~${pagedRetryAfterSeconds}s.`,
+                    completedSubs: subIdx,
+                    attemptedSubs: subsCount,
+                  });
+                  await new Promise((resolve) => setTimeout(resolve, Math.max(1500, pagedRetryAfterSeconds * 1000)));
+                  continue;
+                }
+
+                if (!pageResponse.ok) {
+                  throw new Error(`HTTP ${pageResponse.status}`);
+                }
+
+                const pagePayload = await pageResponse.json();
+                authMode = authMode || pagePayload?.auth_mode || null;
+                subMeta = pagePayload?.meta || subMeta;
+                if (Array.isArray(pagePayload?.posts)) {
+                  subPosts.push(...pagePayload.posts);
+                }
+                after = pagePayload?.after || '';
+                done = Boolean(pagePayload?.done);
+                pageCount += 1;
+
+                setFetchSummary({
+                  tone: 'accent',
+                  status: 'Running',
+                  detail: `Fetched ${subIdx}/${subsCount} subreddits. Collecting r/${sub} page ${pageCount}. ${subPosts.length} posts in this subreddit so far.`,
+                  completedSubs: subIdx,
+                  attemptedSubs: subsCount,
+                });
+
+                if (!done && maxPages !== 0 && pageCount >= maxPages) {
+                  partial = Boolean(after);
+                  done = true;
+                }
+
+                if (!done) {
+                  await new Promise((resolve) => setTimeout(resolve, 250));
+                }
+              }
+
+              pagedResults.push({
+                subreddit: sub,
+                meta: subMeta,
+                posts: subPosts,
+                partial,
+                error: null,
               });
-              if ([502, 503, 504].includes(pollResponse.status)) {
-                await new Promise((resolve) => setTimeout(resolve, 2500));
-                continue;
-              }
-              if (!pollResponse.ok) {
-                throw new Error(`HTTP ${pollResponse.status}`);
-              }
-              const pollPayload = await pollResponse.json();
-              const job = pollPayload?.job;
-              if (!job) {
-                throw new Error('Fetch job payload missing');
-              }
-
-              const progress = job.progress || {};
               setFetchSummary({
                 tone: 'accent',
-                status: job.status === 'cooldown' ? 'Cooldown' : 'Running',
-                detail: job.status === 'cooldown'
-                  ? `Reddit asked for cooldown. Resuming in ~${job.retry_after_seconds || 0}s.`
-                  : `Fetched ${progress.completedSubreddits || 0}/${progress.totalSubreddits || subsCount} subreddits. ${progress.totalPosts || 0} posts collected so far.`,
-                completedSubs: progress.completedSubreddits || 0,
-                attemptedSubs: progress.totalSubreddits || subsCount,
+                status: 'Running',
+                detail: `Fetched ${subIdx + 1}/${subsCount} subreddits. ${pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0)} posts collected so far.`,
+                completedSubs: subIdx + 1,
+                attemptedSubs: subsCount,
               });
-
-              if (job.status === 'completed') {
-                finalJob = job;
-                break;
-              }
-              if (job.status === 'failed') {
-                throw new Error(job.error?.message || 'Fetch job failed');
-              }
-
-              const waitMs = job.status === 'cooldown'
-                ? Math.max(1500, (Number(job.retry_after_seconds) || 1) * 1000)
-                : 1500;
-              await new Promise((resolve) => setTimeout(resolve, waitMs));
             }
 
             const payload = {
-              mode: finalJob.mode,
-              time: finalJob.time,
-              days: finalJob.days,
-              limit: finalJob.limit,
-              max_pages: finalJob.max_pages,
-              fetch_all_pages: Boolean(finalJob.fetch_all_pages),
-              auth_mode: finalJob.auth_mode,
-              results: Array.isArray(finalJob.results) ? finalJob.results : [],
-              fetched_at: finalJob.completed_at ? Date.parse(finalJob.completed_at) : Date.now(),
+              mode,
+              time,
+              days,
+              limit: Math.min(25, limit),
+              max_pages: maxPages,
+              fetch_all_pages: maxPages === 0,
+              auth_mode: authMode,
+              results: pagedResults,
+              fetched_at: Date.now(),
               request_capped: false,
-              rate_limited: Array.isArray(finalJob.rate_limited_subreddits) && finalJob.rate_limited_subreddits.length > 0,
-              rate_limited_subreddits: finalJob.rate_limited_subreddits || [],
-              retry_after_seconds: Number(finalJob.retry_after_seconds) || 0,
-              timed_out: Array.isArray(finalJob.timed_out_subreddits) && finalJob.timed_out_subreddits.length > 0,
-              timed_out_subreddits: finalJob.timed_out_subreddits || [],
-              metrics: finalJob.metrics || {
-                subredditCount: subsCount,
-                totalPosts: 0,
-                rateLimitedCount: 0,
-                durationMs: 0,
+              rate_limited: rateLimitedSubs.length > 0,
+              rate_limited_subreddits: rateLimitedSubs,
+              retry_after_seconds: pagedRetryAfterSeconds,
+              timed_out: false,
+              timed_out_subreddits: [],
+              metrics: {
+                subredditCount: pagedResults.length,
+                totalPosts: pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0),
+                rateLimitedCount: rateLimitedSubs.length,
+                durationMs: Date.now() - pagedStartedAt,
                 timedOutCount: 0,
               },
             };
