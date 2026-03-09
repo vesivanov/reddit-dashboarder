@@ -319,6 +319,8 @@ const {
       const [configSyncPauseUntil, setConfigSyncPauseUntil] = useState(null);
       const [sidecarSyncSuppressedUntil, setSidecarSyncSuppressedUntil] = useState(null);
       const loadingRef = useRef(false);
+      const coverageRunIdRef = useRef(0);
+      const coverageAbortRef = useRef(null);
       const addSubInputRef = useRef(null);
       const opportunityScanRequestIdRef = useRef(0);
       const hydratedOpportunityConfigRef = useRef(null);
@@ -1719,7 +1721,13 @@ const {
         setLoading(true);
         setError('');
         setNeedsAuth(false);
+        if (coverageAbortRef.current) {
+          try { coverageAbortRef.current.abort(); } catch {}
+        }
         const controller = new AbortController();
+        coverageAbortRef.current = controller;
+        const refreshRunId = Date.now();
+        coverageRunIdRef.current = refreshRunId;
         const timeoutMs = shouldUseCheckpointedCoverage
           ? 30 * 60 * 1000
           : Math.min(65000, 10000 + subs.length * 3500);
@@ -1750,6 +1758,11 @@ const {
             let rateLimitedSubs = [];
             let pagedRetryAfterSeconds = 0;
             let globalCooldownUntil = 0;
+            const isCurrentCoverageRun = () => (
+              coverageRunIdRef.current === refreshRunId
+              && coverageAbortRef.current === controller
+              && !controller.signal.aborted
+            );
 
             const goalCutoffUtc = () => Math.floor(Date.now() / 1000) - (targetWindowDays * 86400);
             const isCoverageComplete = (state) => {
@@ -1878,208 +1891,232 @@ const {
               completedSubs: computeProgress().completedSubs,
               attemptedSubs: subsCount,
             });
-
-            while (true) {
-              const { completedSubs, totalPosts } = computeProgress();
-              const pendingSubs = subs.filter((sub) => {
-                const subKey = String(sub || '').toLowerCase();
-                const state = coverageStates.get(subKey);
-                if (isCoverageComplete(state) || isPageCapped(state)) return false;
-                if (Number(state?.cooldown_until || 0) > Date.now()) return false;
-                if (globalCooldownUntil > Date.now()) return false;
-                return true;
-              });
-
-              if (!pendingSubs.length) {
-                const nextCooldownUntil = Math.min(...subs
-                  .map((sub) => {
-                    const state = coverageStates.get(String(sub || '').toLowerCase());
-                    if (isCoverageComplete(state) || isPageCapped(state)) return Infinity;
-                    return Number(state?.cooldown_until || 0) || Infinity;
-                  })
-                  .concat(globalCooldownUntil > Date.now() ? [globalCooldownUntil] : []));
-                if (Number.isFinite(nextCooldownUntil) && nextCooldownUntil > Date.now()) {
-                  const waitMs = Math.max(750, Math.min(10000, nextCooldownUntil - Date.now()));
-                  setFetchSummary({
-                    tone: 'warning',
-                    status: 'Cooldown',
-                    detail: `Coverage is checkpointed. Waiting ~${Math.ceil(waitMs / 1000)}s for Reddit cooldowns before resuming.`,
-                    completedSubs,
-                    attemptedSubs: subsCount,
-                  });
-                  syncVisibleCoverageState();
-                  await new Promise((resolve) => setTimeout(resolve, waitMs));
-                  continue;
-                }
-                break;
-              }
-
-              for (let subIdx = 0; subIdx < pendingSubs.length; subIdx += 1) {
-                const sub = pendingSubs[subIdx];
-                const subKey = String(sub || '').toLowerCase();
-                const state = coverageStates.get(subKey);
-                const pageCount = Number(state?.page_count || 0);
-                setFetchSummary({
-                  tone: 'accent',
-                  status: 'Running',
-                  detail: `Checkpointing coverage for r/${sub}. ${completedSubs}/${subsCount} subreddits are already covered or capped. ${totalPosts} posts stored so far.`,
-                  completedSubs,
-                  attemptedSubs: subsCount,
+            const continueCoverageInBackground = async () => {
+              while (true) {
+                if (!isCurrentCoverageRun()) return;
+                const { completedSubs, totalPosts } = computeProgress();
+                const pendingSubs = subs.filter((sub) => {
+                  const subKey = String(sub || '').toLowerCase();
+                  const state = coverageStates.get(subKey);
+                  if (isCoverageComplete(state) || isPageCapped(state)) return false;
+                  if (Number(state?.cooldown_until || 0) > Date.now()) return false;
+                  if (globalCooldownUntil > Date.now()) return false;
+                  return true;
                 });
 
-                const advanceResponse = await fetch('/api/reddit/advance', {
-                  method: 'POST',
-                  signal: controller.signal,
-                  credentials: 'include',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
-                  },
-                  body: JSON.stringify({
-                    subs,
-                    sub,
-                    mode,
-                    time,
-                    days,
-                    target_window_days: targetWindowDays,
-                    limit: pageLimit,
-                    include_meta: subsCount < 12 && pageCount === 0,
-                    scopeId: coverageScopeId,
-                  }),
-                });
-
-                if (advanceResponse.status === 401) {
-                  setNeedsAuth(true);
-                  setAuthenticated(false);
-                  setAuthChecking(false);
-                  setFetchSummary(null);
-                  setError('Sign in with Reddit to fetch your dashboard.');
-                  return;
-                }
-
-                if (advanceResponse.status === 429) {
-                  let rateBody = null;
-                  try { rateBody = await advanceResponse.json(); } catch (e) {}
-                  pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 15;
-                  globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
-                  localPauseUntil = globalCooldownUntil;
-                  setRateLimitPauseUntil(localPauseUntil);
-                  rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
-                  if (rateBody?.summary) {
-                    applyCoverage(rateBody.summary);
+                if (!pendingSubs.length) {
+                  const nextCooldownUntil = Math.min(...subs
+                    .map((sub) => {
+                      const state = coverageStates.get(String(sub || '').toLowerCase());
+                      if (isCoverageComplete(state) || isPageCapped(state)) return Infinity;
+                      return Number(state?.cooldown_until || 0) || Infinity;
+                    })
+                    .concat(globalCooldownUntil > Date.now() ? [globalCooldownUntil] : []));
+                  if (Number.isFinite(nextCooldownUntil) && nextCooldownUntil > Date.now()) {
+                    const waitMs = Math.max(750, Math.min(10000, nextCooldownUntil - Date.now()));
+                    setFetchSummary({
+                      tone: 'warning',
+                      status: 'Cooldown',
+                      detail: `Coverage is checkpointed. Waiting ~${Math.ceil(waitMs / 1000)}s for Reddit cooldowns before resuming.`,
+                      completedSubs,
+                      attemptedSubs: subsCount,
+                    });
+                    syncVisibleCoverageState();
+                    await new Promise((resolve) => setTimeout(resolve, waitMs));
+                    continue;
                   }
-                  syncVisibleCoverageState({
-                    tone: 'warning',
-                    status: 'Cooldown',
-                    detail: `Reddit rate-limited r/${sub}. Saved coverage so far and pausing ~${pagedRetryAfterSeconds}s before retrying.`,
-                    completedSubs,
-                    attemptedSubs: subsCount,
-                  });
                   break;
                 }
 
-                if (!advanceResponse.ok) {
-                  throw new Error(`HTTP ${advanceResponse.status}`);
-                }
-
-                const advancePayload = await advanceResponse.json();
-                authMode = authMode || advancePayload?.auth_mode || null;
-                applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
-                if (!isCoverageComplete(coverageStates.get(subKey)) && effectiveMaxPages !== 0 && (pageCount + 1) >= effectiveMaxPages) {
-                  coverageStates.set(subKey, {
-                    ...(coverageStates.get(subKey) || {}),
-                    status: 'capped',
+                for (let subIdx = 0; subIdx < pendingSubs.length; subIdx += 1) {
+                  if (!isCurrentCoverageRun()) return;
+                  const sub = pendingSubs[subIdx];
+                  const subKey = String(sub || '').toLowerCase();
+                  const state = coverageStates.get(subKey);
+                  const pageCount = Number(state?.page_count || 0);
+                  setFetchSummary({
+                    tone: 'accent',
+                    status: 'Running',
+                    detail: `Checkpointing coverage for r/${sub}. ${completedSubs}/${subsCount} subreddits are already covered or capped. ${totalPosts} posts stored so far.`,
+                    completedSubs,
+                    attemptedSubs: subsCount,
                   });
-                }
-                const progressAfterAdvance = computeProgress();
-                syncVisibleCoverageState({
-                  tone: 'accent',
-                  status: 'Running',
-                  detail: `Checkpointing coverage for r/${sub}. ${progressAfterAdvance.completedSubs}/${subsCount} subreddits are already covered or capped. ${progressAfterAdvance.totalPosts} posts stored so far.`,
-                  completedSubs: progressAfterAdvance.completedSubs,
-                  attemptedSubs: subsCount,
-                });
 
-                await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
+                  const advanceResponse = await fetch('/api/reddit/advance', {
+                    method: 'POST',
+                    signal: controller.signal,
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
+                    },
+                    body: JSON.stringify({
+                      subs,
+                      sub,
+                      mode,
+                      time,
+                      days,
+                      target_window_days: targetWindowDays,
+                      limit: pageLimit,
+                      include_meta: subsCount < 12 && pageCount === 0,
+                      scopeId: coverageScopeId,
+                    }),
+                  });
+
+                  if (advanceResponse.status === 401) {
+                    setNeedsAuth(true);
+                    setAuthenticated(false);
+                    setAuthChecking(false);
+                    setFetchSummary(null);
+                    setError('Sign in with Reddit to fetch your dashboard.');
+                    return;
+                  }
+
+                  if (advanceResponse.status === 429) {
+                    let rateBody = null;
+                    try { rateBody = await advanceResponse.json(); } catch (e) {}
+                    pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 15;
+                    globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
+                    localPauseUntil = globalCooldownUntil;
+                    setRateLimitPauseUntil(localPauseUntil);
+                    rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
+                    if (rateBody?.summary) {
+                      applyCoverage(rateBody.summary);
+                    }
+                    syncVisibleCoverageState({
+                      tone: 'warning',
+                      status: 'Cooldown',
+                      detail: `Reddit rate-limited r/${sub}. Saved coverage so far and pausing ~${pagedRetryAfterSeconds}s before retrying.`,
+                      completedSubs,
+                      attemptedSubs: subsCount,
+                    });
+                    break;
+                  }
+
+                  if (!advanceResponse.ok) {
+                    throw new Error(`HTTP ${advanceResponse.status}`);
+                  }
+
+                  const advancePayload = await advanceResponse.json();
+                  authMode = authMode || advancePayload?.auth_mode || null;
+                  applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
+                  if (!isCoverageComplete(coverageStates.get(subKey)) && effectiveMaxPages !== 0 && (pageCount + 1) >= effectiveMaxPages) {
+                    coverageStates.set(subKey, {
+                      ...(coverageStates.get(subKey) || {}),
+                      status: 'capped',
+                    });
+                  }
+                  const progressAfterAdvance = computeProgress();
+                  syncVisibleCoverageState({
+                    tone: 'accent',
+                    status: 'Running',
+                    detail: `Checkpointing coverage for r/${sub}. ${progressAfterAdvance.completedSubs}/${subsCount} subreddits are already covered or capped. ${progressAfterAdvance.totalPosts} posts stored so far.`,
+                    completedSubs: progressAfterAdvance.completedSubs,
+                    attemptedSubs: subsCount,
+                  });
+
+                  await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
+                }
               }
 
-              if (controller.signal.aborted) break;
-            }
+              if (!isCurrentCoverageRun()) return;
+              const pagedResults = subs.map((sub) => {
+                const subKey = String(sub || '').toLowerCase();
+                const state = coverageStates.get(subKey);
+                const result = coverageResults.get(subKey);
+                return {
+                  subreddit: sub,
+                  meta: result?.state?.meta || result?.meta || state?.meta || null,
+                  posts: Array.isArray(result?.posts) ? result.posts : [],
+                  partial: isPageCapped(state),
+                  coverage_state: state || null,
+                  error: state?.last_error || null,
+                };
+              });
 
-            const pagedResults = subs.map((sub) => {
-              const subKey = String(sub || '').toLowerCase();
-              const state = coverageStates.get(subKey);
-              const result = coverageResults.get(subKey);
-              return {
-                subreddit: sub,
-                meta: result?.state?.meta || result?.meta || state?.meta || null,
-                posts: Array.isArray(result?.posts) ? result.posts : [],
-                partial: isPageCapped(state),
-                coverage_state: state || null,
-                error: state?.last_error || null,
+              const payload = {
+                mode,
+                time,
+                days,
+                limit: Math.min(25, limit),
+                max_pages: maxPages,
+                fetch_all_pages: maxPages === 0,
+                auth_mode: authMode,
+                results: pagedResults,
+                fetched_at: Date.now(),
+                request_capped: false,
+                rate_limited: rateLimitedSubs.length > 0,
+                rate_limited_subreddits: Array.from(new Set([
+                  ...rateLimitedSubs,
+                  ...subs.filter((sub) => {
+                    const state = coverageStates.get(String(sub || '').toLowerCase());
+                    return state?.status === 'cooldown' || state?.last_error === 'RATE_LIMITED';
+                  }),
+                ])),
+                retry_after_seconds: pagedRetryAfterSeconds,
+                timed_out: false,
+                timed_out_subreddits: [],
+                coverage_summary: buildCoverageCounts(),
+                metrics: {
+                  subredditCount: pagedResults.length,
+                  totalPosts: pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0),
+                  rateLimitedCount: rateLimitedSubs.length,
+                  durationMs: Date.now() - pagedStartedAt,
+                  timedOutCount: 0,
+                },
               };
-            });
 
-            const payload = {
-              mode,
-              time,
-              days,
-              limit: Math.min(25, limit),
-              max_pages: maxPages,
-              fetch_all_pages: maxPages === 0,
-              auth_mode: authMode,
-              results: pagedResults,
-              fetched_at: Date.now(),
-              request_capped: false,
-              rate_limited: rateLimitedSubs.length > 0,
-              rate_limited_subreddits: Array.from(new Set([
-                ...rateLimitedSubs,
-                ...subs.filter((sub) => {
-                  const state = coverageStates.get(String(sub || '').toLowerCase());
-                  return state?.status === 'cooldown' || state?.last_error === 'RATE_LIMITED';
-                }),
-              ])),
-              retry_after_seconds: pagedRetryAfterSeconds,
-              timed_out: false,
-              timed_out_subreddits: [],
-              coverage_summary: buildCoverageCounts(),
-              metrics: {
-                subredditCount: pagedResults.length,
-                totalPosts: pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0),
-                rateLimitedCount: rateLimitedSubs.length,
-                durationMs: Date.now() - pagedStartedAt,
-                timedOutCount: 0,
-              },
+              const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
+              if (payload.rate_limited && retryAfterSeconds > 0) {
+                localPauseUntil = Date.now() + retryAfterSeconds * 1000;
+                setRateLimitPauseUntil(localPauseUntil);
+              } else {
+                localPauseUntil = null;
+                setRateLimitPauseUntil(null);
+              }
+
+              const perSub = buildPerSubFromCoverage();
+
+              setNeedsAuth(false);
+              setAuthenticated(payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated);
+              setAuthChecking(false);
+              setData(perSub);
+              setFetchedAt(Number(payload?.fetched_at) || Date.now());
+              setSnapshotInfo(null);
+              setFetchSummary(buildFetchSummary(payload, perSub, {
+                requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
+                depthAutoCapped: false,
+                effectiveMaxPages: maxPages,
+                subsCount,
+              }));
+
+              if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
+                await syncDashboardSnapshot(perSub);
+              }
+              await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
+
+              const plan = getAutoRefreshPlan({
+                autoRefreshEnabled,
+                subsLength: subs.length,
+                intervalMinutes: autoRefreshInterval,
+                now: Date.now(),
+                minMinutes: MIN_AUTO_REFRESH_MINUTES,
+              });
+              const pausedNext = localPauseUntil && localPauseUntil > Date.now() ? localPauseUntil : null;
+              setNextRefreshAt(pausedNext || plan.nextRefreshAt);
+              if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
             };
 
-            const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
-            if (payload.rate_limited && retryAfterSeconds > 0) {
-              localPauseUntil = Date.now() + retryAfterSeconds * 1000;
-              setRateLimitPauseUntil(localPauseUntil);
-            } else {
-              localPauseUntil = null;
-              setRateLimitPauseUntil(null);
-            }
-
-            const perSub = buildPerSubFromCoverage();
-
-            setNeedsAuth(false);
-            setAuthenticated(payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated);
-            setAuthChecking(false);
-            setData(perSub);
-            setFetchedAt(Number(payload?.fetched_at) || Date.now());
-            setSnapshotInfo(null);
-            setFetchSummary(buildFetchSummary(payload, perSub, {
-              requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
-              depthAutoCapped: false,
-              effectiveMaxPages: maxPages,
-              subsCount,
-            }));
-
-            if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
-              await syncDashboardSnapshot(perSub);
-            }
-            await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
+            void continueCoverageInBackground().catch((fetchError) => {
+              if (!isCurrentCoverageRun()) return;
+              setNeedsAuth(false);
+              setSnapshotInfo(null);
+              setFetchSummary(null);
+              if (fetchError?.name === 'AbortError') {
+                return;
+              }
+              setError(fetchError.message || 'Failed to fetch');
+            });
             return;
           }
 
@@ -2367,6 +2404,9 @@ const {
           }
         } finally {
           clearTimeout(timeoutId);
+          if (coverageAbortRef.current === controller) {
+            coverageAbortRef.current = null;
+          }
           setLoading(false);
           const plan = getAutoRefreshPlan({
             autoRefreshEnabled,
