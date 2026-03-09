@@ -2901,12 +2901,12 @@ const {
       function renderStatusChip(label, value, tone = 'neutral') {
         const toneClass =
           tone === 'success'
-            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+            ? 'bg-emerald-100/90 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-800/60'
             : tone === 'warning'
-              ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              ? 'bg-amber-100/90 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60'
               : tone === 'accent'
-                ? 'bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300'
-                : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300';
+                ? 'bg-sky-100/90 text-sky-900 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-800/60'
+                : 'bg-white text-zinc-700 ring-1 ring-stone-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700';
         return h('span', {
           className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`
         },
@@ -2924,8 +2924,8 @@ const {
       function renderCoveragePill(label, active) {
         return h('span', {
           className: `inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active
-            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-            : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-700 dark:text-zinc-500'}`
+            ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-800/60'
+            : 'bg-white text-stone-500 ring-1 ring-stone-200 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700'}`
         }, label);
       }
 
@@ -3009,12 +3009,12 @@ const {
       }, { complete1d: 0, complete3d: 0, complete5d: 0 });
 
       return h('div', { 
-        className: 'h-screen flex flex-col',
+        className: 'h-screen flex flex-col bg-stone-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100',
         onTouchStart: handleTouchStart,
         onTouchEnd: handleTouchEnd
       },
         // Header
-        h('header', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
+        h('header', { className: 'bg-stone-50/95 dark:bg-zinc-900/95 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
             h('div', { className: 'flex items-center gap-3' },
             h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder'),
             ),
@@ -3063,7 +3063,7 @@ const {
         ),
 
         // Status bar
-        h('div', { className: 'bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+        h('div', { className: 'bg-white/85 dark:bg-zinc-900/70 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex flex-wrap items-center gap-2' },
             loading
               ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
@@ -3116,10 +3116,10 @@ const {
         ),
         fetchSummary && !loading && !error && h('div', {
           className: `border-b px-4 py-2 text-xs sm:text-sm shrink-0 ${fetchSummary.tone === 'warning'
-            ? 'bg-amber-50/80 text-amber-800 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/60'
+            ? 'bg-amber-100/70 text-amber-900 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/60'
             : fetchSummary.tone === 'accent'
-              ? 'bg-sky-50/80 text-sky-900 border-sky-200 dark:bg-sky-950/30 dark:text-sky-200 dark:border-sky-900/60'
-              : 'bg-emerald-50/70 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/60'}`
+              ? 'bg-sky-100/70 text-sky-950 border-sky-200 dark:bg-sky-950/30 dark:text-sky-200 dark:border-sky-900/60'
+              : 'bg-emerald-100/70 text-emerald-900 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/60'}`
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, fetchSummary.detail),
@@ -3130,9 +3130,9 @@ const {
         // Main content area
         h('div', { className: 'flex-1 flex overflow-hidden' },
           // Left sidebar - Subreddits
-          h('aside', { className: `w-52 bg-white dark:bg-zinc-800 border-r border-zinc-200 dark:border-zinc-700 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
-            h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
-              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Subreddits'),
+          h('aside', { className: `w-52 bg-stone-50 dark:bg-zinc-900 border-r border-stone-200 dark:border-zinc-800 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
+            h('div', { className: 'p-3 border-b border-stone-200 dark:border-zinc-800 flex items-center justify-between' },
+              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
                 className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
@@ -3157,7 +3157,7 @@ const {
                         h('button', {
                           key: pack.id,
                           onClick: () => handleApplyStarterPack(pack),
-                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-left text-sm transition-colors'
+                          className: 'w-full px-3 py-2 rounded-lg border border-stone-200 dark:border-zinc-700 hover:border-stone-300 dark:hover:border-zinc-600 hover:bg-white dark:hover:bg-zinc-800 text-left text-sm transition-colors'
                         },
                           h('span', { className: 'flex items-center gap-2.5' },
                             renderStarterPackIcon(pack.id),
@@ -3178,7 +3178,7 @@ const {
                     h('button', {
                       key: 'all',
                       onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-400' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'}`
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`
                     },
                       h('div', { className: 'flex items-center justify-between' },
                         h('span', null, 'All'),
@@ -3192,14 +3192,14 @@ const {
                       const coverageState = coverageStateBySub.get(String(sub || '').toLowerCase()) || null;
                       return h('div', {
                       key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-sky-50 dark:bg-[#0284C7]/15' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800'}`
                       },
                         h('button', {
                       onClick: () => setSelectedSub(sub),
                           className: `w-full px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`
                     },
                       h('div', { className: 'flex items-center justify-between' },
-                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-[#0369A1] dark:text-sky-400' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
+                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-zinc-950 dark:text-sky-200' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
                         h('div', { className: 'flex items-center gap-2' },
                               h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, postCount),
                           h('button', {
@@ -3227,8 +3227,8 @@ const {
           ),
 
           // Center - Post list
-          h('main', { className: `flex-1 flex-col bg-zinc-50 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 shrink-0' },
+          h('main', { className: `flex-1 flex-col bg-stone-100 dark:bg-zinc-950 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-stone-200 dark:lg:border-zinc-800'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
+            subs.length > 0 && h('section', { className: 'bg-white/90 dark:bg-zinc-900 border-b border-stone-200 dark:border-zinc-800 shrink-0 backdrop-blur' },
               h('div', { className: 'flex items-center gap-3 px-4 py-2.5 min-w-0' },
 
                 // Status dot
