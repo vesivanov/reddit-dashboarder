@@ -85,4 +85,37 @@ describe('/api/reddit/snapshot', () => {
     expect(res.body.results[0].subreddit).toBe('programming');
     expect(res.body.snapshot?.cached).toBe(false);
   });
+
+  test('supports unauthenticated public snapshot fetches', async () => {
+    const sub = 'publicsnapshotalpha';
+    const reddit = nock('https://www.reddit.com');
+    reddit
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, `${sub}-1`)],
+          after: null,
+        },
+      });
+
+    const req = createMockRequest({
+      method: 'GET',
+      url: `/api/reddit/snapshot?subs=${sub}&mode=new&limit=25&max_pages=1`,
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    const { res } = createMockResponse();
+    await snapshotHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.auth_mode).toBe('public');
+    expect(res.body.results[0].posts).toHaveLength(1);
+    expect(res.body.snapshot?.cached).toBe(false);
+    expect(reddit.isDone()).toBe(true);
+  });
 });

@@ -79,6 +79,35 @@ describe('/api/reddit aggregation', () => {
     expect(() => JSON.parse(res.headers['x-rdd-metrics'])).not.toThrow();
   });
 
+  test('falls back to public reddit read mode without authentication', async () => {
+    const sub = 'publicfallbackalpha';
+    const reddit = nock('https://www.reddit.com');
+    reddit
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/top\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, `${sub}-1`)],
+          after: null,
+        },
+      });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${sub}&mode=top&limit=25&max_pages=1`,
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.auth_mode).toBe('public');
+    expect(res.body.results[0].posts).toHaveLength(1);
+    expect(reddit.isDone()).toBe(true);
+  });
+
   test('flags rate-limited subreddit while returning other results', async () => {
     const oauth = nock('https://oauth.reddit.com');
 
