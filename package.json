@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "node server.js",
     "local": "node server.js",
+    "build:info": "node dev-only/write-build-info.mjs",
     "build:css": "node_modules/.bin/tailwindcss -c tailwind.config.js -i ./public/styles/tailwind-input.css -o ./public/tailwind.css --minify",
-    "build": "npm run build:css",
+    "build": "npm run build:info && npm run build:css",
     "deploy": "vercel --prod --yes",
     "test": "jest",
     "test:watch": "jest --watch",

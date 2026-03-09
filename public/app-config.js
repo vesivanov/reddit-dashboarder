@@ -1,4 +1,5 @@
 (function initApp(globalScope) {
+    const BUILD_INFO = globalScope.RDDBuildInfo || null;
 
     const DEFAULT_API_URL = "/api/reddit/snapshot";
     const DEFAULT_SUBS = [];
@@ -131,5 +132,6 @@
     AI_CACHE_EXPIRY_MS,
     AI_PRESETS,
     FALLBACK_MODELS,
+    BUILD_INFO,
   };
 })(typeof window !== "undefined" ? window : globalThis);

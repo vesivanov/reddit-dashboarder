@@ -29,6 +29,7 @@ const {
   AI_CACHE_EXPIRY_MS,
   AI_PRESETS,
   FALLBACK_MODELS,
+  BUILD_INFO,
 } = window.RDDAppConfig || {};
 const {
   formatTimeUntil,
@@ -3067,6 +3068,7 @@ const {
                       staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
                       rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
                       autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt)),
+                      BUILD_INFO?.commit && !loading && renderStatusChip('Build', BUILD_INFO.commit),
                       opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success'),
                       !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success'),
                       !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
