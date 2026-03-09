@@ -55,6 +55,10 @@ function createApp() {
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
   });
+  // Pricing page at /pricing
+  app.get('/pricing', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'pricing.html'));
+  });
   // Dashboard at /app (and SPA sub-routes)
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

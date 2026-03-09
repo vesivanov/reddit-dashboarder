@@ -62,4 +62,24 @@ describe('app startup', () => {
     expect(res.headers['access-control-allow-methods']).toBe('GET, OPTIONS');
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:3000');
   });
+
+  test('pricing route serves the pricing page instead of the SPA shell', async () => {
+    let app;
+    jest.isolateModules(() => {
+      delete process.env.REDIS_URL;
+      jest.doMock('../../lib/services/analysis-job-queue', () => ({
+        ensureJobQueueWorker: jest.fn(),
+      }));
+      const createApp = require('../../app');
+      app = createApp();
+    });
+
+    const routeLayers = app._router.stack.filter((layer) => layer.route);
+    const pricingLayerIndex = routeLayers.findIndex((layer) => layer.route.path === '/pricing');
+    const catchAllLayerIndex = routeLayers.findIndex((layer) => layer.route.path === '*');
+
+    expect(pricingLayerIndex).toBeGreaterThanOrEqual(0);
+    expect(catchAllLayerIndex).toBeGreaterThanOrEqual(0);
+    expect(pricingLayerIndex).toBeLessThan(catchAllLayerIndex);
+  });
 });

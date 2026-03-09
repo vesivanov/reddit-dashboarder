@@ -1,8 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-// Pricing is served directly by express.static at its filename
-const PRICING = '/pricing.html';
+const PRICING = '/pricing';
 
 test.describe('Pricing page', () => {
   test.beforeEach(async ({ page }) => {
