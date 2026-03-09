@@ -1641,7 +1641,7 @@ const {
         setError('');
         setNeedsAuth(false);
         const controller = new AbortController();
-        const timeoutMs = Math.min(45000, 5000 + subs.length * 3000);
+        const timeoutMs = Math.min(65000, 10000 + subs.length * 3500);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
