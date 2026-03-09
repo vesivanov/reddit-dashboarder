@@ -54,6 +54,7 @@ describe('createFetchJSON', () => {
 
     const fetchJSON = createFetchJSON(tokenManager);
     await expect(fetchJSON('https://www.reddit.com/test.json')).rejects.toThrow('[RATE_LIMIT]');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   test('propagates not authenticated error when token missing', async () => {

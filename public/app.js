@@ -1580,12 +1580,20 @@ const {
 
         const subsCount = subs.length;
         let effectiveLimit = limit;
-        const effectiveMaxPages = maxPages;
+        let effectiveMaxPages = maxPages;
         if (subsCount >= 12) {
           effectiveLimit = Math.min(25, effectiveLimit);
         } else if (subsCount >= 6) {
           effectiveLimit = Math.min(25, effectiveLimit);
         }
+        if (subsCount >= 20) {
+          effectiveMaxPages = Math.min(effectiveMaxPages, 1);
+        } else if (subsCount >= 12) {
+          effectiveMaxPages = Math.min(effectiveMaxPages, 2);
+        } else if (subsCount >= 8) {
+          effectiveMaxPages = Math.min(effectiveMaxPages, 3);
+        }
+        const depthAutoCapped = effectiveMaxPages !== maxPages;
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1723,7 +1731,12 @@ const {
           setData(perSub);
           setFetchedAt(Number(payload?.fetched_at) || Date.now());
           setSnapshotInfo(payload?.snapshot || null);
-          setFetchSummary(buildFetchSummary(payload, perSub, effectiveMaxPages === 0 || Boolean(payload?.fetch_all_pages)));
+          setFetchSummary(buildFetchSummary(payload, perSub, {
+            requestedFetchAllPages: effectiveMaxPages === 0 || Boolean(payload?.fetch_all_pages),
+            depthAutoCapped,
+            effectiveMaxPages,
+            subsCount,
+          }));
 
           await syncDashboardSnapshot(perSub);
 
@@ -2169,7 +2182,11 @@ const {
         if (key === 'ai') setMinPriorityFilter('');
       }
 
-      function buildFetchSummary(payload, perSub, requestedFetchAllPages) {
+      function buildFetchSummary(payload, perSub, options = {}) {
+        const requestedFetchAllPages = Boolean(options?.requestedFetchAllPages);
+        const depthAutoCapped = Boolean(options?.depthAutoCapped);
+        const effectiveMaxPages = Number(options?.effectiveMaxPages);
+        const subsCount = Number(options?.subsCount) || 0;
         const timedOutSubs = Array.isArray(payload?.timed_out_subreddits) ? payload.timed_out_subreddits : [];
         const rateLimitedSubs = Array.isArray(payload?.rate_limited_subreddits) ? payload.rate_limited_subreddits : [];
         const partialSubs = Array.isArray(perSub) ? perSub.filter(group => group?.partial).map(group => group.subreddit) : [];
@@ -2206,6 +2223,16 @@ const {
             tone: 'warning',
             status: 'Capped',
             detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.`,
+            completedSubs,
+            attemptedSubs,
+          };
+        }
+
+        if (depthAutoCapped && Number.isFinite(effectiveMaxPages)) {
+          return {
+            tone: 'warning',
+            status: 'Capped',
+            detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.`,
             completedSubs,
             attemptedSubs,
           };

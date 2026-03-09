@@ -159,14 +159,6 @@ describe('/api/reddit aggregation', () => {
       .get('/r/programming/about.json')
       .reply(200, { data: { subscribers: 100, title: 'programming' } })
       .get('/r/programming/new.json')
-      .query((query) => query.limit === '1')
-      .reply(200, {
-        data: {
-          children: [buildPost('programming', 'probe', withinWindow)],
-          after: 'page-1',
-        },
-      })
-      .get('/r/programming/new.json')
       .query((query) => query.limit === '100' && !query.after)
       .reply(200, {
         data: {
@@ -197,6 +189,94 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.fetch_all_pages).toBe(true);
     expect(res.body.results[0].posts.map((post) => post.id)).toEqual(['p1', 'p2']);
     expect(res.body.results[0].partial).toBe(false);
+  });
+
+  test('uses the oauth listing endpoint directly for mode=new without a probe request', async () => {
+    const sub = 'directnewalpha';
+    const oauth = nock('https://oauth.reddit.com');
+    oauth
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: sub } })
+      .get(`/r/${sub}/new.json`)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'direct-new-1')],
+          after: null,
+        },
+      });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${sub}&mode=new&days=1&limit=100&max_pages=1`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results[0].posts.map((post) => post.id)).toEqual(['direct-new-1']);
+    expect(oauth.isDone()).toBe(true);
+  });
+
+  test('skips subreddit metadata fetches for large batches', async () => {
+    const subs = Array.from({ length: 13 }, (_, index) => `batchsub${index + 1}`);
+    const oauth = nock('https://oauth.reddit.com');
+
+    subs.forEach((sub) => {
+      oauth
+        .get(`/r/${sub}/top.json`)
+        .query((query) => query.limit === '100' && query.raw_json === '1' && query.t === 'day')
+        .reply(200, {
+          data: {
+            children: [buildPost(sub, `${sub}-1`)],
+            after: null,
+          },
+        });
+    });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${subs.join(',')}&mode=top&limit=100&max_pages=1`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results).toHaveLength(13);
+    expect(res.body.results.every((result) => result.posts.length === 1)).toBe(true);
+    expect(res.body.results.every((result) => result.meta?.subscribers == null)).toBe(true);
+    expect(oauth.isDone()).toBe(true);
+  });
+
+  test('stops issuing new upstream requests after the first subreddit is rate limited', async () => {
+    const firstSub = 'cooldownalpha';
+    const otherSubs = ['cooldownbeta', 'cooldowngamma'];
+    const oauth = nock('https://oauth.reddit.com');
+    oauth
+      .get(`/r/${firstSub}/about.json`)
+      .reply(429, 'Too Many Requests', { 'Retry-After': '12' });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${firstSub},${otherSubs.join(',')}&mode=top`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.rate_limited).toBe(true);
+    expect(res.body.retry_after_seconds).toBe(12);
+    expect(res.body.results).toHaveLength(3);
+    expect(res.body.results.every((result) => result.error_code === 'RATE_LIMITED')).toBe(true);
+    expect(res.body.rate_limited_subreddits).toEqual([firstSub, ...otherSubs]);
+    expect(res.body.metrics.rateLimitedCount).toBe(3);
+    expect(oauth.isDone()).toBe(true);
   });
 
   test('flags timed_out when execution budget is exhausted', async () => {
