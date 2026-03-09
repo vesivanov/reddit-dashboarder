@@ -8,24 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
-            mono: ['"JetBrains Mono"', 'monospace'],
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="stylesheet" href="/tailwind.css?v=20260309b" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-  <script src="/lib/ui-helpers.js"></script>
+  <script src="/lib/ui-helpers.js?v=20260309b"></script>
   <style>
     body { font-family: 'DM Sans', system-ui, -apple-system, sans-serif; }
     .font-mono, code, [class*="mono"] { font-family: 'JetBrains Mono', monospace; }
@@ -79,9 +66,9 @@
 </head>
 <body class="bg-zinc-100 dark:bg-zinc-900 min-h-screen text-zinc-900 dark:text-zinc-100 transition-colors">
   <div id="root"></div>
-  <script src="/app-config.js"></script>
-  <script src="/app-utils.js"></script>
-  <script src="/app-auth.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app-config.js?v=20260309b"></script>
+  <script src="/app-utils.js?v=20260309b"></script>
+  <script src="/app-auth.js?v=20260309b"></script>
+  <script src="/app.js?v=20260309b"></script>
 </body>
 </html>
