@@ -12,7 +12,7 @@
 
     function normalizeSubredditName(value) {
       if (typeof value !== 'string') return '';
-      return value.trim().replace(/^r\//i, '').trim();
+      return value.trim().replace(/^r\//i, '').trim().toLowerCase();
     }
 
     function timeAgo(utcSeconds) {

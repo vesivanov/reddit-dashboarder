@@ -166,4 +166,33 @@ describe('/api/settings/opportunity-config', () => {
     expect(res.status).toBe(200);
     expect(res.body.config.subreddits).toHaveLength(20);
   });
+
+  test('POST normalizes mixed-case subreddit names before validation', async () => {
+    mockStore.set('sync-token', {
+      token: 'sync-token',
+      settings: { subreddits: ['SmallBusiness'] },
+      filters: {},
+      syncedAt: '2026-03-08T10:00:00.000Z',
+      timestamp: '2026-03-08T09:59:00.000Z',
+      expiresAt: Date.parse('2026-03-09T10:00:00.000Z'),
+    });
+    const accessCookie = makeSignedCookie('access', 'access-token');
+
+    const res = await runHandler(handler, {
+      method: 'POST',
+      url: '/api/settings/opportunity-config',
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        token: 'sync-token',
+        subreddits: ['R/SmallBusiness', 'SEO'],
+        goals: 'Normalize names before save',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.config.subreddits).toEqual(['smallbusiness', 'seo']);
+  });
 });

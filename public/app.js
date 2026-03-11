@@ -55,6 +55,7 @@ const {
   parseNumberFilter,
   renderBody,
 } = window.RDDAppUtils || {};
+const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
     function App() {
       const makeSyncToken = () => {
         try {
@@ -164,12 +165,11 @@ const {
       const [detailCollapsed, setDetailCollapsed] = useState(false);
       const [darkMode, setDarkMode] = useState(() => {
         try {
-          const saved = localStorage.getItem('dashboard_dark_mode');
-          if (saved !== null) return saved === '1';
-          const legacy = localStorage.getItem('theme');
-          if (legacy) return legacy === 'dark';
-          return window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const savedPreference = localStorage.getItem(THEME_PREFERENCE_KEY);
+          if (savedPreference === 'dark') return true;
+          if (savedPreference === 'light') return false;
         } catch { return false; }
+        return false;
       });
       const [hiddenPosts, setHiddenPosts] = useState(() => {
         try {
@@ -359,6 +359,7 @@ const {
 
       // Dark mode persistence and class toggle
       useEffect(() => {
+        try { localStorage.setItem(THEME_PREFERENCE_KEY, darkMode ? 'dark' : 'light'); } catch {}
         try { localStorage.setItem('dashboard_dark_mode', darkMode ? '1' : '0'); } catch {}
         try { localStorage.setItem('theme', darkMode ? 'dark' : 'light'); } catch {}
         if (darkMode) {
@@ -672,7 +673,15 @@ const {
               hydratedOpportunityConfigRef.current = syncToken;
               return;
             }
-            if (!response.ok) return;
+            if (!response.ok) {
+              try {
+                const details = await response.json();
+                console.warn('Failed to load opportunity config', response.status, details);
+              } catch {
+                console.warn('Failed to load opportunity config', response.status);
+              }
+              return;
+            }
 
             const payload = await response.json();
             const config = payload?.config || {};
@@ -1040,6 +1049,12 @@ const {
           if (response.ok) {
             setConfigSyncPauseUntil(null);
           } else if (response.status === 400 || response.status === 413) {
+            try {
+              const details = await response.json();
+              console.warn('Failed to sync opportunity config', response.status, details);
+            } catch {
+              console.warn('Failed to sync opportunity config', response.status);
+            }
             setConfigSyncPauseUntil(Date.now() + 15 * 60 * 1000);
           } else if (response.status >= 500) {
             setConfigSyncPauseUntil(Date.now() + 10 * 60 * 1000);
