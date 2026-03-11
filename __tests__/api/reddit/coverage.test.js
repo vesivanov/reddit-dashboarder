@@ -13,6 +13,7 @@ jest.mock('../../../lib/storage', () => ({
 }));
 
 const coverageHandler = require('../../../lib/api-handlers/reddit/coverage');
+const { buildCoverageKey, buildCoverageScopeId } = require('../../../lib/repos/reddit-coverage');
 const { runHandler } = require('../../helpers/run-handler');
 
 function buildPost(subreddit, id, createdUtc = Math.floor(Date.now() / 1000)) {
@@ -186,6 +187,121 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
       subreddit: sub,
       status: 'cooldown',
       last_error: 'RATE_LIMITED',
+    });
+  });
+
+  test('resumes from the saved cursor after a cooldown expires', async () => {
+    const sub = 'resumetest';
+    const now = Math.floor(Date.now() / 1000);
+    const scopeId = buildCoverageScopeId({
+      subreddits: [sub],
+      mode: 'new',
+      time: 'day',
+      days: 5,
+      targetWindowDays: 5,
+    });
+
+    nock('https://www.reddit.com')
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, active_user_count: 10, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query((query) => String(query.limit) === '15' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'post-1', now - 60)],
+          after: 'page-2',
+        },
+      })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query((query) => String(query.limit) === '15' && query.after === 'page-2')
+      .reply(429, {}, { 'retry-after': '12' })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query((query) => String(query.limit) === '15' && query.after === 'page-2')
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'post-2', now - (4 * 86400))],
+          after: null,
+        },
+      });
+
+    const firstAdvance = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'new',
+        days: 5,
+        target_window_days: 5,
+        limit: 15,
+      },
+    });
+
+    expect(firstAdvance.status).toBe(200);
+    expect(firstAdvance.body.advanced).toBe(true);
+    expect(firstAdvance.body.result.state).toMatchObject({
+      next_after: 'page-2',
+      status: 'active',
+    });
+
+    const rateLimitedAdvance = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'new',
+        days: 5,
+        target_window_days: 5,
+        limit: 15,
+      },
+    });
+
+    expect(rateLimitedAdvance.status).toBe(200);
+    expect(rateLimitedAdvance.body.rate_limited).toBe(true);
+    expect(rateLimitedAdvance.body.result.state).toMatchObject({
+      next_after: 'page-2',
+      status: 'cooldown',
+    });
+
+    const storedBundle = mockStore.get(buildCoverageKey(scopeId));
+    mockStore.set(buildCoverageKey(scopeId), {
+      ...storedBundle,
+      subreddits: storedBundle.subreddits.map((entry) => (
+        entry.subreddit === sub
+          ? { ...entry, cooldown_until: Date.now() - 1000 }
+          : entry
+      )),
+    });
+
+    const resumedAdvance = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'new',
+        days: 5,
+        target_window_days: 5,
+        limit: 15,
+      },
+    });
+
+    expect(resumedAdvance.status).toBe(200);
+    expect(resumedAdvance.body.advanced).toBe(true);
+    expect(resumedAdvance.body.result.posts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'post-1' }),
+      expect.objectContaining({ id: 'post-2' }),
+    ]));
+    expect(resumedAdvance.body.result.state).toMatchObject({
+      status: 'complete',
+      next_after: '',
+      cooldown_until: null,
+      last_error: null,
+      post_count: 2,
     });
   });
 

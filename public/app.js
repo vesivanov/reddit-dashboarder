@@ -2032,8 +2032,31 @@ const {
                     });
                     break;
                   }
+                  if (advancePayload?.advanced === false && Number(advancePayload?.cooldown_until || 0) > Date.now()) {
+                    globalCooldownUntil = Number(advancePayload.cooldown_until);
+                    localPauseUntil = globalCooldownUntil;
+                    setRateLimitPauseUntil(localPauseUntil);
+                    if (advancePayload?.summary || advancePayload?.result) {
+                      applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
+                    }
+                    syncVisibleCoverageState({
+                      tone: 'accent',
+                      status: 'Paused',
+                      detail: `Saved progress for r/${sub}. Waiting for Reddit's cooldown window to expire before retrying.`,
+                      completedSubs,
+                      attemptedSubs: subsCount,
+                    });
+                    break;
+                  }
                   authMode = authMode || advancePayload?.auth_mode || null;
                   applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
+                  rateLimitedSubs = rateLimitedSubs.filter((value) => value !== sub);
+                  if (!subs.some((candidate) => {
+                    const candidateState = coverageStates.get(String(candidate || '').toLowerCase());
+                    return Number(candidateState?.cooldown_until || 0) > Date.now();
+                  })) {
+                    pagedRetryAfterSeconds = 0;
+                  }
                   if (!isCoverageComplete(coverageStates.get(subKey)) && effectiveMaxPages !== 0 && (pageCount + 1) >= effectiveMaxPages) {
                     coverageStates.set(subKey, {
                       ...(coverageStates.get(subKey) || {}),
@@ -2068,6 +2091,10 @@ const {
                 };
               });
 
+                const activeCooldownSubs = subs.filter((sub) => {
+                  const state = coverageStates.get(String(sub || '').toLowerCase());
+                  return Number(state?.cooldown_until || 0) > Date.now();
+                });
                 const payload = {
                 mode,
                 time,
@@ -2079,13 +2106,10 @@ const {
                 results: pagedResults,
                 fetched_at: Date.now(),
                 request_capped: false,
-                rate_limited: rateLimitedSubs.length > 0,
+                rate_limited: activeCooldownSubs.length > 0,
                 rate_limited_subreddits: Array.from(new Set([
                   ...rateLimitedSubs,
-                  ...subs.filter((sub) => {
-                    const state = coverageStates.get(String(sub || '').toLowerCase());
-                    return state?.status === 'cooldown' || state?.last_error === 'RATE_LIMITED';
-                  }),
+                  ...activeCooldownSubs,
                 ])),
                 retry_after_seconds: pagedRetryAfterSeconds,
                 timed_out: false,
@@ -2094,7 +2118,7 @@ const {
                 metrics: {
                   subredditCount: pagedResults.length,
                   totalPosts: pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0),
-                  rateLimitedCount: rateLimitedSubs.length,
+                  rateLimitedCount: activeCooldownSubs.length,
                   durationMs: Date.now() - pagedStartedAt,
                   timedOutCount: 0,
                 },
