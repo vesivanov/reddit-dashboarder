@@ -2971,7 +2971,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               ? 'bg-amber-100/90 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60'
               : tone === 'accent'
                 ? 'bg-sky-100/90 text-sky-900 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-800/60'
-                : 'bg-white text-zinc-700 ring-1 ring-stone-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700';
+                : 'bg-white text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700';
         return h('span', {
           className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`
         },
@@ -2990,7 +2990,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         return h('span', {
           className: `inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active
             ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-800/60'
-            : 'bg-white text-stone-500 ring-1 ring-stone-200 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700'}`
+            : 'bg-white text-zinc-500 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700'}`
         }, label);
       }
 
@@ -3074,12 +3074,12 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       }, { complete1d: 0, complete3d: 0, complete5d: 0 });
 
       return h('div', { 
-        className: 'h-screen flex flex-col bg-stone-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100',
+        className: 'h-screen flex flex-col bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100',
         onTouchStart: handleTouchStart,
         onTouchEnd: handleTouchEnd
       },
         // Header
-        h('header', { className: 'bg-stone-50/95 dark:bg-zinc-900/95 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
+        h('header', { className: 'bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
             h('div', { className: 'flex items-center gap-3' },
             h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder'),
             ),
@@ -3128,7 +3128,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         ),
 
         // Status bar
-        h('div', { className: 'bg-white/85 dark:bg-zinc-900/70 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+        h('div', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex flex-wrap items-center gap-2' },
             loading
               ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
@@ -3195,9 +3195,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         // Main content area
         h('div', { className: 'flex-1 flex overflow-hidden' },
           // Left sidebar - Subreddits
-          h('aside', { className: `w-52 bg-stone-50 dark:bg-zinc-900 border-r border-stone-200 dark:border-zinc-800 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
-            h('div', { className: 'p-3 border-b border-stone-200 dark:border-zinc-800 flex items-center justify-between' },
-              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-zinc-400' }, 'Subreddits'),
+          h('aside', { className: `w-52 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
+            h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
+              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
                 className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
@@ -3208,21 +3208,20 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             ),
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-2 space-y-1' },
               subs.length === 0
-                ? h('div', { className: 'p-4 text-center' },
-                    // Better empty state with icon
-                    h('div', { className: 'w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
-                      h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                ? h('div', { className: 'p-3 text-center' },
+                    h('div', { className: 'w-10 h-10 mx-auto mb-3 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
+                      h('svg', { className: 'w-5 h-5 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' })
                       )
                     ),
-                    h('h3', { className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'Start by adding a few subreddits'),
-                    h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, 'Pick a starter pack below or click "Add custom" to enter 3 to 5 subreddit names.'),
+                    h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white mb-1' }, 'Add subreddits'),
+                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-3' }, 'Pick a starter pack or add custom subs.'),
                     h('div', { className: 'space-y-2' },
                       STARTER_PACKS.map(pack =>
                         h('button', {
                           key: pack.id,
                           onClick: () => handleApplyStarterPack(pack),
-                          className: 'w-full px-3 py-2 rounded-lg border border-stone-200 dark:border-zinc-700 hover:border-stone-300 dark:hover:border-zinc-600 hover:bg-white dark:hover:bg-zinc-800 text-left text-sm transition-colors'
+                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-white dark:hover:bg-zinc-800 text-left text-sm transition-colors'
                         },
                           h('span', { className: 'flex items-center gap-2.5' },
                             renderStarterPackIcon(pack.id),
@@ -3243,7 +3242,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     h('button', {
                       key: 'all',
                       onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-zinc-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`
                     },
                       h('div', { className: 'flex items-center justify-between' },
                         h('span', null, 'All'),
@@ -3257,7 +3256,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       const coverageState = coverageStateBySub.get(String(sub || '').toLowerCase()) || null;
                       return h('div', {
                       key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800'}`
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-zinc-200 shadow-sm dark:bg-zinc-800 dark:ring-zinc-700' : 'hover:bg-white dark:hover:bg-zinc-800'}`
                       },
                         h('button', {
                       onClick: () => setSelectedSub(sub),
@@ -3292,8 +3291,8 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           ),
 
           // Center - Post list
-          h('main', { className: `flex-1 flex-col bg-stone-100 dark:bg-zinc-950 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-stone-200 dark:lg:border-zinc-800'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white/90 dark:bg-zinc-900 border-b border-stone-200 dark:border-zinc-800 shrink-0 backdrop-blur' },
+          h('main', { className: `flex-1 flex-col bg-zinc-100 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
+            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 shrink-0' },
               h('div', { className: 'flex items-center gap-3 px-4 py-2.5 min-w-0' },
 
                 // Status dot
@@ -3423,7 +3422,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   setSortBy(by);
                   setSortOrder(order);
                 },
-                className: 'px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white shadow-sm'
+                className: 'px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                 },
                 h('option', { value: 'date-desc' }, 'Latest posts'),
                 h('option', { value: 'date-asc' }, 'Oldest posts'),
@@ -3443,7 +3442,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }, 'Clear all')
             ),
-            activeFilterPills.length > 0 && h('div', { className: 'bg-zinc-50/80 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 flex-wrap' },
+            activeFilterPills.length > 0 && h('div', { className: 'bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 flex-wrap' },
               h('div', { className: 'flex items-center gap-2 flex-wrap' },
                 h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400' }, `Showing ${visiblePosts.length} of ${preFilterPostCount} posts`),
                 ...activeFilterPills.map(pill => h('button', {
@@ -3452,7 +3451,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   className: 'inline-flex items-center gap-1 rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 },
                   h('span', null, pill.label),
-                  h('span', { 'aria-hidden': 'true', className: 'text-zinc-400' }, 'x')
+                  renderGlyph('M6 18L18 6M6 6l12 12', 'w-3 h-3 text-zinc-400')
                 ))
               ),
               h('button', {
@@ -3520,7 +3519,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                             )
                           ]
                   )
-                : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700 bg-zinc-50/70 dark:bg-zinc-900' },
+                : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
                     visiblePosts.map(post => {
                         const isSelected = selectedPost?.id === post.id;
                         const score = Number(post.score) || 0;
@@ -3553,7 +3552,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                         const bgClass = isSelected 
                           ? 'bg-white dark:bg-zinc-800'
                           : isVeryHighRelevant
-                            ? 'bg-emerald-50/50 dark:bg-emerald-950/20'
+                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
                             : 'bg-zinc-50 dark:bg-zinc-900';
                         return h('div', {
                           key: post.id,
@@ -3713,7 +3712,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-4' },
             !selectedPost
                 ? h('div', { className: 'flex flex-col items-center justify-center h-full' },
-                    h('div', { className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
+                    h('div', { className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center' },
                       h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' }),
                         h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' })
@@ -3784,7 +3783,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       }
                       return null;
                     })(),
-                    h('section', { className: 'sticky top-0 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/10' },
+                    h('section', { className: 'sticky top-4 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/10' },
                       h('div', { className: 'flex items-start justify-between gap-3' },
                         h('div', { className: 'min-w-0' },
                           h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0369A1] dark:text-sky-300' }, 'Opportunity Summary'),
@@ -3801,7 +3800,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       ),
                       h('div', { className: 'mt-3 space-y-2' },
                         selectedPostWhyItems.map(item =>
-                          h('div', { key: item.label, className: 'rounded-lg bg-white/70 px-3 py-2 dark:bg-zinc-900/30' },
+                          h('div', { key: item.label, className: 'rounded-lg bg-white/80 px-3 py-2 dark:bg-zinc-900/40' },
                             h('p', { className: 'text-[11px] font-mono uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, item.label),
                             h('p', { className: 'mt-1 text-sm text-zinc-700 dark:text-zinc-200' }, item.value)
                           )
@@ -3811,7 +3810,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                         h('button', {
                           type: 'button',
                           onClick: () => handleCopyLink(selectedPost),
-                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200 dark:hover:bg-zinc-900/70 transition-colors'
+                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-700/50 dark:text-zinc-200 dark:hover:bg-zinc-700/70 transition-colors'
                         },
                           renderGlyph('M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3', 'w-3.5 h-3.5'),
                           'Copy link'
@@ -3819,7 +3818,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                         h('button', {
                           type: 'button',
                           onClick: () => handleHidePost(selectedPost.id),
-                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200 dark:hover:bg-zinc-900/70 transition-colors'
+                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-700/50 dark:text-zinc-200 dark:hover:bg-zinc-700/70 transition-colors'
                         },
                           renderGlyph('M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21', 'w-3.5 h-3.5'),
                           'Hide post'
@@ -4098,7 +4097,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       h('select', {
                         value: mode,
                         onChange: (e) => setMode(e.target.value),
-                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
+                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                       },
                         h('option', { value: 'new' }, 'Latest posts'),
                         h('option', { value: 'top' }, 'Top posts')
@@ -4117,7 +4116,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                             setAutoRefreshInterval(nextValue);
                           }
                         },
-                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
+                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                       },
                         h('option', { value: 0 }, 'Off'),
                         AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `Every ${opt} min`))
@@ -4252,7 +4251,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     value: autoRefreshInterval,
                     onChange: (e) => setAutoRefreshInterval(Number(e.target.value)),
                     disabled: !autoRefreshEnabled,
-                    className: 'px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                    className: 'px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                   },
                     AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `${opt} min`))
                   ),
@@ -4270,7 +4269,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     h('select', {
                       value: mode,
                     onChange: (e) => setMode(e.target.value),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     },
                       h('option', { value: 'new' }, 'Latest posts'),
                       h('option', { value: 'top' }, 'Top posts')
@@ -4282,7 +4281,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       value: time,
                     onChange: (e) => setTime(e.target.value),
                       disabled: mode !== 'top',
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     },
                       h('option', { value: 'hour' }, 'Hour'),
                       h('option', { value: 'day' }, 'Day'),
@@ -4295,7 +4294,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     h('select', {
                       value: days,
                     onChange: (e) => setDays(Number(e.target.value)),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     },
                     h('option', { value: 1 }, 'Day'),
                       h('option', { value: 3 }, '3 Days'),
@@ -4307,7 +4306,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     h('select', {
                       value: maxPages,
                     onChange: (e) => setMaxPages(Number(e.target.value)),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm'
+                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     },
                       [
                         h('option', { key: 'all', value: 0 }, 'All pages'),
@@ -4347,7 +4346,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       value: upvoteThreshold,
                       onChange: (e) => setUpvoteThreshold(Number(e.target.value) || 100),
                       disabled: !notificationsEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     })
                   ),
                   h('label', { className: 'block' },
@@ -4359,7 +4358,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       onChange: (e) => setAlertKeywords(e.target.value),
                       placeholder: 'breaking, launch, announcement...',
                       disabled: Notification.permission !== 'granted',
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     })
                   ),
                   h('div', { className: 'flex items-center justify-between' },
@@ -4382,7 +4381,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       value: priorityNotificationThreshold,
                       onChange: (e) => setPriorityNotificationThreshold(Number(e.target.value) || 4),
                       disabled: !notifyStrongOpportunities || !opportunityEngineEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                     },
                       h('option', { value: 4 }, '4+'),
                       h('option', { value: 5 }, '5+')
@@ -4430,7 +4429,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           onChange: (e) => setBusinessOffering(e.target.value),
                           placeholder: 'SEO consulting for B2B SaaS teams',
                           disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         })
                       ),
                       h('label', { className: 'block' },
@@ -4441,7 +4440,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           onChange: (e) => setIdealCustomer(e.target.value),
                           placeholder: 'Founders and marketing leads at SMBs',
                           disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         })
                       ),
                       h('label', { className: 'block' },
@@ -4450,7 +4449,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           value: preferredEngagement,
                           onChange: (e) => setPreferredEngagement(e.target.value),
                           disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         },
                           h('option', { value: 'reply' }, 'Public reply'),
                           h('option', { value: 'dm' }, 'DM / outreach'),
@@ -4466,7 +4465,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           placeholder: 'Traffic drops, poor search visibility, weak conversion pages',
                           disabled: !opportunityEngineEnabled,
                           rows: 2,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         })
                       ),
                       h('label', { className: 'block' },
@@ -4475,7 +4474,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           value: strategyPreset,
                           onChange: (e) => setStrategyPreset(e.target.value),
                           disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         },
                           h('option', { value: 'balanced' }, 'Balanced'),
                           h('option', { value: 'sales' }, 'Sales'),
@@ -4489,7 +4488,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           value: opportunityStrictness,
                           onChange: (e) => setOpportunityStrictness(e.target.value),
                           disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         },
                           h('option', { value: 'strict' }, 'Strict'),
                           h('option', { value: 'balanced' }, 'Balanced'),
@@ -4504,7 +4503,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           onChange: (e) => setOpportunityFocus(e.target.value),
                           placeholder: 'lead, pain_point, tool_search',
                           disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed'
+                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                         })
                       )
                     ),
