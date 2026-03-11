@@ -1990,6 +1990,25 @@ const {
                     return;
                   }
 
+                  if (advanceResponse.status === 429) {
+                    // App-level rate limit — pause and resume rather than terminate.
+                    let rateBody = null;
+                    try { rateBody = await advanceResponse.json(); } catch (e) {}
+                    pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 60;
+                    globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
+                    localPauseUntil = globalCooldownUntil;
+                    setRateLimitPauseUntil(localPauseUntil);
+                    rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
+                    syncVisibleCoverageState({
+                      tone: 'accent',
+                      status: 'Paused',
+                      detail: `Coverage paused for r/${sub}. Too many requests — resuming in about ${pagedRetryAfterSeconds}s.`,
+                      completedSubs,
+                      attemptedSubs: subsCount,
+                    });
+                    break;
+                  }
+
                   if (!advanceResponse.ok) {
                     throw new Error(`HTTP ${advanceResponse.status}`);
                   }
@@ -2129,7 +2148,11 @@ const {
 
             keepCoverageController = true;
             void continueCoverageInBackground().catch((fetchError) => {
-              if (!isCurrentCoverageRun()) return;
+              // Use run ID instead of isCurrentCoverageRun() here, because the
+              // finally block inside continueCoverageInBackground already cleared
+              // coverageAbortRef before this catch handler runs, which would make
+              // isCurrentCoverageRun() always return false and silently swallow errors.
+              if (coverageRunIdRef.current !== refreshRunId) return;
               setNeedsAuth(false);
               setSnapshotInfo(null);
               setFetchSummary(null);
@@ -3017,7 +3040,7 @@ const {
         onTouchEnd: handleTouchEnd
       },
         // Header
-        h('header', { className: 'bg-stone-50/95 dark:bg-zinc-950/95 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
+        h('header', { className: 'bg-stone-50/95 dark:bg-zinc-900/95 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
             h('div', { className: 'flex items-center gap-3' },
             h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder'),
             ),
@@ -3066,7 +3089,7 @@ const {
         ),
 
         // Status bar
-        h('div', { className: 'bg-white/85 dark:bg-zinc-950/85 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+        h('div', { className: 'bg-white/85 dark:bg-zinc-900/70 backdrop-blur border-b border-stone-200 dark:border-zinc-800 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex flex-wrap items-center gap-2' },
             loading
               ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
@@ -3133,7 +3156,7 @@ const {
         // Main content area
         h('div', { className: 'flex-1 flex overflow-hidden' },
           // Left sidebar - Subreddits
-          h('aside', { className: `w-52 bg-stone-50 dark:bg-zinc-950 border-r border-stone-200 dark:border-zinc-800 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
+          h('aside', { className: `w-52 bg-stone-50 dark:bg-zinc-900 border-r border-stone-200 dark:border-zinc-800 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
             h('div', { className: 'p-3 border-b border-stone-200 dark:border-zinc-800 flex items-center justify-between' },
               h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-zinc-400' }, 'Subreddits'),
                 h('button', {
@@ -3181,7 +3204,7 @@ const {
                     h('button', {
                       key: 'all',
                       onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-stone-200 shadow-sm dark:bg-zinc-900 dark:text-sky-200 dark:ring-zinc-800' : 'hover:bg-white/80 dark:hover:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300'}`
+                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`
                     },
                       h('div', { className: 'flex items-center justify-between' },
                         h('span', null, 'All'),
@@ -3195,7 +3218,7 @@ const {
                       const coverageState = coverageStateBySub.get(String(sub || '').toLowerCase()) || null;
                       return h('div', {
                       key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-stone-200 shadow-sm dark:bg-zinc-900 dark:ring-zinc-800' : 'hover:bg-white/80 dark:hover:bg-zinc-900/70'}`
+                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-stone-200 shadow-sm dark:bg-zinc-800 dark:ring-zinc-700' : 'hover:bg-white/80 dark:hover:bg-zinc-800'}`
                       },
                         h('button', {
                       onClick: () => setSelectedSub(sub),
@@ -3231,7 +3254,7 @@ const {
 
           // Center - Post list
           h('main', { className: `flex-1 flex-col bg-stone-100 dark:bg-zinc-950 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-stone-200 dark:lg:border-zinc-800'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white/90 dark:bg-zinc-950/90 border-b border-stone-200 dark:border-zinc-800 shrink-0 backdrop-blur' },
+            subs.length > 0 && h('section', { className: 'bg-white/90 dark:bg-zinc-900 border-b border-stone-200 dark:border-zinc-800 shrink-0 backdrop-blur' },
               h('div', { className: 'flex items-center gap-3 px-4 py-2.5 min-w-0' },
 
                 // Status dot
@@ -3722,7 +3745,7 @@ const {
                       }
                       return null;
                     })(),
-                    h('section', { className: 'sticky top-0 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/12' },
+                    h('section', { className: 'sticky top-0 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/10' },
                       h('div', { className: 'flex items-start justify-between gap-3' },
                         h('div', { className: 'min-w-0' },
                           h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0369A1] dark:text-sky-300' }, 'Opportunity Summary'),
@@ -3734,7 +3757,7 @@ const {
                             setShowAiReasons(true);
                             if (mobileView !== 'detail') setMobileView('detail');
                           },
-                          className: 'shrink-0 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-[#0369A1] hover:bg-sky-100 dark:border-[#0284C7]/30 dark:text-sky-300 dark:hover:bg-[#0284C7]/18 transition-colors'
+                          className: 'shrink-0 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-[#0369A1] hover:bg-sky-100 dark:border-[#0284C7]/30 dark:text-sky-300 dark:hover:bg-[#0284C7]/20 transition-colors'
                         }, 'Keep visible')
                       ),
                       h('div', { className: 'mt-3 space-y-2' },
