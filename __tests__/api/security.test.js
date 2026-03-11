@@ -110,7 +110,7 @@ describe('Authentication', () => {
     expect(res.body.error.message).toBe('Missing Authorization header');
   });
 
-  it('rejects invalid cron secrets', async () => {
+  it('keeps the cron refresh endpoint disabled', async () => {
     const res = await runHandler(cronRefreshHandler, {
       method: 'GET',
       url: '/api/cron/refresh-opportunities',
@@ -120,10 +120,10 @@ describe('Authentication', () => {
       },
     });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(503);
     expect(res.body).toEqual({
-      error: 'Unauthorized',
-      message: 'Provide valid X-Cron-Secret header',
+      error: 'Poller disabled',
+      message: 'The Reddit opportunities poller is temporarily disabled.',
     });
   });
 
