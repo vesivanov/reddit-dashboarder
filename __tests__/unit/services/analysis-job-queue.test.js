@@ -33,19 +33,18 @@ describe('analysis job queue', () => {
   });
 
   test('processes queued jobs from persistent storage', async () => {
-    mockStore.set('agent-snapshot:snap_1', {
-      snapshotId: 'snap_1',
-      scopeId: 'scope_sync-token',
-      posts: [{ id: 'p1' }],
-      expiresAt: Date.parse('2026-03-09T12:00:00.000Z'),
-    });
-
     await saveJob('job_1', {
       id: 'job_1',
       status: 'queued',
       token: 'sync-token',
       scopeId: 'scope_sync-token',
       snapshotId: 'snap_1',
+      snapshot: {
+        snapshotId: 'snap_1',
+        scopeId: 'scope_sync-token',
+        posts: [{ id: 'p1' }],
+        expiresAt: Date.parse('2026-03-09T12:00:00.000Z'),
+      },
       createdAt: Date.parse('2026-03-08T12:00:00.000Z'),
     });
     await enqueueJob('job_1');

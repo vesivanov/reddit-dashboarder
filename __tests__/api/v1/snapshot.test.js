@@ -16,6 +16,7 @@ const { runHandler } = require('../../helpers/run-handler');
 const { makeSignedCookie } = require('../../../lib/cookies');
 const snapshotHandler = require('../../../lib/api-v1/handlers/snapshot');
 const { buildCoverageKey } = require('../../../lib/repos/reddit-coverage');
+const storage = require('../../../lib/storage');
 
 describe('workspace snapshot handler', () => {
   beforeEach(() => {
@@ -23,6 +24,9 @@ describe('workspace snapshot handler', () => {
     process.env.DIGEST_SYNC_TOKEN = 'sync-token';
     process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
     mockStore.clear();
+    storage.set.mockImplementation(async (key, value) => {
+      mockStore.set(key, value);
+    });
   });
 
   test('supports workspace-scoped snapshot reads', async () => {
@@ -100,7 +104,7 @@ describe('workspace snapshot handler', () => {
       token: 'sync-token',
       settings: { subreddits: ['seo'], aiGoals: 'Find urgent SEO leads' },
     });
-    expect(mockStore.get('agent-snapshot-latest:ws_demo')).toBeTruthy();
+    expect(mockStore.get('agent-snapshot-latest:ws_demo')).toBeUndefined();
   });
 
   test('materializes workspace snapshot posts from a persisted reddit coverage scope', async () => {
@@ -191,11 +195,8 @@ describe('workspace snapshot handler', () => {
       settings: { subreddits: ['seo'], aiGoals: 'Find urgent SEO leads' },
     });
 
-    const latestRef = mockStore.get('agent-snapshot-latest:ws_demo');
-    const storedSnapshot = mockStore.get(`agent-snapshot:${latestRef.snapshotId}`);
-    expect(storedSnapshot.posts).toEqual([
-      expect.objectContaining({ id: 'p_cov_1', subreddit: 'seo' }),
-    ]);
+    expect(res.body.snapshotId).toBeTruthy();
+    expect(mockStore.get('agent-snapshot-latest:ws_demo')).toBeUndefined();
   });
 
   test('materializes snapshot, config, and heuristic analysis for a workspace route', async () => {
@@ -283,8 +284,7 @@ describe('workspace snapshot handler', () => {
       totalPosts: 1,
     });
 
-    const latestRef = mockStore.get('agent-snapshot-latest:ws_demo');
-    expect(latestRef).toBeTruthy();
+    expect(mockStore.get('agent-snapshot-latest:ws_demo')).toBeUndefined();
     expect(mockStore.get('agent-config:ws_demo')).toBeUndefined();
   });
 
@@ -362,6 +362,108 @@ describe('workspace snapshot handler', () => {
       jobId: 'job_123',
       opportunityCount: 1,
       modelUsed: 'openai/gpt-4o-mini',
+    });
+  });
+
+  test('serves workspace snapshot reads when derived persistence hits storage OOM', async () => {
+    storage.set.mockImplementation(async (key, value) => {
+      if (String(key).startsWith('agent-snapshot:') || String(key).startsWith('agent-analysis:')) {
+        throw new Error("OOM command not allowed when used memory > 'maxmemory'.");
+      }
+      mockStore.set(key, value);
+    });
+
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('sync-token', {
+      token: 'sync-token',
+      posts: [
+        {
+          id: 'p1',
+          title: 'Need SEO help',
+          subreddit: 'seo',
+          author: 'alice',
+          score: 12,
+          num_comments: 4,
+          created_utc: Math.floor(Date.now() / 1000) - 1800,
+          reddit_url: 'https://reddit.com/r/seo/comments/p1',
+        },
+      ],
+      settings: {
+        subreddits: ['seo'],
+        aiGoals: 'Find SEO leads',
+      },
+      filters: {},
+      syncedAt: '2026-03-08T10:00:00.000Z',
+      timestamp: '2026-03-08T09:59:00.000Z',
+      expiresAt: Date.parse('2026-03-09T10:00:00.000Z'),
+    });
+
+    const res = await runHandler(snapshotHandler, {
+      method: 'GET',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.snapshot).toMatchObject({
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+    });
+    expect(res.body.data.posts).toEqual([
+      expect.objectContaining({ id: 'p1', subreddit: 'seo' }),
+    ]);
+  });
+
+  test('keeps workspace snapshot writes successful when only derived persistence hits storage OOM', async () => {
+    storage.set.mockImplementation(async (key, value) => {
+      if (String(key).startsWith('agent-snapshot:') || String(key).startsWith('agent-analysis:')) {
+        throw new Error("OOM command not allowed when used memory > 'maxmemory'.");
+      }
+      mockStore.set(key, value);
+    });
+
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+
+    const res = await runHandler(snapshotHandler, {
+      method: 'PUT',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        token: 'sync-token',
+        posts: [{ id: 'p2', title: 'Need help now', subreddit: 'seo' }],
+        settings: {
+          subreddits: ['seo'],
+          aiGoals: 'Find urgent SEO leads',
+        },
+        filters: { minScore: 5 },
+        timestamp: '2026-03-08T10:10:00.000Z',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.workspaceId).toBe('ws_demo');
+    expect(mockStore.get('sync-token')).toMatchObject({
+      token: 'sync-token',
+      settings: { subreddits: ['seo'], aiGoals: 'Find urgent SEO leads' },
     });
   });
 });

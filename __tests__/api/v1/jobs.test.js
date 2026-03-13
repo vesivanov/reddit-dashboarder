@@ -129,8 +129,8 @@ describe('/api/workspaces/:workspaceId/analyze and /api/workspaces/:workspaceId/
       threshold: 4,
     });
 
-    const snapshotRecord = mockStore.get(`agent-snapshot:${jobRecord.snapshotId}`);
-    expect(snapshotRecord.posts).toEqual([
+    expect(mockStore.get(`agent-snapshot:${jobRecord.snapshotId}`)).toBeUndefined();
+    expect(mockStore.get('sync-token').posts).toEqual([
       expect.objectContaining({
         id: 'p1',
         aiScoreProxy: 4,
