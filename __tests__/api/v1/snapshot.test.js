@@ -15,6 +15,7 @@ jest.mock('../../../lib/storage', () => ({
 const { runHandler } = require('../../helpers/run-handler');
 const { makeSignedCookie } = require('../../../lib/cookies');
 const snapshotHandler = require('../../../lib/api-v1/handlers/snapshot');
+const { buildCoverageKey } = require('../../../lib/repos/reddit-coverage');
 
 describe('workspace snapshot handler', () => {
   beforeEach(() => {
@@ -100,6 +101,101 @@ describe('workspace snapshot handler', () => {
       settings: { subreddits: ['seo'], aiGoals: 'Find urgent SEO leads' },
     });
     expect(mockStore.get('agent-snapshot-latest:ws_demo')).toBeTruthy();
+  });
+
+  test('materializes workspace snapshot posts from a persisted reddit coverage scope', async () => {
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set(buildCoverageKey('rcov_demo_scope'), {
+      scopeId: 'rcov_demo_scope',
+      mode: 'new',
+      time: 'day',
+      days: 1,
+      targetWindowDays: 1,
+      createdAt: Date.parse('2026-03-08T10:00:00.000Z'),
+      updatedAt: Date.parse('2026-03-08T10:00:00.000Z'),
+      subreddits: [{
+        subreddit: 'seo',
+        status: 'complete',
+        next_after: '',
+        cooldown_until: null,
+        covered_through_utc: Math.floor(Date.parse('2026-03-08T09:00:00.000Z') / 1000),
+        page_count: 1,
+        post_count: 1,
+        last_fetch_at: Date.parse('2026-03-08T10:00:00.000Z'),
+        last_error: null,
+        complete_1d: true,
+        complete_3d: false,
+        complete_5d: false,
+        inflight_until: null,
+        inflight_token: null,
+        meta: { title: 'r/seo', subscribers: 200 },
+      }],
+      postsBySubreddit: {
+        seo: [{
+          id: 'p_cov_1',
+          title: 'Need SEO help now',
+          subreddit: 'seo',
+          author: 'alice',
+          score: 12,
+          num_comments: 4,
+          created_utc: Math.floor(Date.parse('2026-03-08T09:30:00.000Z') / 1000),
+          reddit_url: 'https://reddit.com/r/seo/comments/p_cov_1',
+        }],
+      },
+    });
+
+    const res = await runHandler(snapshotHandler, {
+      method: 'PUT',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        token: 'sync-token',
+        settings: {
+          subreddits: ['seo'],
+          aiGoals: 'Find urgent SEO leads',
+        },
+        filters: { minScore: 5 },
+        source: {
+          type: 'reddit_coverage',
+          coverageScopeId: 'rcov_demo_scope',
+          mode: 'new',
+          time: 'day',
+          days: 1,
+          targetWindowDays: 1,
+          subreddits: ['seo'],
+        },
+        timestamp: '2026-03-08T10:10:00.000Z',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.workspaceId).toBe('ws_demo');
+    expect(res.body.postCount).toBe(1);
+    expect(mockStore.get('sync-token')).toMatchObject({
+      token: 'sync-token',
+      source: {
+        type: 'reddit_coverage',
+        coverageScopeId: 'rcov_demo_scope',
+      },
+      posts: [],
+      settings: { subreddits: ['seo'], aiGoals: 'Find urgent SEO leads' },
+    });
+
+    const latestRef = mockStore.get('agent-snapshot-latest:ws_demo');
+    const storedSnapshot = mockStore.get(`agent-snapshot:${latestRef.snapshotId}`);
+    expect(storedSnapshot.posts).toEqual([
+      expect.objectContaining({ id: 'p_cov_1', subreddit: 'seo' }),
+    ]);
   });
 
   test('materializes snapshot, config, and heuristic analysis for a workspace route', async () => {

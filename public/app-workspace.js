@@ -231,7 +231,7 @@
     });
   }
 
-  async function syncDashboardSnapshot({ snapshotInfo, syncToken, posts, settings, filters }) {
+  async function syncDashboardSnapshot({ snapshotInfo, syncToken, posts, settings, filters, source = null }) {
     const workspaceResult = await ensureWorkspace({ snapshotInfo, syncToken });
     if (!workspaceResult.ok || !workspaceResult.workspaceId) {
       return {
@@ -245,10 +245,11 @@
     const workspaceId = workspaceResult.workspaceId;
     const payload = {
       token: syncToken,
-      posts,
       settings,
       filters,
       timestamp: new Date().toISOString(),
+      ...(Array.isArray(posts) ? { posts } : {}),
+      ...(source ? { source } : {}),
     };
 
     const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/snapshot`, {

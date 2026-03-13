@@ -177,6 +177,56 @@ describe('/api/reddit/snapshot', () => {
     expect(reddit.isDone()).toBe(true);
   });
 
+  test('keys snapshot cache by target_window_days', async () => {
+    const sub = 'targetwindowalpha';
+    const reddit = nock('https://www.reddit.com');
+    reddit
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, `${sub}-window-1`)],
+          after: null,
+        },
+      })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, `${sub}-window-3`)],
+          after: null,
+        },
+      });
+
+    const firstReq = createMockRequest({
+      method: 'GET',
+      url: `/api/reddit/snapshot?subs=${sub}&mode=new&days=5&target_window_days=1&limit=25&max_pages=1`,
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+    });
+    const firstRes = createMockResponse();
+    await snapshotHandler(firstReq, firstRes.res);
+
+    const secondReq = createMockRequest({
+      method: 'GET',
+      url: `/api/reddit/snapshot?subs=${sub}&mode=new&days=5&target_window_days=3&limit=25&max_pages=1`,
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+    });
+    const secondRes = createMockResponse();
+    await snapshotHandler(secondReq, secondRes.res);
+
+    expect(firstRes.res.statusCode).toBe(200);
+    expect(secondRes.res.statusCode).toBe(200);
+    expect(firstRes.res.body.results[0].posts[0].id).toBe(`${sub}-window-1`);
+    expect(secondRes.res.body.results[0].posts[0].id).toBe(`${sub}-window-3`);
+    expect(reddit.isDone()).toBe(true);
+  });
+
   test('does not cache rate-limited payloads', async () => {
     const sub = 'uncacheablealpha';
     const firstPass = nock('https://oauth.reddit.com');

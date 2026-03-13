@@ -36,6 +36,7 @@ const {
   DEFAULT_LLM_POST_LIMIT,
   LLM_SCORE_MORE_STEP,
   MAX_LLM_POST_LIMIT,
+  WORKSPACE_SNAPSHOT_SOFT_LIMIT_BYTES,
   LATEST_MODEL_COUNT,
   AI_CACHE_EXPIRY_MS,
   AI_PRESETS,
@@ -875,21 +876,23 @@ const {
         postScoreProxies,
       }), [postOpportunities, postScoreMetadata, postScoreProxies]);
 
-      const syncDashboardSnapshot = useCallback(async (groupsOverride) => {
+      const syncDashboardSnapshot = useCallback(async (groupsOverride, sourceOverride = null) => {
         const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
         if (!authenticated || !syncToken || !Array.isArray(groups) || groups.length === 0) return;
         if (syncPauseUntil && syncPauseUntil > Date.now()) return;
         if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
-        const posts = buildSyncPosts(groups);
+        const sourceContext = sourceOverride || snapshotInfo?.sourceContext || null;
+        const posts = sourceContext ? null : buildSyncPosts(groups);
         const payload = {
           token: syncToken,
-          posts,
           settings: buildSyncSettings(),
           filters: buildSyncFilters(),
           timestamp: new Date().toISOString(),
+          ...(Array.isArray(posts) ? { posts } : {}),
+          ...(sourceContext ? { source: sourceContext } : {}),
         };
 
-        if (getPayloadSizeBytes(payload) > 200000) {
+        if (getPayloadSizeBytes(payload) > (WORKSPACE_SNAPSHOT_SOFT_LIMIT_BYTES || 185000)) {
           setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           return;
         }
@@ -902,6 +905,7 @@ const {
                 posts,
                 settings: payload.settings,
                 filters: payload.filters,
+                source: sourceContext,
               })
             : { ok: false, status: 500, body: null };
           if (result.ok) {
@@ -910,6 +914,7 @@ const {
               ...(prev || {}),
               syncToken,
               workspaceId: result.body?.workspaceId || prev?.workspaceId || null,
+              sourceContext: result.body?.sourceContext || sourceContext || prev?.sourceContext || null,
             }));
           } else if (result.status === 413) {
             setSyncPauseUntil(Date.now() + 15 * 60 * 1000);
@@ -926,6 +931,7 @@ const {
         buildSyncPosts,
         buildSyncSettings,
         buildSyncFilters,
+        snapshotInfo,
       ]);
 
       const syncOpportunityConfig = useCallback(async () => {

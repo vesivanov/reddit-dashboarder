@@ -60,6 +60,7 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
     mockStore.clear();
     nock.cleanAll();
     delete process.env.REDDIT_MAX_SUBREDDITS;
+    delete process.env.REDDIT_COVERAGE_FRESHNESS_MS;
   });
 
   test('returns an empty coverage summary when scope has not been created yet', async () => {
@@ -197,6 +198,79 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
       subreddit: sub,
       status: 'cooldown',
       last_error: 'RATE_LIMITED',
+    });
+  });
+
+  test('resets stale completed coverage before returning cached state', async () => {
+    const sub = 'stalealpha';
+    const scopeId = buildCoverageScopeId({
+      subreddits: [sub],
+      mode: 'new',
+      time: 'day',
+      days: 1,
+      targetWindowDays: 1,
+    });
+    process.env.REDDIT_COVERAGE_FRESHNESS_MS = '60000';
+
+    mockStore.set(buildCoverageKey(scopeId), {
+      scopeId,
+      mode: 'new',
+      time: 'day',
+      days: 1,
+      targetWindowDays: 1,
+      createdAt: Date.now() - 10 * 60 * 1000,
+      updatedAt: Date.now() - 10 * 60 * 1000,
+      subreddits: [{
+        subreddit: sub,
+        status: 'complete',
+        next_after: '',
+        cooldown_until: null,
+        covered_through_utc: Math.floor(Date.now() / 1000) - 86400,
+        page_count: 2,
+        post_count: 1,
+        last_fetch_at: Date.now() - 10 * 60 * 1000,
+        last_error: null,
+        complete_1d: true,
+        complete_3d: false,
+        complete_5d: false,
+        inflight_until: null,
+        inflight_token: null,
+        meta: { title: `r/${sub}`, subscribers: 123 },
+      }],
+      postsBySubreddit: {
+        [sub]: [{
+          id: 'stale-post',
+          subreddit: sub,
+          title: 'Old cached post',
+          created_utc: Math.floor(Date.now() / 1000) - 3600,
+        }],
+      },
+    });
+
+    const coverageRes = await runHandler(coverageHandler, {
+      method: 'GET',
+      url: `/api/reddit/coverage?subs=${sub}&mode=new&days=1&target_window_days=1`,
+      headers: { origin: 'http://localhost:3000' },
+    });
+
+    expect(coverageRes.status).toBe(200);
+    expect(coverageRes.body.summary).toMatchObject({
+      complete1dCount: 0,
+      totalPosts: 0,
+    });
+    expect(coverageRes.body.results[0]).toMatchObject({
+      subreddit: sub,
+      state: expect.objectContaining({
+        status: 'idle',
+        page_count: 0,
+        post_count: 0,
+        complete_1d: false,
+      }),
+      posts: [],
+    });
+    expect(coverageRes.body.results[0].state.meta).toMatchObject({
+      title: `r/${sub}`,
+      subscribers: 123,
     });
   });
 

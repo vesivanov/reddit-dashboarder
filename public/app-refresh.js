@@ -383,8 +383,8 @@
   }) {
     setFetchMethod('paged');
     const pagedStartedAt = Date.now();
-    const skipSyncForLargeBatch = subsCount >= 12;
-    if (skipSyncForLargeBatch) {
+    const suppressSidecarSyncDuringFetch = subsCount >= 12;
+    if (suppressSidecarSyncDuringFetch) {
       setSidecarSyncSuppressedUntil(Date.now() + 30 * 60 * 1000);
     } else {
       setSidecarSyncSuppressedUntil(null);
@@ -766,6 +766,15 @@
 
         const perSub = buildPerSubFromCoverage();
         const authenticatedAfterFetch = payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated;
+        const sourceContext = coverageScopeId ? {
+          type: 'reddit_coverage',
+          coverageScopeId,
+          mode,
+          time,
+          days,
+          targetWindowDays,
+          subreddits: subs,
+        } : null;
 
         setNeedsAuth(false);
         setAuthenticated(authenticatedAfterFetch);
@@ -785,8 +794,11 @@
           detail: `Fetched ${totalFetchedPosts} post${totalFetchedPosts === 1 ? '' : 's'}. Starting opportunity ranking next.`,
         });
 
-        if (authenticatedAfterFetch && !skipSyncForLargeBatch) {
-          await syncDashboardSnapshot(perSub);
+        if (suppressSidecarSyncDuringFetch) {
+          setSidecarSyncSuppressedUntil(null);
+        }
+        if (authenticatedAfterFetch) {
+          await syncDashboardSnapshot(perSub, sourceContext);
         }
         await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
 
