@@ -5,7 +5,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
-  <title>Reddit Dashboard</title>
+  <title>Reddit Dashboarder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -38,10 +38,10 @@
     .post-body { font-size: 0.875rem; line-height: 1.6; }
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
-    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
-    .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #52525b; }
-    .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #71717a; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, #d4d4d8); border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover, #a1a1aa); }
+    :root { --scrollbar-thumb: #d4d4d8; --scrollbar-thumb-hover: #a1a1aa; }
+    html.dark { --scrollbar-thumb: #52525b; --scrollbar-thumb-hover: #71717a; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     .animate-fadeIn { animation: fadeIn 0.15s ease-out; }
     

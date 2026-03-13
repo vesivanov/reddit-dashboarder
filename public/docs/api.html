@@ -20,12 +20,20 @@
 </head>
 <body class="bg-[#0C0C0D] text-zinc-100 antialiased">
   <div class="flex min-h-screen">
-    <aside class="hidden w-72 border-r border-zinc-800 bg-zinc-900 p-6 lg:block">
-      <a href="/docs" class="font-semibold text-base text-white tracking-tight leading-none block mb-8">Reddit Dashboarder</a>
-      <nav class="space-y-1 text-sm">
-        <a href="/docs" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">Overview</a>
+    <aside class="hidden w-72 border-r border-zinc-800 bg-[#111114] p-6 lg:block">
+      <a href="/docs" class="flex items-center gap-2 mb-8">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="shrink-0" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="17" height="11" rx="2" stroke="#0284C7" stroke-width="1.5"/>
+          <path d="M7 19h6M10 13.5V19" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 9.5l2-2.5 2.5 2.5 2-2 3 3" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</span>
+      </a>
+      <nav class="space-y-0.5 text-sm">
+        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Docs</p>
+        <a href="/docs" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors">Overview</a>
         <a href="/docs/api.html" class="block rounded-lg bg-[#0284C7]/15 px-3 py-2 text-sky-300">API Reference</a>
-        <a href="/docs/faq.html" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">FAQ</a>
+        <a href="/docs/faq.html" class="block rounded-lg px-3 py-2 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors">FAQ</a>
       </nav>
     </aside>
 

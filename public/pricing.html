@@ -64,6 +64,7 @@
       background: var(--surface);
       border: 1px solid var(--signal);
       border-radius: 16px;
+      box-shadow: 0 0 48px rgba(2, 132, 199, 0.10), 0 0 0 0 transparent;
     }
     .divider { border-color: var(--border); }
     .label {
@@ -103,7 +104,14 @@
   <!-- NAV -->
   <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-      <a href="/" class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</a>
+      <a href="/" class="flex items-center gap-2">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="shrink-0" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="17" height="11" rx="2" stroke="#0284C7" stroke-width="1.5"/>
+          <path d="M7 19h6M10 13.5V19" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 9.5l2-2.5 2.5 2.5 2-2 3 3" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</span>
+      </a>
       <div class="flex items-center gap-5">
         <a href="/" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">Home</a>
         <a href="/docs" class="text-xs font-mono uppercase tracking-widest text-zinc-500 hover:text-zinc-200 transition-colors hidden sm:block">Docs</a>
@@ -140,8 +148,8 @@
           <span class="text-zinc-500 text-sm ml-1">/ month</span>
         </div>
 
-        <a href="/" class="btn-ghost inline-flex items-center justify-center font-semibold text-sm px-5 py-3 rounded-lg mb-8">
-          View Overview →
+        <a href="/app" class="btn-ghost inline-flex items-center justify-center font-semibold text-sm px-5 py-3 rounded-lg mb-8">
+          Open App →
         </a>
 
         <ul class="space-y-3 text-sm">
@@ -179,7 +187,7 @@
       <!-- Pro -->
       <div class="card-featured p-8 flex flex-col relative">
         <div class="absolute -top-3 left-1/2 -translate-x-1/2">
-          <span class="font-mono text-[10px] font-semibold tracking-widest uppercase bg-[#0284C7] text-white px-3 py-1 rounded-full">Most Popular</span>
+          <span class="font-mono text-[10px] font-semibold tracking-widest uppercase bg-[#0284C7] text-white px-3 py-1 rounded-full">Early Access</span>
         </div>
 
         <div class="label mb-4">Pro</div>
@@ -254,23 +262,23 @@
       <h2 class="font-bold text-3xl text-white mb-12">Common questions.</h2>
       <div class="space-y-8">
         <div class="border-b divider pb-8">
-          <h3 class="text-sm font-semibold text-white mb-2">Can I switch plans later?</h3>
+          <h3 class="text-base font-semibold text-white mb-2">Can I switch plans later?</h3>
           <p class="text-zinc-500 text-sm leading-relaxed">Yes. Upgrade or downgrade anytime. No long-term contracts.</p>
         </div>
         <div class="border-b divider pb-8">
-          <h3 class="text-sm font-semibold text-white mb-2">Do I need an OpenRouter API key?</h3>
+          <h3 class="text-base font-semibold text-white mb-2">Do I need an OpenRouter API key?</h3>
           <p class="text-zinc-500 text-sm leading-relaxed">If you want AI ranking on the self-serve plan, yes — bring your own key from <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">openrouter.ai/keys</a>. Pro is intended to include server-side credits and automation.</p>
         </div>
         <div class="border-b divider pb-8">
-          <h3 class="text-sm font-semibold text-white mb-2">What's the refund policy?</h3>
+          <h3 class="text-base font-semibold text-white mb-2">What's the refund policy?</h3>
           <p class="text-zinc-500 text-sm leading-relaxed">14-day money-back guarantee, no questions asked.</p>
         </div>
         <div class="border-b divider pb-8">
-          <h3 class="text-sm font-semibold text-white mb-2">Can I use this for multiple clients?</h3>
+          <h3 class="text-base font-semibold text-white mb-2">Can I use this for multiple clients?</h3>
           <p class="text-zinc-500 text-sm leading-relaxed">Yes. Pro tier is ideal for agencies managing multiple accounts. Team plan coming soon.</p>
         </div>
         <div>
-          <h3 class="text-sm font-semibold text-white mb-2">Is my Reddit data secure?</h3>
+          <h3 class="text-base font-semibold text-white mb-2">Is my Reddit data secure?</h3>
           <p class="text-zinc-500 text-sm leading-relaxed">Yes. OAuth tokens are stored in httpOnly cookies. We never see your Reddit password.</p>
         </div>
       </div>
@@ -285,8 +293,8 @@
         Your next client<br/>is on Reddit right now.
       </h2>
       <p class="text-zinc-500 text-sm mb-10">No credit card required. 2-minute setup. Open source.</p>
-      <a href="/" class="btn-primary inline-flex items-center gap-2 font-semibold text-base px-10 py-4 rounded-xl">
-        Back to Overview →
+      <a href="/app" class="btn-primary inline-flex items-center gap-2 font-semibold text-base px-10 py-4 rounded-xl">
+        Open The Free Dashboard →
       </a>
     </div>
   </section>

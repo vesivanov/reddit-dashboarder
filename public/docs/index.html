@@ -21,6 +21,7 @@
     .label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal); }
     pre { overflow-x: auto; }
     #sidebar { transition: transform 0.2s ease; }
+    .sidebar-link.active { background: rgba(2,132,199,0.1); color: #38BDF8; }
   </style>
 </head>
 <body class="bg-[#0C0C0D] text-zinc-100 antialiased">
@@ -36,7 +37,14 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </button>
-        <a href="/" class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</a>
+        <a href="/" class="flex items-center gap-2">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="shrink-0" aria-hidden="true">
+            <rect x="1.5" y="2.5" width="17" height="11" rx="2" stroke="#0284C7" stroke-width="1.5"/>
+            <path d="M7 19h6M10 13.5V19" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M5 9.5l2-2.5 2.5 2.5 2-2 3 3" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</span>
+        </a>
       </div>
       <div class="flex items-center gap-3 text-sm">
         <a href="https://github.com/vesivanov/reddit-dashboarder" target="_blank" rel="noopener noreferrer" class="text-zinc-400 hover:text-white">GitHub</a>
@@ -46,21 +54,29 @@
   </nav>
 
   <div class="mx-auto flex max-w-7xl">
-    <aside id="sidebar" class="fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-72 -translate-x-full overflow-y-auto border-r border-zinc-800 bg-[#0C0C0D] lg:sticky lg:translate-x-0">
-      <nav class="space-y-1 p-4 pt-6 text-sm">
-        <p class="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Docs</p>
-        <a href="#overview" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Overview</a>
-        <a href="#routes" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Routes</a>
-        <a href="#setup" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Local Setup</a>
-        <a href="#env" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Environment</a>
-        <a href="#deployment" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Deployment</a>
-        <a href="#auth" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Auth and Secrets</a>
-        <a href="#storage" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Storage</a>
-        <a href="#flows" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Common Flows</a>
-        <a href="#settings" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Settings Storage</a>
-        <a href="#troubleshooting" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">Troubleshooting</a>
-        <a href="/docs/api.html" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">API Reference</a>
-        <a href="/docs/faq.html" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white">FAQ</a>
+    <aside id="sidebar" class="fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-72 -translate-x-full overflow-y-auto border-r border-zinc-800 bg-[#111114] lg:sticky lg:translate-x-0">
+      <nav class="p-4 pt-6 text-sm">
+        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Getting Started</p>
+        <div class="space-y-0.5 mb-4">
+          <a href="#overview" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Overview</a>
+          <a href="#setup" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Local Setup</a>
+          <a href="#env" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Environment</a>
+          <a href="#deployment" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Deployment</a>
+        </div>
+        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Reference</p>
+        <div class="space-y-0.5 mb-4">
+          <a href="#routes" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Routes</a>
+          <a href="#auth" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Auth and Secrets</a>
+          <a href="#storage" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Storage</a>
+          <a href="#flows" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Common Flows</a>
+          <a href="#settings" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Settings Storage</a>
+        </div>
+        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Help</p>
+        <div class="space-y-0.5">
+          <a href="#troubleshooting" class="sidebar-link block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">Troubleshooting</a>
+          <a href="/docs/api.html" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">API Reference</a>
+          <a href="/docs/faq.html" class="block rounded-lg px-3 py-2 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors">FAQ</a>
+        </div>
       </nav>
     </aside>
 
@@ -300,6 +316,21 @@ KV_REST_API_TOKEN=...</code></pre>
       else closeSidebar();
     });
     backdrop?.addEventListener('click', closeSidebar);
+
+    // Active section highlighting
+    const sectionIds = ['overview','routes','setup','env','deployment','auth','storage','flows','settings','troubleshooting'];
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+    const sectionEls = sectionIds.map(id => document.getElementById(id)).filter(Boolean);
+    const sectionObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          sidebarLinks.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.sidebar-link[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    sectionEls.forEach(el => sectionObserver.observe(el));
   </script>
 </body>
 </html>

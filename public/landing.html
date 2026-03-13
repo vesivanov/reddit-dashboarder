@@ -133,11 +133,14 @@
       background: rgba(255,255,255,0.05);
       border: 1px solid var(--border-mid);
       color: #d4d4d8;
-      transition: background 0.15s, color 0.15s;
+      transition: background 0.15s, color 0.15s, transform 0.15s;
     }
     .btn-ghost:hover {
       background: rgba(255,255,255,0.09);
       color: #fff;
+    }
+    .btn-ghost:active {
+      transform: translateY(1px);
     }
     .surface-card {
       background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%);
@@ -145,11 +148,11 @@
       border-radius: 18px;
     }
     .trust-pill {
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.11);
+      background: rgba(255,255,255,0.04);
       border-radius: 999px;
       padding: 0.65rem 0.9rem;
-      color: #a1a1aa;
+      color: #d4d4d8;
       font-size: 0.8rem;
       line-height: 1.1;
     }
@@ -170,7 +173,7 @@
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 24px;
       padding: 1rem;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.42);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.42), 0 0 80px rgba(2,132,199,0.07);
     }
     .mock-window {
       background: #111114;
@@ -231,9 +234,13 @@
     }
     .step-num {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.72rem;
-      letter-spacing: 0.14em;
-      color: #38BDF8;
+      font-size: 2.75rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: rgba(56, 189, 248, 0.18);
+      margin-bottom: 1.25rem;
+      user-select: none;
     }
     .icp-card {
       background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
@@ -278,7 +285,12 @@
 
   <nav class="sticky top-0 z-50 nav-blur border-b border-white/[0.06]">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-      <a href="/" class="flex items-center gap-0">
+      <a href="/" class="flex items-center gap-2">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="shrink-0" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="17" height="11" rx="2" stroke="#0284C7" stroke-width="1.5"/>
+          <path d="M7 19h6M10 13.5V19" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 9.5l2-2.5 2.5 2.5 2-2 3 3" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
         <span class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</span>
       </a>
       <div class="flex items-center gap-5">
@@ -316,22 +328,25 @@
             Open The App →
           </a>
           <a href="#proof" class="btn-ghost inline-flex items-center justify-center gap-2 font-medium text-base px-8 py-4 rounded-xl">
-            See Examples
+            See Examples →
           </a>
         </div>
 
         <div class="reveal d4 mt-10 grid gap-3 sm:grid-cols-3">
           <div class="metric-card text-left">
-            <p class="font-mono text-xs text-sky-400">Outcome</p>
-            <p class="mt-2 text-sm text-zinc-300">Review the posts that matter without checking multiple Reddit tabs.</p>
+            <p class="font-mono text-xs text-sky-400">Setup</p>
+            <p class="mt-1 font-bold text-xl text-white">~2 min</p>
+            <p class="mt-1 text-xs text-zinc-500">Connect Reddit, pick subreddits, start reviewing.</p>
           </div>
           <div class="metric-card text-left">
-            <p class="font-mono text-xs text-sky-400">Proof</p>
-            <p class="mt-2 text-sm text-zinc-300">See the score and the reason behind it before you open a thread.</p>
+            <p class="font-mono text-xs text-sky-400">Ranking</p>
+            <p class="mt-1 font-bold text-xl text-white">0–5 score</p>
+            <p class="mt-1 text-xs text-zinc-500">Each post gets a score and a reason before you open it.</p>
           </div>
           <div class="metric-card text-left">
-            <p class="font-mono text-xs text-sky-400">Speed</p>
-            <p class="mt-2 text-sm text-zinc-300">Set up a few subreddits and start reviewing ranked posts quickly.</p>
+            <p class="font-mono text-xs text-sky-400">Scale</p>
+            <p class="mt-1 font-bold text-xl text-white">20+ subs</p>
+            <p class="mt-1 text-xs text-zinc-500">Track multiple communities in one place.</p>
           </div>
         </div>
       </div>
@@ -384,15 +399,15 @@
                   <h3 class="mt-3 text-lg font-semibold text-white leading-snug">Need help finding an SEO consultant for a local services business</h3>
                   <div class="mt-4 space-y-4">
                     <div class="annot-line">
-                      <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Matched signals</p>
+                      <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Matched signals</p>
                       <p class="mt-1 text-sm text-zinc-300">need help, consultant, local business, budget-ready</p>
                     </div>
                     <div class="annot-line">
-                      <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Momentum</p>
+                      <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Momentum</p>
                       <p class="mt-1 text-sm text-zinc-300">82 upvotes/h • 11 comments/h • fresh thread</p>
                     </div>
                     <div class="annot-line">
-                      <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Next action</p>
+                      <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Next action</p>
                       <p class="mt-1 text-sm text-zinc-300">Open the thread and decide whether to reply or save it.</p>
                     </div>
                   </div>
@@ -421,34 +436,6 @@
     </div>
   </section>
 
-  <section class="px-4 pb-20">
-    <div class="max-w-6xl mx-auto use-case-strip p-6 sm:p-8 sr">
-      <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div>
-          <div class="label mb-4">For SEO Agencies</div>
-          <h2 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">A simple setup for SEO agencies.</h2>
-          <p class="mt-4 text-sm sm:text-base text-zinc-300 leading-relaxed">
-            Track subreddits where business owners ask for SEO help, compare agencies, or describe traffic problems. The app ranks those threads and shows why they were scored that way.
-          </p>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-          <div class="proof-row">
-            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Track</p>
-            <p class="mt-2 text-sm text-zinc-300">`r/seo`, `r/smallbusiness`, `r/marketing`, `r/entrepreneur`</p>
-          </div>
-          <div class="proof-row">
-            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Surface</p>
-            <p class="mt-2 text-sm text-zinc-300">Agency comparisons, SEO help requests, and traffic problems</p>
-          </div>
-          <div class="proof-row">
-            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Act</p>
-            <p class="mt-2 text-sm text-zinc-300">Review the best threads first and ignore the rest</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <section class="py-24 px-4 border-y divider">
     <div class="max-w-6xl mx-auto">
       <div class="max-w-3xl sr">
@@ -473,10 +460,10 @@
           <h3 class="text-lg font-semibold text-white">Mentions without context</h3>
           <p class="mt-3 text-sm text-zinc-500 leading-relaxed">Keyword alerts tell you something was mentioned, not whether the thread is useful.</p>
         </div>
-        <div class="surface-card p-6 sr sr-d3">
+        <div class="surface-card p-6 sr sr-d3" style="border-color: rgba(2,132,199,0.32); background: linear-gradient(180deg, rgba(2,132,199,0.06) 0%, rgba(255,255,255,0.015) 100%);">
           <div class="label mb-4">Dashboarder</div>
           <h3 class="text-lg font-semibold text-white">Ranked posts</h3>
-          <p class="mt-3 text-sm text-zinc-500 leading-relaxed">The app scores posts, shows the reason, and lets you review the strongest ones first.</p>
+          <p class="mt-3 text-sm text-zinc-400 leading-relaxed">The app scores posts, shows the reason, and lets you review the strongest ones first.</p>
         </div>
       </div>
     </div>
@@ -494,17 +481,17 @@
       <div class="mt-14 grid gap-5 lg:grid-cols-3">
         <div class="step-card sr sr-d1">
           <div class="step-num">01</div>
-          <h3 class="mt-5 text-xl font-semibold text-white">Connect your Reddit account</h3>
+          <h3 class="text-xl font-semibold text-white">Connect your Reddit account</h3>
           <p class="mt-3 text-sm leading-relaxed text-zinc-500">Sign in with Reddit to load the dashboard and fetch posts.</p>
         </div>
         <div class="step-card sr sr-d2">
           <div class="step-num">02</div>
-          <h3 class="mt-5 text-xl font-semibold text-white">Choose your subreddits and goal</h3>
+          <h3 class="text-xl font-semibold text-white">Choose your subreddits and goal</h3>
           <p class="mt-3 text-sm leading-relaxed text-zinc-500">Pick the communities you want to track and define what a useful post looks like.</p>
         </div>
         <div class="step-card sr sr-d3">
           <div class="step-num">03</div>
-          <h3 class="mt-5 text-xl font-semibold text-white">Work from ranked threads</h3>
+          <h3 class="text-xl font-semibold text-white">Work from ranked threads</h3>
           <p class="mt-3 text-sm leading-relaxed text-zinc-500">Review the highest-scoring posts first and inspect the reason behind each score.</p>
         </div>
       </div>
@@ -532,11 +519,11 @@
           </div>
           <div class="mt-6 space-y-4">
             <div class="proof-row">
-              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Why it surfaces</p>
+              <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Why it surfaces</p>
               <p class="mt-2 text-sm text-zinc-300">Clear problem, likely budget, and a thread that is still active.</p>
             </div>
             <div class="proof-row">
-              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">What to do</p>
+              <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">What to do</p>
               <p class="mt-2 text-sm text-zinc-300">Open it, read the thread, and decide whether to reply or save it.</p>
             </div>
           </div>
@@ -552,11 +539,11 @@
           </div>
           <div class="mt-6 space-y-4">
             <div class="proof-row">
-              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Why it drops</p>
+              <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Why it drops</p>
               <p class="mt-2 text-sm text-zinc-300">High activity, but no clear intent and no obvious next action.</p>
             </div>
             <div class="proof-row">
-              <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">What you avoid</p>
+              <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">What you avoid</p>
               <p class="mt-2 text-sm text-zinc-300">Spending time on threads that are interesting but not useful.</p>
             </div>
           </div>
@@ -647,15 +634,15 @@
         </div>
         <div class="space-y-3">
           <div class="proof-row">
-            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Signal</p>
+            <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Signal</p>
             <p class="mt-2 text-sm text-zinc-300">Score, confidence, and matched signals for each post.</p>
           </div>
           <div class="proof-row">
-            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Workflow</p>
+            <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Workflow</p>
             <p class="mt-2 text-sm text-zinc-300">Sort, filter, and inspect posts without jumping between tabs.</p>
           </div>
           <div class="proof-row">
-            <p class="text-[11px] font-mono uppercase tracking-wide text-zinc-500">Setup</p>
+            <p class="text-[11px] font-mono uppercase tracking-[0.12em] text-zinc-500">Setup</p>
             <p class="mt-2 text-sm text-zinc-300">Start with manual review, then add AI ranking if you want it.</p>
           </div>
         </div>
@@ -668,7 +655,7 @@
       <div class="max-w-2xl sr">
         <div class="label mb-5">FAQ</div>
         <h2 class="font-bold text-4xl sm:text-5xl text-white leading-[1.08] tracking-tighter">
-          FAQ
+          Common questions.
         </h2>
       </div>
 
