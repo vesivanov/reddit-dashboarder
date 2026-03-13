@@ -8,7 +8,7 @@
   <title>Reddit Dashboarder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/tailwind.css?v=20260311b" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -17,7 +17,12 @@
   <style>
     html { color-scheme: light; }
     html.dark { color-scheme: dark; }
-    body { font-family: 'DM Sans', system-ui, -apple-system, sans-serif; }
+
+    /* ── Typography ── */
+    body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
+    .font-display { font-family: 'Syne', 'Plus Jakarta Sans', sans-serif; }
+    .font-mono, code, [class*="mono"] { font-family: 'JetBrains Mono', monospace; }
+
     button {
       appearance: none;
       -webkit-appearance: none;
@@ -34,32 +39,33 @@
       font: inherit;
       letter-spacing: inherit;
     }
-    .font-mono, code, [class*="mono"] { font-family: 'JetBrains Mono', monospace; }
     .post-body { font-size: 0.875rem; line-height: 1.6; }
+
+    /* ── Scrollbars ── */
+    :root { --scrollbar-thumb: #ccc7be; --scrollbar-thumb-hover: #aaa49b; }
+    html.dark { --scrollbar-thumb: #3D3820; --scrollbar-thumb-hover: #6B6030; }
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb, #d4d4d8); border-radius: 3px; }
-    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover, #a1a1aa); }
-    :root { --scrollbar-thumb: #d4d4d8; --scrollbar-thumb-hover: #a1a1aa; }
-    html.dark { --scrollbar-thumb: #52525b; --scrollbar-thumb-hover: #71717a; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+    /* ── Animations ── */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     .animate-fadeIn { animation: fadeIn 0.15s ease-out; }
-    
-    /* Glassmorphism styles */
+
+    /* ── Glass / overlays ── */
     .glass {
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(253, 252, 250, 0.88);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
     }
     .dark .glass {
-      background: rgba(24, 24, 27, 0.85);
-      border: 1px solid rgba(63, 63, 70, 0.6);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      background: rgba(24, 24, 29, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
-    
-    /* Login overlay with blur */
     .login-overlay {
       position: fixed;
       inset: 0;
@@ -68,19 +74,77 @@
       -webkit-backdrop-filter: blur(8px) saturate(1.2);
       z-index: 50;
     }
-    .dark .login-overlay {
-      background: rgba(0, 0, 0, 0.5);
-    }
-    
-    /* Preview dashboard blur */
+    .dark .login-overlay { background: rgba(0, 0, 0, 0.55); }
     .dashboard-preview {
       filter: blur(2px) brightness(0.95);
       pointer-events: none;
       user-select: none;
     }
-    .dark .dashboard-preview {
-      filter: blur(2px) brightness(0.85);
-    }
+    .dark .dashboard-preview { filter: blur(2px) brightness(0.82); }
+
+    /* ════════════════════════════════════════════════════════
+       DESIGN SYSTEM v2 — Amber Signal
+       Surface and accent overrides. Loaded after tailwind.css
+       so document-order wins on equal specificity.
+       ════════════════════════════════════════════════════════ */
+
+    /* ── Light mode surfaces (warm, not clinical zinc) ── */
+    .bg-zinc-100 { background-color: #F2F0EB !important; }
+    .bg-zinc-50  { background-color: #ECEAE3 !important; }
+
+    /* ── Dark mode surfaces (warm near-blacks, not cool zinc) ── */
+    html.dark .dark\:bg-zinc-900     { background-color: #0D0D10 !important; }
+    html.dark .dark\:bg-zinc-800     { background-color: #18181D !important; }
+    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(24,24,29,0.5) !important; }
+    html.dark .dark\:bg-zinc-700     { background-color: #242430 !important; }
+
+    /* ── Dark mode borders (glass-like, not hard zinc lines) ── */
+    html.dark .dark\:border-zinc-700 { border-color: rgba(255,255,255,0.07) !important; }
+    html.dark .dark\:border-zinc-600 { border-color: rgba(255,255,255,0.11) !important; }
+    html.dark .dark\:divide-zinc-700 > * + * { border-color: rgba(255,255,255,0.06) !important; }
+
+    /* ── Amber accent replacing sky blue (#0284C7) ── */
+    /* Backgrounds */
+    .bg-\[\#0284C7\]                          { background-color: #D97706 !important; }
+    .hover\:bg-\[\#0369A1\]:hover             { background-color: #B45309 !important; }
+    .active\:bg-\[\#075985\]:active           { background-color: #92400E !important; }
+    html.dark .dark\:bg-\[\#0284C7\]          { background-color: #D97706 !important; }
+    html.dark .dark\:bg-\[\#0284C7\]\/15      { background-color: rgba(217,119,6,0.15) !important; }
+    html.dark .dark\:bg-\[\#0284C7\]\/10      { background-color: rgba(217,119,6,0.10) !important; }
+    .bg-sky-50                                 { background-color: #FFFBEB !important; }
+    .bg-sky-100                                { background-color: #FEF3C7 !important; }
+    html.dark .dark\:bg-sky-900\/30           { background-color: rgba(120,53,15,0.3) !important; }
+
+    /* Text */
+    .text-\[\#0284C7\]                        { color: #D97706 !important; }
+    .text-\[\#0369A1\]                        { color: #B45309 !important; }
+    .hover\:text-\[\#0284C7\]:hover           { color: #D97706 !important; }
+    .hover\:text-\[\#0369A1\]:hover           { color: #B45309 !important; }
+    .text-sky-400                              { color: #FBBF24 !important; }
+    .text-sky-500                              { color: #D97706 !important; }
+    .text-sky-600                              { color: #D97706 !important; }
+    .text-sky-700                              { color: #B45309 !important; }
+    html.dark .dark\:text-sky-400             { color: #FBBF24 !important; }
+    html.dark .dark\:text-sky-300             { color: #FCD34D !important; }
+    html.dark .dark\:hover\:text-sky-300:hover { color: #FDE68A !important; }
+
+    /* Borders */
+    .border-\[\#0284C7\]                      { border-color: #D97706 !important; }
+    html.dark .dark\:border-\[\#0284C7\]      { border-color: #D97706 !important; }
+    html.dark .dark\:border-\[\#0284C7\]\/25  { border-color: rgba(217,119,6,0.32) !important; }
+    html.dark .dark\:border-\[\#0284C7\]\/30  { border-color: rgba(217,119,6,0.35) !important; }
+    .border-sky-200                            { border-color: #FDE68A !important; }
+    .border-sky-200\/80                        { border-color: rgba(253,230,138,0.8) !important; }
+
+    /* Ring / focus */
+    .ring-\[\#0284C7\]                              { --tw-ring-color: #D97706 !important; }
+    .focus-visible\:ring-\[\#0284C7\]:focus-visible { --tw-ring-color: #D97706 !important; }
+    .focus\:ring-\[\#0284C7\]:focus                 { --tw-ring-color: #D97706 !important; }
+    html.dark .dark\:ring-\[\#0284C7\]\/30          { --tw-ring-color: rgba(217,119,6,0.35) !important; }
+
+    /* Selected post left-bar accent */
+    .border-\[\#0284C7\].border-l-4 { border-left-color: #D97706 !important; }
+    html.dark .dark\:text-sky-200   { color: #FDE68A !important; }
   </style>
 </head>
 <body class="bg-zinc-100 dark:bg-zinc-900 min-h-screen text-zinc-900 dark:text-zinc-100 transition-colors">

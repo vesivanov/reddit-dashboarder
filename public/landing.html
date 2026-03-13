@@ -20,23 +20,25 @@
   <meta name="twitter:image" content="https://reddit-dashboarder.vercel.app/dashboard-feed.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/tailwind.css?v=20260311b" />
   <style>
     :root {
-      --signal: #0284C7;
-      --signal-hover: #0369A1;
-      --signal-active: #075985;
-      --bg: #0C0C0D;
-      --surface: #161618;
-      --surface-2: #1E1E21;
-      --surface-3: #111114;
-      --border: rgba(255,255,255,0.07);
-      --border-mid: rgba(255,255,255,0.12);
+      --signal:        #D97706;
+      --signal-hover:  #B45309;
+      --signal-active: #92400E;
+      --signal-glow:   rgba(217, 119, 6, 0.18);
+      --bg:            #0C0D0F;
+      --surface:       #161619;
+      --surface-2:     #1D1D22;
+      --surface-3:     #111115;
+      --border:        rgba(255,255,255,0.07);
+      --border-mid:    rgba(255,255,255,0.12);
     }
 
     html { background-color: var(--bg); }
-    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-display, h1, h2, h3 { font-family: 'Syne', 'Plus Jakarta Sans', sans-serif; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(18px); }
@@ -72,7 +74,7 @@
 
     .top-bar {
       height: 2px;
-      background: linear-gradient(90deg, var(--signal) 0%, rgba(2,132,199,0.35) 40%, transparent 100%);
+      background: linear-gradient(90deg, var(--signal) 0%, rgba(217,119,6,0.35) 40%, transparent 100%);
     }
     .nav-blur {
       background: rgba(12, 12, 13, 0.88);
@@ -81,7 +83,7 @@
     }
     .hero-glow {
       background:
-        radial-gradient(ellipse 75% 55% at 50% -5%, rgba(2, 132, 199, 0.14) 0%, transparent 65%),
+        radial-gradient(ellipse 75% 55% at 50% -5%, rgba(217, 119, 6, 0.14) 0%, transparent 65%),
         linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
     }
     .label {
@@ -97,33 +99,33 @@
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      background: rgba(2, 132, 199, 0.1);
-      border: 1px solid rgba(2, 132, 199, 0.28);
+      background: rgba(217, 119, 6, 0.1);
+      border: 1px solid rgba(217, 119, 6, 0.28);
       border-radius: 999px;
       padding: 0.3rem 0.75rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.72rem;
       font-weight: 500;
-      color: #38BDF8;
+      color: #FCD34D;
       letter-spacing: 0.02em;
     }
     .score-dot {
       width: 6px;
       height: 6px;
       border-radius: 999px;
-      background: #0284C7;
+      background: #D97706;
       animation: pulse-dot 2s ease-in-out infinite;
     }
     .btn-primary {
       background: var(--signal);
       color: #fff;
-      box-shadow: 0 6px 28px rgba(2, 132, 199, 0.28);
+      box-shadow: 0 6px 28px var(--signal-glow);
       transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
     }
     .btn-primary:hover {
       background: var(--signal-hover);
       transform: translateY(-1px);
-      box-shadow: 0 10px 36px rgba(2, 132, 199, 0.36);
+      box-shadow: 0 10px 36px rgba(217,119,6,0.32);
     }
     .btn-primary:active {
       background: var(--signal-active);
@@ -173,7 +175,7 @@
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 24px;
       padding: 1rem;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.42), 0 0 80px rgba(2,132,199,0.07);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.42), 0 0 80px rgba(217,119,6,0.08);
     }
     .mock-window {
       background: #111114;
@@ -192,8 +194,8 @@
       padding: 0.9rem;
     }
     .mock-post.active {
-      border-color: rgba(2,132,199,0.45);
-      background: rgba(2,132,199,0.1);
+      border-color: rgba(217,119,6,0.45);
+      background: rgba(217,119,6,0.1);
     }
     .ai-badge {
       display: inline-flex;
@@ -222,7 +224,7 @@
       padding: 1.25rem;
     }
     .annot-line {
-      border-left: 2px solid rgba(2,132,199,0.6);
+      border-left: 2px solid rgba(217,119,6,0.6);
       padding-left: 0.9rem;
     }
     .step-card {
@@ -233,12 +235,12 @@
       padding: 1.5rem;
     }
     .step-num {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Syne', 'JetBrains Mono', monospace;
       font-size: 2.75rem;
       font-weight: 700;
       line-height: 1;
       letter-spacing: -0.02em;
-      color: rgba(56, 189, 248, 0.18);
+      color: rgba(217, 119, 6, 0.22);
       margin-bottom: 1.25rem;
       user-select: none;
     }
@@ -287,9 +289,9 @@
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
       <a href="/" class="flex items-center gap-2">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="shrink-0" aria-hidden="true">
-          <rect x="1.5" y="2.5" width="17" height="11" rx="2" stroke="#0284C7" stroke-width="1.5"/>
-          <path d="M7 19h6M10 13.5V19" stroke="#0284C7" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M5 9.5l2-2.5 2.5 2.5 2-2 3 3" stroke="#38BDF8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="1.5" y="2.5" width="17" height="11" rx="2" stroke="#D97706" stroke-width="1.5"/>
+          <path d="M7 19h6M10 13.5V19" stroke="#D97706" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M5 9.5l2-2.5 2.5 2.5 2-2 3 3" stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span class="font-semibold text-base text-white tracking-tight leading-none">Reddit Dashboarder</span>
       </a>
@@ -315,7 +317,7 @@
 
         <h1 class="reveal d2 mt-8 font-bold text-5xl sm:text-6xl lg:text-[4.35rem] text-white leading-[1.02] tracking-tighter">
           Monitor Reddit
-          <span class="block text-sky-400">without scanning it manually.</span>
+          <span class="block text-amber-400">without scanning it manually.</span>
         </h1>
 
         <p class="reveal d3 mt-6 text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
@@ -333,17 +335,17 @@
 
         <div class="reveal d4 mt-10 grid gap-3 sm:grid-cols-3">
           <div class="metric-card text-left">
-            <p class="font-mono text-xs text-sky-400">Setup</p>
+            <p class="font-mono text-xs text-amber-500">Setup</p>
             <p class="mt-1 font-bold text-xl text-white">~2 min</p>
             <p class="mt-1 text-xs text-zinc-500">Connect Reddit, pick subreddits, start reviewing.</p>
           </div>
           <div class="metric-card text-left">
-            <p class="font-mono text-xs text-sky-400">Ranking</p>
+            <p class="font-mono text-xs text-amber-500">Ranking</p>
             <p class="mt-1 font-bold text-xl text-white">0–5 score</p>
             <p class="mt-1 text-xs text-zinc-500">Each post gets a score and a reason before you open it.</p>
           </div>
           <div class="metric-card text-left">
-            <p class="font-mono text-xs text-sky-400">Scale</p>
+            <p class="font-mono text-xs text-amber-500">Scale</p>
             <p class="mt-1 font-bold text-xl text-white">20+ subs</p>
             <p class="mt-1 text-xs text-zinc-500">Track multiple communities in one place.</p>
           </div>
@@ -412,7 +414,7 @@
                   </div>
                   <div class="mt-5 flex flex-wrap gap-2">
                     <span class="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 border border-white/10">Copy link</span>
-                    <span class="rounded-lg bg-sky-500/15 px-3 py-1.5 text-xs font-medium text-sky-300 border border-sky-500/20">Reply</span>
+                    <span class="rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-300 border border-amber-500/20">Reply</span>
                     <span class="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 border border-white/10">Save</span>
                   </div>
                 </div>

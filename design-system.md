@@ -1,250 +1,413 @@
-# Dashboard Design System
+# Reddit Dashboarder — Design System
 
-This file is the current UI reference for the dashboard under `public/index.html` and the split frontend runtime in `public/app*.js`.
+## Identity
 
-The implementation is Tailwind-first, dark-mode aware, and optimized for dense dashboard workflows rather than marketing pages.
+**Name**: Amber Signal
+**Thesis**: A precision monitoring tool for people who need to act on information, not admire it. Dense, dark, warm. The interface should disappear when the work is obvious and command attention when something matters.
 
-## Aesthetic Identity
+### Aesthetic Direction
 
-**Direction**: Signal Intelligence — a data-dense monitoring tool. Clean, precise, product-focused. No serif, no italic, no decoration for its own sake.
+The product scans noise and surfaces signal. The visual language should reflect that: near-black surfaces that recede, amber that ignites when relevance is high. Not a marketing dashboard — a cockpit.
 
-**Typography**
-- UI copy / body / headings: `DM Sans` — the sole text font; use weight and size to establish hierarchy
-- Numbers / data / code / labels: `JetBrains Mono` — scores, counts, metrics, timestamps, mono labels
-- No serif font is loaded. No italic anywhere.
+Think: night-vision scope, Reuters terminal, advanced reconnaissance software. Precision over decoration. Every element justifies its presence.
 
-Both fonts are loaded via Google Fonts in `index.html` and `landing.html`.
+**What this product is NOT:**
+- A blue SaaS app with purple gradients
+- A whitespace-maximalist marketing page
+- Generic "AI startup" aesthetic
 
-**Color**
-Primary accent is sky blue (`#0284C7`) — sharp, data-intelligence feel, high-contrast against zinc surfaces. Replaces generic indigo throughout.
+**The amber choice**: Amber (gold) is the color of signal, warning, attention, treasure. It reads as both technical precision (oscilloscopes, status lights) and value (gold standard, signal found). It is warm against dark surfaces — less institutional than sky blue, more visceral. The entire competitor category uses blue. We don't.
 
-## Principles
-
-- Use semantic intent, not ad hoc color picks.
-- Prefer borders over heavy shadows inside the app.
-- Keep repeated regions density-consistent.
-- Default to keyboard-visible focus states.
-- Treat the dashboard and landing page as separate surfaces.
-- Numbers and scores always render in `JetBrains Mono`.
-
-## Semantic Tokens
-
-### Surfaces
-
-- `surface/app`: `bg-zinc-100 dark:bg-zinc-900`
-- `surface/panel`: `bg-white dark:bg-zinc-800`
-- `surface/muted`: `bg-zinc-50 dark:bg-zinc-800/50`
-- `surface/raised`: `bg-white dark:bg-zinc-800 shadow-lg`
-- `surface/selected`: `bg-sky-50 dark:bg-[#0284C7]/15`
-- `surface/overlay`: `bg-black/40`
-
-### Borders
-
-- `border/default`: `border-zinc-200 dark:border-zinc-700`
-- `border/strong`: `border-zinc-300 dark:border-zinc-600`
-- `border/accent`: `border-[#0284C7] dark:border-[#0284C7]`
-
-### Text
-
-- `text/primary`: `text-zinc-900 dark:text-zinc-100`
-- `text/secondary`: `text-zinc-600 dark:text-zinc-400`
-- `text/muted`: `text-zinc-500`
-- `text/link`: `text-[#0369A1] hover:text-[#0284C7] dark:text-sky-400 dark:hover:text-sky-300`
-- `text/data`: `font-mono text-zinc-900 dark:text-zinc-100` (JetBrains Mono for scores, counts)
-
-### Actions and States
-
-- `accent/primary`: `bg-[#0284C7] text-white hover:bg-[#0369A1] active:bg-[#075985]`
-- `accent/soft`: `bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300`
-- `success`: `text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50`
-- `warning`: `text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40`
-- `danger`: `text-rose-600 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/40`
+---
 
 ## Typography
 
-- Base UI copy: `text-sm font-sans`
-- Detail/body copy: `text-base font-sans`
-- Section labels: `text-lg font-sans`
-- Metadata and dense labels: `text-xs font-sans`
-- Counts, scores, and metrics: `font-mono tabular-nums`
-- Section headings: `font-bold tracking-tight` in DM Sans — no serif
-- Mono labels (uppercase): `font-mono text-xs tracking-widest uppercase` in accent color
+Three fonts. No exceptions, no substitutions.
 
-The app uses DM Sans for all text and JetBrains Mono for any numerical or code-like data. Do not introduce italic or serif under any circumstance.
+| Role | Font | Use |
+|------|------|-----|
+| Body / UI copy | `Plus Jakarta Sans` | All interface text, labels, descriptions, buttons |
+| Display / Structural | `Syne` | Section headers, modal titles, nav labels, onboarding steps |
+| Data / Code | `JetBrains Mono` | Scores, counts, metrics, timestamps, API keys, code |
 
-## Focus and Interaction
+**Load both via Google Fonts:**
+```
+family=Plus+Jakarta+Sans:wght@400;500;600;700
+family=Syne:wght@500;600;700
+family=JetBrains+Mono:wght@400;500
+```
 
-Buttons and links:
+### Rules
+- No serif. No italic. Not now, not ever.
+- Numbers visible to the user: always `font-mono tabular-nums`
+- Section labels: `font-syne font-semibold text-[10px] tracking-[0.16em] uppercase`
+- Body at dense sizes: `text-sm` (0.875rem) is comfortable. `text-xs` is metadata-only.
+- Titles should be `font-semibold` not `font-bold` — `Plus Jakarta Sans` bold reads heavy at UI scale
 
-```text
+---
+
+## Color System
+
+### Philosophy
+The palette has two jobs: recession and ignition. Most surfaces should recede into dark warmth, demanding nothing. Amber ignites when there's signal worth acting on. Emerald confirms success. Rose warns. Everything else is zinc.
+
+### Surfaces
+
+**Dark mode (canonical — primary experience):**
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `surface/page` | `#0D0D10` | App background, outermost container |
+| `surface/panel` | `#18181D` | Main panels, detail pane, modals |
+| `surface/sidebar` | `#0D0D10` | Left navigation (same as page, no visual separation needed) |
+| `surface/raised` | `#242430` | Inputs, hover states, elevated cards |
+| `surface/hover` | `#1F1F27` | List item hover, button hover bg |
+| `surface/selected` | `rgba(217,119,6,0.12)` | Selected list items, active filters |
+| `surface/overlay` | `rgba(0,0,0,0.55)` | Modal backdrops |
+
+**Light mode:**
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `surface/page` | `#F2F0EB` | App background — warm off-white, not clinical zinc |
+| `surface/panel` | `#FDFCFA` | Panels, modals — barely warm white |
+| `surface/sidebar` | `#ECEAE3` | Left sidebar — warm cream, distinct from panel |
+| `surface/raised` | `#E6E3DB` | Inputs, hover states |
+| `surface/selected` | `#FFFBEB` | Selected items — amber-50 |
+
+### Borders
+
+Dark mode borders are glass-like whispers, not hard dividers:
+
+| Token | Value |
+|-------|-------|
+| `border/default` (dark) | `rgba(255,255,255,0.07)` |
+| `border/strong` (dark) | `rgba(255,255,255,0.12)` |
+| `border/accent` | `rgba(217,119,6,0.45)` |
+| `border/default` (light) | `rgba(0,0,0,0.07)` |
+| `border/strong` (light) | `rgba(0,0,0,0.12)` |
+
+In Tailwind classes, use `border-zinc-200 dark:border-white/[0.07]` for default borders.
+
+### Text
+
+| Token | Dark | Light |
+|-------|------|-------|
+| `text/primary` | `#F4F4F5` (zinc-100) | `#18181B` (zinc-900) |
+| `text/secondary` | `#A1A1AA` (zinc-400) | `#52525B` (zinc-600) |
+| `text/muted` | `#71717A` (zinc-500) | `#71717A` (zinc-500) |
+| `text/data` | `#F4F4F5` with `font-mono` | `#18181B` with `font-mono` |
+
+### Accent — Amber
+
+The primary accent is `#D97706` (amber-600) in light mode and `#FBBF24` (amber-400) in dark mode.
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `accent/primary` (light) | `#B45309` | Button text, active labels |
+| `accent/primary-bg` (light) | `#D97706` | Button backgrounds, strong borders |
+| `accent/primary` (dark) | `#FBBF24` | Text, icons, active states |
+| `accent/primary-bg` (dark) | `#D97706` | Button backgrounds |
+| `accent/soft` (light) | `#FFFBEB` | Subtle bg (amber-50) |
+| `accent/soft` (dark) | `rgba(217,119,6,0.12)` | Subtle bg, selected states |
+| `accent/border` (light) | `rgba(217,119,6,0.5)` | Accent borders |
+| `accent/border` (dark) | `rgba(217,119,6,0.35)` | Accent borders |
+| `accent/glow` | `rgba(245,158,11,0.12)` | Background glow on high-relevance posts |
+
+Tailwind classes to use:
+- Buttons: `bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800`
+- Text accent (light): `text-amber-700`
+- Text accent (dark): `dark:text-amber-400`
+- Soft bg (light): `bg-amber-50`
+- Soft bg (dark): `dark:bg-amber-600/[0.12]`
+
+### Semantic Colors
+
+These remain unchanged — they carry universal meaning:
+
+| Semantic | Use | Classes |
+|----------|-----|---------|
+| Success / High score | Emerald | `text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50` |
+| Warning / Stale | Orange (not amber — contrast from accent) | `text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/40` |
+| Danger / Error | Rose | `text-rose-600 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/40` |
+
+> **Note**: Warnings previously used amber. They now use `orange-*` classes to avoid collision with the amber accent. Update usages accordingly.
+
+---
+
+## Focus States
+
+```
 focus-visible:outline-none
 focus-visible:ring-2
-focus-visible:ring-[#0284C7]
+focus-visible:ring-amber-500
 focus-visible:ring-offset-2
-focus-visible:ring-offset-white
-dark:focus-visible:ring-offset-zinc-900
+focus-visible:ring-offset-[#0D0D10] (dark)
+focus-visible:ring-offset-[#F2F0EB] (light)
 ```
 
 Inputs:
-
-```text
+```
 focus:outline-none
 focus:ring-2
-focus:ring-[#0284C7]
-focus:ring-offset-2
-focus:ring-offset-white
-dark:focus:ring-offset-zinc-900
+focus:ring-amber-500
+focus:ring-offset-1
 focus:border-transparent
 ```
 
-Also keep:
-
-- `disabled:opacity-50 disabled:cursor-not-allowed`
-- icon targets around 40x40px minimum
+---
 
 ## Motion
 
-Animate high-impact moments only. Don't scatter micro-interactions.
+Animate high-impact moments. Suppress repetitive micro-interactions that create fatigue.
 
-- Page/panel entrance: `fadeUp` keyframe (opacity 0→1, translateY 20px→0, 0.4–0.6s ease-out)
-- List item entrance: staggered `fadeUp` with `animation-delay` increments of 40–60ms
-- Hover feedback: `transition-colors duration-150` for color shifts; `transition-transform` for lift
-- Loading: `animate-spin` for spinners; prefer skeleton shimmer over bare spinners for content areas
-- No animation on repeated/frequent state changes (avoid motion fatigue)
+### Entrance
+```css
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+```
+- Page-level panels: `fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1)`
+- List items: staggered, `animation-delay` increments of 35ms, max delay ~200ms
 
-## Density Modes
+### Hover
+- Color/bg transitions: `transition-colors duration-150`
+- Lift (buttons, cards): `transition-transform duration-150 hover:-translate-y-px`
+- No transform on frequent repeated elements (list items, filter chips)
 
-Use one density per region.
+### Loading
+- Skeleton shimmer preferred over spinners for content areas
+- Status dots: `animate-pulse` with `animation-duration: 2s`
 
-Comfortable:
+### Glow (high-relevance posts)
+Posts with score 5 or `opportunity.priority === 'high'` render a warm amber presence:
+```
+box-shadow: inset 3px 0 0 #D97706, 0 0 28px rgba(245,158,11,0.07)
+```
+The left-bar accent becomes amber instead of emerald when the AI is active.
 
-- list rows: `px-3 py-2.5`
-- toolbars: `px-4 py-2.5`
-- panels: `p-4`
+---
 
-Compact:
+## Density
 
-- list rows: `px-3 py-2`
-- toolbars: `px-3 py-2`
-- panels: `p-3`
+One density mode per surface region. Comfortable for reading, compact for scanning.
+
+**Comfortable** (post detail, modals, onboarding):
+- List rows: `px-4 py-3`
+- Panels: `p-5`
+- Toolbars: `px-4 py-2.5`
+
+**Compact** (post list, sidebar, filters):
+- List rows: `px-3 py-2.5`
+- Toolbars: `px-3 py-2`
+- Panels: `p-3`
+
+---
 
 ## Component Recipes
 
 ### Buttons
 
 Base:
-
-```text
+```
 inline-flex items-center justify-center gap-2 rounded-lg
 text-sm font-medium leading-5 transition-colors duration-150
-disabled:opacity-50 disabled:cursor-not-allowed
+disabled:opacity-40 disabled:cursor-not-allowed
+focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500
 ```
 
 Variants:
-
-- primary: `bg-[#0284C7] text-white hover:bg-[#0369A1] active:bg-[#075985]`
-- secondary: `text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-700`
-- ghost: `text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700`
-- danger: `bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800`
+- **primary**: `bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800`
+- **secondary**: `bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-600/10 dark:text-amber-400 dark:hover:bg-amber-600/20`
+- **ghost**: `text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-white/[0.06]`
+- **danger**: `bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800`
 
 Sizes:
-
 - `md`: `px-4 py-2`
 - `sm`: `px-3 py-1.5`
-- `icon`: `p-2`
+- `icon`: `p-2` (min 36×36px target)
 
 ### Inputs
 
-```text
-rounded-lg text-sm bg-white dark:bg-zinc-700 dark:text-white
-border border-zinc-300 dark:border-zinc-600
-placeholder:text-zinc-400
+```
+rounded-lg text-sm bg-white dark:bg-[#242430]
+border border-zinc-200 dark:border-white/[0.08]
+text-zinc-900 dark:text-zinc-100
+placeholder:text-zinc-400 dark:placeholder:text-zinc-500
+focus:outline-none focus:ring-2 focus:ring-amber-500
+focus:border-transparent transition-shadow duration-150
 ```
 
 ### Panels
 
-```text
-bg-white dark:bg-zinc-800
-border border-zinc-200 dark:border-zinc-700
+```
+bg-[#FDFCFA] dark:bg-[#18181D]
+border border-zinc-200 dark:border-white/[0.07]
+rounded-xl
 ```
 
-Keep panel shadows light or absent inside the dashboard.
+No shadow inside the dashboard. Shadow only on modals and floating elements.
+
+### Modals
+
+```
+bg-[#FDFCFA] dark:bg-[#18181D]
+border border-zinc-200 dark:border-white/[0.1]
+rounded-2xl shadow-2xl
+```
+
+Backdrop: `bg-black/55`
 
 ### Score / Data Badges
 
-AI scores and numeric values use monospace and a warm accent:
-
-Product direction note:
-
-- the dashboard is moving from score-first "AI relevance" presentation to an opportunity-first presentation
-- UI should prioritize opportunity type, recommended action, and short rationale over opaque score badges
-- raw model/debug scores should remain secondary and progressively disclosed
-
-```text
-font-mono text-xs font-medium
-bg-sky-50 dark:bg-[#0284C7]/15
-text-[#0369A1] dark:text-sky-300
-border border-sky-200 dark:border-[#0284C7]/30
-rounded px-1.5 py-0.5
+```
+font-mono text-[10px] font-semibold
+px-1.5 py-0.5 rounded
 ```
 
-## Layout Guidance
+Tier colors:
 
-- Left pane: navigation, subreddit sets, quick filters
-- Center pane: sortable post list with dense scanning cues
-- Right pane: reading detail, metadata, actions
-- Mobile should collapse to task-specific views instead of forcing tiny three-column layouts
+| Score | Light | Dark |
+|-------|-------|------|
+| 5 | `bg-emerald-600 text-white ring-2 ring-emerald-300` | same |
+| 4 | `bg-emerald-100 text-emerald-700` | `dark:bg-emerald-900/60 dark:text-emerald-200` |
+| 3 | `bg-amber-100 text-amber-700` | `dark:bg-amber-900/40 dark:text-amber-200` |
+| 0–2 | `bg-zinc-200 text-zinc-600` | `dark:bg-white/[0.07] dark:text-zinc-400` |
+
+When `aiScoresStale`: `opacity-50`, prepend `~` to label.
+
+### Sidebar Item
+
+```
+flex items-center justify-between px-3 py-2 rounded-lg
+text-sm font-medium cursor-pointer
+transition-colors duration-100
+text-zinc-700 dark:text-zinc-300
+hover:bg-white dark:hover:bg-white/[0.05]
+```
+
+Selected:
+```
+bg-amber-50 dark:bg-amber-600/[0.12]
+text-amber-700 dark:text-amber-400
+border-l-2 border-amber-500 dark:border-amber-400
+```
+
+### Status Chips (AI bar, status bar)
+
+```
+inline-flex items-center gap-1.5 px-2 py-1 rounded
+text-[10px] font-mono font-semibold
+```
+
+Tones:
+- `success`: `bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400`
+- `warning`: `bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300`
+- `accent`: `bg-amber-100 dark:bg-amber-600/15 text-amber-700 dark:text-amber-400`
+- `neutral`: `bg-zinc-100 dark:bg-white/[0.06] text-zinc-600 dark:text-zinc-300`
+
+---
+
+## Layout
+
+### Three-Pane App
+
+| Region | Width | Surface |
+|--------|-------|---------|
+| Left sidebar | `w-52` fixed | `surface/sidebar` |
+| Center post list | `flex-1` | `surface/page` |
+| Right detail | `w-96` fixed | `surface/panel` |
+
+- Sidebar and page share the same background in dark mode — the border-r divides them
+- Detail pane has a visibly lighter surface than the page
+- Mobile collapses to task-specific views with bottom nav
+
+### Scrollbar (dark mode)
+```css
+--scrollbar-thumb: #3D3820;
+--scrollbar-thumb-hover: #6B6030;
+```
+Amber-toned scrollbar thumb — subtle, on-brand.
+
+---
 
 ## AI Module
 
-### Inline AI bar (above post list)
+### Inline status bar (above post list)
 
-A single compact row (~40px). Never a card or multi-row block.
+Single compact row, ~40px. Never a card.
 
-```text
-[status dot]  [status label]  ·  [goal summary truncated]   [scored/total]  [N strong]  [Rerank] [Edit AI] [Reasons]
+```
+[status dot]  [status label]  ·  [goal summary, truncated]   [scored/total]  [N strong]  [Rerank] [Edit AI] [Reasons]
 ```
 
-- Status dot: `bg-emerald-400` active, `bg-amber-400 animate-pulse` ranking, `bg-zinc-300` off
-- Stats: `font-mono text-xs`
-- Stale scores: append `~stale` in amber mono, and prefix `~` to every score badge
+Status dot: `bg-amber-400` active, `bg-amber-400 animate-pulse` ranking, `bg-zinc-600` off
+
+Stats: `font-mono text-[10px]`
 
 ### Settings panel (AI section)
 
-Structured in this order — no other order:
-
-1. Section header + enable toggle (one row)
+Fixed order:
+1. Section header + enable toggle
 2. Goal — preset chips → textarea
-3. Tune (collapsible) — Exclude · Few-shot examples (vertical, PERFECT/STRONG/REJECT mono labels)
-4. Model & Key (collapsible, auto-opens when no key is saved)
-5. Prompt preview (toggle link, hidden by default)
-6. Status banners — error (rose, dismissable) then stale warning (amber)
-7. Run ranking button (full width)
+3. Tune (collapsible) — Exclude · Few-shot examples
+4. Model & Key (collapsible)
+5. Prompt preview (toggle link, hidden default)
+6. Status banners — error (rose) then stale warning (orange)
+7. Run ranking button (full width, primary amber)
 
-Do not add back Extra context, Score explanations toggle (it's in the bar), or 3-column example grids.
+---
 
-### Score badges
+## Landing Page
 
-Tier colours are fixed:
+Dark-only surface. CSS variables:
 
-| Score | Classes |
-|-------|---------|
-| 5 | `bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30` |
-| 4 | `bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200` |
-| 3 | `bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200` |
-| 0–2 | `bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400` |
+```css
+:root {
+  --signal:        #D97706;
+  --signal-hover:  #B45309;
+  --signal-active: #92400E;
+  --signal-glow:   rgba(217, 119, 6, 0.18);
+  --bg:            #0C0D0F;
+  --surface:       #161619;
+  --surface-2:     #1D1D22;
+  --surface-3:     #111115;
+  --border:        rgba(255,255,255,0.07);
+  --border-mid:    rgba(255,255,255,0.12);
+}
+```
 
-When `aiScoresStale`, apply `opacity-50` and prepend `~` to the label text.
+Top-bar gradient: `linear-gradient(90deg, #D97706 0%, rgba(217,119,6,0.3) 40%, transparent 100%)`
 
-## Scope Boundary
+Hero glow: `radial-gradient(ellipse 75% 55% at 50% -5%, rgba(217,119,6,0.12) 0%, transparent 65%)`
 
-This design system covers both the dashboard UI and all marketing/static pages.
+Buttons:
+- `.btn-primary`: `background: var(--signal); box-shadow: 0 6px 28px var(--signal-glow)`
+- `.btn-ghost`: unchanged (white/5%, border-mid)
 
-**Shared across every surface:**
-- Font stack: DM Sans + JetBrains Mono only. No serif, no italic.
-- Accent: `#0284C7` / `#0369A1` / `#075985`
-- No light-mode on marketing pages — the landing page is dark-only.
+---
 
-**Dashboard-specific:** light/dark toggle, density modes, three-pane layout.
+## Scope and Build
 
-**Marketing-specific:** `nav-blur`, `.btn-primary`/`.btn-ghost` CSS classes, `.label` mono uppercase, `top-bar` 2px gradient strip.
+CSS compiled with `npm run build:css` — Tailwind JIT, content: `./public/**/*.{html,js}`.
+
+After any class name changes in JS files, rebuild CSS.
+
+### What this system does NOT include
+- Stone-* colors (only zinc)
+- Violet, purple, or indigo in any role
+- Italic typography
+- Serif fonts
+- Light mode on the landing page
+- Shadow-heavy UI inside the dashboard
+
+### Migration notes from v1
+- `#0284C7` / `#0369A1` / `#075985` → replaced by amber equivalents
+- `sky-*` classes used as accent → replaced by `amber-*`
+- `dark:bg-zinc-900` page bg → `#0D0D10` (warmer)
+- `dark:bg-zinc-800` panel bg → `#18181D` (warmer)
+- `dark:border-zinc-700` → `dark:border-white/[0.07]`
+- Amber warnings → migrate to `orange-*` classes to avoid accent collision
+- Body font `DM Sans` → `Plus Jakarta Sans`
+- Display use cases → `Syne`
