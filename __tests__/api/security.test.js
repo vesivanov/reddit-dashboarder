@@ -95,10 +95,10 @@ describe('Authentication', () => {
     delete process.env.SESSION_COOKIE_SECRET;
   });
 
-  it('rejects requests without a valid API key for /api/v1/* handlers', async () => {
-    const res = await runHandler(configHandler, {
-      method: 'GET',
-      url: '/api/v1/config?token=sync-token',
+  it('rejects requests without a valid bearer token for agent-only endpoints', async () => {
+    const res = await runHandler(require('../../lib/api-v1/handlers/jobs'), {
+      method: 'POST',
+      url: '/api/v1/jobs/drain',
       headers: {
         origin: 'http://localhost:3000',
       },
@@ -110,21 +110,18 @@ describe('Authentication', () => {
   });
 
   it('accepts a valid bearer token and reaches the protected handler', async () => {
-    storage.get.mockResolvedValue(null);
-
-    const res = await runHandler(configHandler, {
-      method: 'GET',
-      url: '/api/v1/config?token=sync-token',
+    const jobsHandler = require('../../lib/api-v1/handlers/jobs');
+    const res = await runHandler(jobsHandler, {
+      method: 'POST',
+      url: '/api/v1/jobs/drain',
       headers: {
         authorization: 'Bearer test-agent-key',
         origin: 'http://localhost:3000',
       },
     });
 
-    expect(res.status).toBe(404);
-    expect(storage.get).toHaveBeenCalled();
-    expect(res.body.error.code).toBe('NOT_FOUND');
-    expect(res.body.data).toBeNull();
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('processed');
     expect(res.body.timings).toBeTruthy();
   });
 

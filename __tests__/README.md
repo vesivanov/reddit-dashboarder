@@ -6,9 +6,10 @@ This test suite validates the Reddit Dashboard against its North Star goal: **"D
 
 ### Integration Tests (`__tests__/integration/`)
 
-- **`north-star.test.js`** - Tests the complete user journey from authentication through fetching, opportunity ranking, and surfacing actionable threads. Validates performance and quality metrics.
-- **`resilience.test.js`** - Tests error handling, rate limiting, token refresh, and graceful degradation.
-- **`ai-quality.test.js`** - Validates opportunity-ranking calibration, score proxy quality, and batching efficiency.
+- **`app-startup.test.js`** - Verifies the Express app boots with the intended route surface and baseline security defaults.
+- **`server-contract.test.js`** - Exercises handler-level request/response contracts for the core Reddit and AI ranking APIs.
+- **`schema-contract.test.js`** - Locks response shapes for the core APIs to catch breaking payload drift.
+- **`vercel-routing.test.js`** - Checks the deployment routing order in `vercel.json`.
 
 ### Unit Tests (`__tests__/unit/`)
 
@@ -42,44 +43,14 @@ npm test -- north-star.test.js
 
 These tests are designed to:
 
-1. **Validate North Star**: Ensure the complete workflow (auth → fetch → rank → surface) completes in reasonable time and surfaces useful opportunities.
+1. **Protect the public contract**: Keep workspace, auth, Reddit fetch, and AI ranking routes aligned with the current app surface.
 
-2. **Measure Performance**: Track metrics like:
-   - Time to fetch multiple subreddits
-   - Time to rank posts with the opportunity engine
-   - Overall workflow completion time
+2. **Catch schema drift**: Fail quickly when handlers change response shape or headers in ways the frontend depends on.
 
-3. **Ensure Resilience**: Verify the app handles:
-   - Rate limiting gracefully
-   - Token expiration and refresh
-   - Network errors
-   - Invalid data
+3. **Validate route behavior**: Ensure the app and deployment routing expose the expected landing page, SPA shell, and API endpoints.
 
-4. **Validate Quality**: Check that:
-   - Opportunity ranking properly calibrates score proxies (top 10% get ≥4)
-   - Posts are ranked according to the user opportunity brief
-   - Batching is efficient for large post lists
-
-5. **Guide Iteration**: Tests provide actionable feedback:
-   - Performance metrics in console output
-   - Quality metrics (e.g., "Surfaces X strong opportunities")
-   - Clear error messages for failures
-
-## Test Metrics
-
-The tests output helpful metrics:
-
-- ⏱️ Performance timing (e.g., "Workflow completed in 45000ms")
-- ✅ Quality metrics (e.g., "Surfaces 5 strong opportunities (score ≥ 4 proxy)")
-- 📊 Calibration checks (e.g., "3 posts scored ≥4 out of 20")
-- 🔄 Batching efficiency (e.g., "Batched 100 posts into 4 requests")
+4. **Guide iteration**: Keep tests focused on assertions that would catch real behavioral regressions instead of broad “did not crash” checks.
 
 ## Continuous Improvement
 
-These tests are designed to be run by agents/CI systems and provide feedback that guides iterative improvements:
-
-- If performance degrades, tests will show timing metrics
-- If opportunity-ranking quality drops, tests will show calibration issues
-- If resilience breaks, tests will catch error handling failures
-
-Run tests frequently during development to catch regressions early.
+Prefer adding tests at the route or contract level when behavior changes. Remove tests that only restate mocked inputs or verify that a handler merely returns some response, because those tend to stay green through real regressions.

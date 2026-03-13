@@ -1,10 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-// Landing page is served at /landing.html
-// (express.static serves public/index.html at /, so the explicit route for
-//  landing.html never runs — landing is reachable via its filename directly)
-const LANDING = '/landing.html';
+const LANDING = '/';
 
 test.describe('Landing page', () => {
   test.beforeEach(async ({ page }) => {
@@ -27,6 +24,12 @@ test.describe('Landing page', () => {
 
   test('nav Open App link is present', async ({ page }) => {
     await expect(page.getByRole('navigation').getByRole('link', { name: /Open App/i })).toBeVisible();
+  });
+
+  test('root serves the marketing landing page instead of the app shell', async ({ page }) => {
+    await expect(page.getByText('Monitor Reddit')).toBeVisible();
+    await expect(page.getByText('Sign in with Reddit')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Sign in with Reddit/i })).toHaveCount(0);
   });
 
   test('no italic text anywhere', async ({ page }) => {

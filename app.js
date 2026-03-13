@@ -32,8 +32,8 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(securityHeaders);
 
-  // Serve static files from public
-  app.use(express.static(path.join(__dirname, 'public')));
+  // Serve static files from public without auto-serving index.html at /
+  app.use(express.static(path.join(__dirname, 'public'), { index: false }));
   ensureJobQueueWorker();
 
   const limiters = { aiRankLimiter, redditLimiter, generalLimiter };

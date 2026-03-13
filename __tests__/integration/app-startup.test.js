@@ -87,5 +87,6 @@ describe('app startup', () => {
     expect(routePaths.has('/api/v1/config')).toBe(false);
     expect(routePaths.has('/api/v1/analyze')).toBe(false);
     expect(routePaths.has('/api/v1/jobs/:jobId')).toBe(false);
+    expect(routePaths.has('/api/v1/jobs/drain')).toBe(true);
   });
 });
