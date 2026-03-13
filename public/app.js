@@ -4,6 +4,17 @@ const { createRoot } = ReactDOM;
 const h = React.createElement;
 const authModule = window.RDDAppAuth || {};
 const helpers = window.RDDHelpers || {};
+const storageModule = window.RDDAppStorage || {};
+const workspaceClient = window.RDDWorkspaceClient || {};
+const fetchClient = window.RDDFetchClient || {};
+const aiClient = window.RDDAiClient || {};
+const refreshController = window.RDDRefreshController || {};
+const aiController = window.RDDAiController || {};
+const postView = window.RDDPostView || {};
+const onboardingView = window.RDDOnboardingView || {};
+const settingsView = window.RDDSettingsView || {};
+const shellView = window.RDDShellView || {};
+const sidebarView = window.RDDSidebarView || {};
 const {
   extractGoalKeywords,
   computeHeuristicScore,
@@ -56,80 +67,142 @@ const {
   renderBody,
   absoluteDate,
 } = window.RDDAppUtils || {};
-const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
+const {
+  readString = (_key, fallback = '') => fallback,
+  readBooleanFlag = (_key, fallback = false) => fallback,
+  readNumber = (_key, fallback = 0) => fallback,
+  readJSON = (_key, fallback = null) => fallback,
+  writeString = () => {},
+  removeItem = () => {},
+  loadSubs = (defaultSubs) => defaultSubs,
+  persistSubs = () => {},
+  loadDashboardData = () => [],
+  loadHiddenPosts = () => new Set(),
+  persistHiddenPosts = () => {},
+  loadThemePreference = () => false,
+  persistThemePreference = () => {},
+  loadSnapshotInfo = () => null,
+  persistSnapshotInfo = () => {},
+  loadSyncToken = (buildToken) => buildToken(),
+} = storageModule;
+const {
+  makeSyncToken = () => `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+  getConfigIdentity = ({ syncToken }) => syncToken,
+  loadOpportunityConfig: loadWorkspaceOpportunityConfig = null,
+  getPayloadSizeBytes = (payload) => new TextEncoder().encode(JSON.stringify(payload)).length,
+  buildSyncSettings: buildWorkspaceSyncSettings = null,
+  buildSyncFilters: buildWorkspaceSyncFilters = null,
+  buildSyncPosts: buildWorkspaceSyncPosts = null,
+  syncDashboardSnapshot: postWorkspaceSnapshot = null,
+  syncOpportunityConfig: postWorkspaceOpportunityConfig = null,
+} = workspaceClient;
+const {
+  buildCoverageQuery = ({ subs, mode, time, days, targetWindowDays }) => new URLSearchParams({
+    subs: subs.join(','),
+    mode,
+    time,
+    days: String(days),
+    target_window_days: String(targetWindowDays),
+  }),
+  requestCoverage = null,
+  requestCoverageAdvance = null,
+  getEffectiveMaxPages = (maxPages) => maxPages,
+  determineSnapshotChunkSize = ({ subsCount }) => subsCount,
+  shapeSnapshotChunk = ({ limit, maxPages }) => ({ chunkLimit: limit, chunkMaxPages: maxPages, chunkWasCapped: false }),
+  isCoverageComplete = () => false,
+  isCoveragePageCapped = () => false,
+  computeCoverageProgress = () => ({ completedSubs: 0, totalPosts: 0 }),
+  buildCoverageCounts = () => ({ complete1dCount: 0, complete3dCount: 0, complete5dCount: 0 }),
+  buildFetchSummary = () => null,
+  buildSnapshotParams = null,
+  requestSnapshotChunk = null,
+  requestAiRank = null,
+} = fetchClient;
+const {
+  buildAiCacheVersion = ({ goalText, contextText, promptVersion, model, hashGoals }) => `${hashGoals(`${goalText}||${contextText}`)}_${promptVersion}_${model}`,
+  getAiCacheVersionStatus = () => ({ savedVersion: '', mismatched: false }),
+  ensureAiCacheVersion = () => ({ savedVersion: '', mismatched: false }),
+  persistAiModelInfo = () => {},
+  loadAiScoreCache = () => ({ scores: new Map(), metadata: new Map(), opportunities: new Map(), cacheObject: {}, hadExpiredRequestedEntries: false }),
+  persistAiScoreCache = () => {},
+  buildHeuristicRankingPlan = ({ posts = [] }) => ({ keywords: [], postsWithHeuristic: [], topPosts: posts, remainingPosts: [], heuristicDetailsById: new Map() }),
+  buildAiRankRequestPayload = (payload) => payload,
+  collectStrongOpportunityNotifications = () => [],
+  mergeAiRankResponse = ({ scores, metadata, opportunities, cacheObject }) => ({ scores, metadata, opportunities, cacheObject }),
+  appendHeuristicScores = ({ scores, metadata, cacheObject }) => ({ scores, metadata, cacheObject }),
+  appendNotifiedPostIds = (previousIds) => new Set(previousIds || []),
+} = aiClient;
+const {
+  runAiRankingFlow = async () => {},
+} = aiController;
+const {
+  runSnapshotRefreshFlow = async ({ localPauseUntil }) => localPauseUntil,
+  startCoverageRefreshFlow = async () => false,
+} = refreshController;
+const {
+  getPriorityScore: getPriorityScoreValue = ({ postId, getOpportunityForPost, postScoreProxies }) => {
+    const opportunity = getOpportunityForPost(postId);
+    if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
+      return Number(opportunity.scores.priority) || 0;
+    }
+    const relevance = postScoreProxies.get(String(postId));
+    if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
+    return null;
+  },
+  formatOpportunityLabel = (value) => (value ? String(value).replace(/_/g, ' ') : null),
+  buildSelectedPostWhyItems: buildPostWhyItems = ({ selectedPost }) => (selectedPost ? [] : []),
+  buildSelectedPostNextAction: buildPostNextAction = () => '',
+  renderPostList = () => null,
+  renderPostDetailPane = () => null,
+} = postView;
+const {
+  renderOnboardingModal = () => null,
+} = onboardingView;
+const {
+  renderSettingsModal = () => null,
+} = settingsView;
+const {
+  renderMobileBottomNav = () => null,
+  renderAddSubredditModal = () => null,
+} = shellView;
+const {
+  renderSidebar = () => null,
+} = sidebarView;
     function App() {
-      const makeSyncToken = () => {
-        try {
-          return `sync_${crypto.randomUUID()}`;
-        } catch {
-          return `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-        }
-      };
       const [subs, setSubs] = useState(() => {
-        try {
-          let saved = localStorage.getItem('dashboard_subs');
-          if (saved) return JSON.parse(saved);
-          saved = localStorage.getItem('dashboard_subs_backup');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            localStorage.setItem('dashboard_subs', saved);
-            return parsed;
-          }
-        } catch (error) {}
-        return DEFAULT_SUBS;
+        return loadSubs(DEFAULT_SUBS);
       });
       const [mode, setMode] = useState('new');
       const [time, setTime] = useState('day');
       const [days, setDays] = useState(1);
       const [limit, setLimit] = useState(100);
       const [maxPages, setMaxPages] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_max_pages');
-          if (saved === '0') return 0;
-          if (saved) return Math.max(1, Math.min(30, Number(saved) || 5));
-        } catch (error) {}
+        const saved = readString('dashboard_max_pages', '');
+        if (saved === '0') return 0;
+        if (saved) return Math.max(1, Math.min(30, Number(saved) || 5));
         return 5;
       });
       const [loading, setLoading] = useState(false);
       const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(() => {
-        try {
-          return localStorage.getItem('dashboard_auto_refresh_enabled') === '1';
-        } catch (error) { return false; }
+        return readBooleanFlag('dashboard_auto_refresh_enabled', false);
       });
       const [autoRefreshInterval, setAutoRefreshInterval] = useState(() => {
-        try {
-          const saved = Number(localStorage.getItem('dashboard_auto_refresh_interval'));
-          if (Number.isFinite(saved)) {
-            return Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(saved)));
-          }
-        } catch (error) {}
+        const saved = readNumber('dashboard_auto_refresh_interval', NaN);
+        if (Number.isFinite(saved)) {
+          return Math.min(60, Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(saved)));
+        }
         return 10;
       });
       const [error, setError] = useState('');
       const [needsAuth, setNeedsAuth] = useState(false);
       const [data, setData] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_data');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            // Validate structure
-            if (Array.isArray(parsed) && parsed.every(item => item.subreddit && Array.isArray(item.posts))) {
-              return parsed;
-            }
-          }
-        } catch (error) {}
-        return [];
+        return loadDashboardData();
       });
       const [selectedSub, setSelectedSub] = useState('ALL');
       const [selectedPost, setSelectedPost] = useState(null);
       const [fetchedAt, setFetchedAt] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_fetched_at');
-          if (saved) {
-            const timestamp = Number(saved);
-            if (timestamp > 0) return timestamp;
-          }
-        } catch (error) {}
+        const timestamp = readNumber('dashboard_fetched_at', 0);
+        if (timestamp > 0) return timestamp;
         return null;
       });
       const [keyword, setKeyword] = useState('');
@@ -139,19 +212,11 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const [authChecking, setAuthChecking] = useState(true);
       const [settingsOpen, setSettingsOpen] = useState(false);
       const [onboardingOpen, setOnboardingOpen] = useState(() => {
-        try {
-          return localStorage.getItem('dashboard_onboarding_complete') !== '1';
-        } catch {
-          return true;
-        }
+        return !readBooleanFlag('dashboard_onboarding_complete', false);
       });
       const [onboardingStep, setOnboardingStep] = useState(0);
       const [onboardingCompleted, setOnboardingCompleted] = useState(() => {
-        try {
-          return localStorage.getItem('dashboard_onboarding_complete') === '1';
-        } catch {
-          return false;
-        }
+        return readBooleanFlag('dashboard_onboarding_complete', false);
       });
       const [onboardingSubInput, setOnboardingSubInput] = useState('');
       const [addSubOpen, setAddSubOpen] = useState(false);
@@ -160,10 +225,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const [minCommentFilter, setMinCommentFilter] = useState('');
       const [minPriorityFilter, setMinPriorityFilter] = useState('');
       const [filterPresets, setFilterPresets] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_filter_presets');
-          return saved ? JSON.parse(saved) : [];
-        } catch { return []; }
+        return readJSON('dashboard_filter_presets', [], Array.isArray);
       });
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
@@ -173,22 +235,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const [rateLimitPauseUntil, setRateLimitPauseUntil] = useState(null);
       const [detailCollapsed, setDetailCollapsed] = useState(false);
       const [darkMode, setDarkMode] = useState(() => {
-        try {
-          const savedPreference = localStorage.getItem(THEME_PREFERENCE_KEY);
-          if (savedPreference === 'dark') return true;
-          if (savedPreference === 'light') return false;
-        } catch { return false; }
-        return false;
+        return loadThemePreference();
       });
       const [hiddenPosts, setHiddenPosts] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_hidden_posts');
-          if (saved) {
-            const arr = JSON.parse(saved);
-            return new Set(Array.isArray(arr) ? arr : []);
-          }
-        } catch {}
-        return new Set();
+        return loadHiddenPosts();
       });
       const [activePostMenu, setActivePostMenu] = useState(null);
       const [hoverPost, setHoverPost] = useState(null);
@@ -196,30 +246,26 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const hoverTimeoutRef = useRef(null);
       const hideUndoTimeoutRef = useRef(null);
       const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
-        try { return localStorage.getItem('dashboard_notifications') === '1'; } catch { return false; }
+        return readBooleanFlag('dashboard_notifications', false);
       });
       const [upvoteThreshold, setUpvoteThreshold] = useState(() => {
-        try { return Number(localStorage.getItem('dashboard_upvote_threshold')) || 100; } catch { return 100; }
+        return readNumber('dashboard_upvote_threshold', 100) || 100;
       });
       const [alertKeywords, setAlertKeywords] = useState(() => {
-        try { return localStorage.getItem('dashboard_alert_keywords') || ''; } catch { return ''; }
+        return readString('dashboard_alert_keywords', '');
       });
       const [previousPostScores, setPreviousPostScores] = useState(new Map());
       const [notifyStrongOpportunities, setNotifyStrongOpportunities] = useState(() => {
-        try {
-          return (localStorage.getItem('dashboard_notify_strong_opportunities')
-            ?? localStorage.getItem('dashboard_notify_high_relevance')) === '1';
-        } catch { return false; }
+        return readString('dashboard_notify_strong_opportunities',
+          readString('dashboard_notify_high_relevance', '')
+        ) === '1';
       });
       const [priorityNotificationThreshold, setPriorityNotificationThreshold] = useState(() => {
-        try { 
-          const val = Number(
-            localStorage.getItem('dashboard_strong_opportunity_threshold')
-            ?? localStorage.getItem('dashboard_high_relevance_threshold')
-          ) || 4;
-          // Clamp to valid range 0-5 (AI scores only go up to 5)
-          return Math.max(0, Math.min(5, val));
-        } catch { return 4; }
+        const val = readNumber(
+          'dashboard_strong_opportunity_threshold',
+          readNumber('dashboard_high_relevance_threshold', 4)
+        ) || 4;
+        return Math.max(0, Math.min(5, val));
       });
       const [notifiedStrongOpportunityPostIds, setNotifiedStrongOpportunityPostIds] = useState(() => new Set());
       
@@ -234,69 +280,67 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const [mobileView, setMobileView] = useState('posts');
       const [touchStart, setTouchStart] = useState(null);
       const [opportunityBrief, setOpportunityBrief] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_goals') || ''; } catch { return ''; }
+        return readString('dashboard_ai_goals', '');
       });
       const [opportunityContext, setOpportunityContext] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_context') || ''; } catch { return ''; }
+        return readString('dashboard_ai_context', '');
       });
       const [businessOffering, setBusinessOffering] = useState(() => {
-        try { return localStorage.getItem('dashboard_business_offering') || ''; } catch { return ''; }
+        return readString('dashboard_business_offering', '');
       });
       const [idealCustomer, setIdealCustomer] = useState(() => {
-        try { return localStorage.getItem('dashboard_ideal_customer') || ''; } catch { return ''; }
+        return readString('dashboard_ideal_customer', '');
       });
       const [problemsSolved, setProblemsSolved] = useState(() => {
-        try { return localStorage.getItem('dashboard_problems_solved') || ''; } catch { return ''; }
+        return readString('dashboard_problems_solved', '');
       });
       const [preferredEngagement, setPreferredEngagement] = useState(() => {
-        try { return localStorage.getItem('dashboard_preferred_engagement') || 'reply'; } catch { return 'reply'; }
+        return readString('dashboard_preferred_engagement', 'reply');
       });
       const [strategyPreset, setStrategyPreset] = useState(() => {
-        try { return localStorage.getItem('dashboard_strategy_preset') || 'balanced'; } catch { return 'balanced'; }
+        return readString('dashboard_strategy_preset', 'balanced');
       });
       const [opportunityFocus, setOpportunityFocus] = useState(() => {
-        try { return localStorage.getItem('dashboard_opportunity_focus') || 'lead,pain_point,tool_search'; } catch { return 'lead,pain_point,tool_search'; }
+        return readString('dashboard_opportunity_focus', 'lead,pain_point,tool_search');
       });
       const [opportunityStrictness, setOpportunityStrictness] = useState(() => {
-        try { return localStorage.getItem('dashboard_opportunity_strictness') || 'balanced'; } catch { return 'balanced'; }
+        return readString('dashboard_opportunity_strictness', 'balanced');
       });
       const [aiAvoid, setAiAvoid] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_avoid') || ''; } catch { return ''; }
+        return readString('dashboard_ai_avoid', '');
       });
       const [aiExamplePerfect, setAiExamplePerfect] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_example_perfect') || ''; } catch { return ''; }
+        return readString('dashboard_ai_example_perfect', '');
       });
       const [aiExampleStrong, setAiExampleStrong] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_example_strong') || ''; } catch { return ''; }
+        return readString('dashboard_ai_example_strong', '');
       });
       const [aiExampleReject, setAiExampleReject] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_example_reject') || ''; } catch { return ''; }
+        return readString('dashboard_ai_example_reject', '');
       });
       const [opportunityEngineEnabled, setOpportunityEngineEnabled] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_ai_enabled');
-          return saved !== null ? saved === '1' : Boolean(localStorage.getItem('dashboard_ai_goals'));
-        } catch { return false; }
+        const saved = readString('dashboard_ai_enabled', '');
+        return saved !== '' ? saved === '1' : Boolean(readString('dashboard_ai_goals', ''));
       });
       const [aiPresetDismissed, setAiPresetDismissed] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_preset_dismissed') === '1'; } catch { return false; }
+        return readBooleanFlag('dashboard_ai_preset_dismissed', false);
       });
       const [aiPresetId, setAiPresetId] = useState(() => {
-        try { return localStorage.getItem('dashboard_ai_preset_id') || ''; } catch { return ''; }
+        return readString('dashboard_ai_preset_id', '');
       });
       const [openRouterApiKey, setOpenRouterApiKey] = useState('');
       const [secureKeyStatus, setSecureKeyStatus] = useState({ hasKey: false, keyPreview: null, source: 'none', checking: true });
       const [savingSecureKey, setSavingSecureKey] = useState(false);
       const [openRouterModel, setOpenRouterModel] = useState(() => {
-        try { return localStorage.getItem('dashboard_openrouter_model') || DEFAULT_OPENROUTER_MODEL; } catch { return DEFAULT_OPENROUTER_MODEL; }
+        return readString('dashboard_openrouter_model', DEFAULT_OPENROUTER_MODEL);
       });
       const [aiLlmPostLimit, setAiLlmPostLimit] = useState(() => {
-        try { return Number(localStorage.getItem('dashboard_ai_llm_limit')) || DEFAULT_LLM_POST_LIMIT; } catch { return DEFAULT_LLM_POST_LIMIT; }
+        return readNumber('dashboard_ai_llm_limit', DEFAULT_LLM_POST_LIMIT) || DEFAULT_LLM_POST_LIMIT;
       });
       const AI_FIXED_TEMPERATURE = 0;
       const AI_FIXED_TOP_P = 1;
       const [showAiReasons, setShowAiReasons] = useState(() => {
-        try { return localStorage.getItem('dashboard_show_ai_reasons') === '1'; } catch { return true; }
+        return readBooleanFlag('dashboard_show_ai_reasons', true);
       });
       const [postScoreProxies, setPostScoreProxies] = useState(new Map());
       const [postScoreMetadata, setPostScoreMetadata] = useState(new Map());
@@ -314,19 +358,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const [showAllModels, setShowAllModels] = useState(false);
       const [aiAdvancedOpen, setAiAdvancedOpen] = useState(false);
       const [snapshotInfo, setSnapshotInfo] = useState(() => {
-        try {
-          const saved = localStorage.getItem('dashboard_snapshot_info');
-          return saved ? JSON.parse(saved) : null;
-        } catch {
-          return null;
-        }
+        return loadSnapshotInfo();
       });
       const [syncToken, setSyncToken] = useState(() => {
-        try {
-          return localStorage.getItem('dashboard_sync_token') || makeSyncToken();
-        } catch {
-          return makeSyncToken();
-        }
+        return loadSyncToken(makeSyncToken);
       });
       const [fetchSummary, setFetchSummary] = useState(null);
       const [fetchActivity, setFetchActivity] = useState(null);
@@ -345,134 +380,114 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
       // Persist subs
       useEffect(() => {
-        try {
-          const subsJson = JSON.stringify(subs);
-          localStorage.setItem('dashboard_subs', subsJson);
-          localStorage.setItem('dashboard_subs_backup', subsJson);
-        } catch (e) {}
+        persistSubs(subs);
       }, [subs]);
 
       useEffect(() => {
-        try { localStorage.setItem('dashboard_max_pages', String(maxPages)); } catch {}
+        writeString('dashboard_max_pages', String(maxPages));
       }, [maxPages]);
 
       useEffect(() => {
-        try { localStorage.setItem('dashboard_auto_refresh_enabled', autoRefreshEnabled ? '1' : '0'); } catch {}
+        writeString('dashboard_auto_refresh_enabled', autoRefreshEnabled ? '1' : '0');
       }, [autoRefreshEnabled]);
 
       useEffect(() => {
-        try { localStorage.setItem('dashboard_auto_refresh_interval', String(autoRefreshInterval)); } catch {}
+        writeString('dashboard_auto_refresh_interval', String(autoRefreshInterval));
       }, [autoRefreshInterval]);
 
       useEffect(() => {
-        try { localStorage.setItem('dashboard_filter_presets', JSON.stringify(filterPresets)); } catch {}
+        storageModule.writeJSON('dashboard_filter_presets', filterPresets);
       }, [filterPresets]);
 
       useEffect(() => {
-        try {
-          localStorage.setItem('dashboard_onboarding_complete', onboardingCompleted ? '1' : '0');
-        } catch {}
+        writeString('dashboard_onboarding_complete', onboardingCompleted ? '1' : '0');
       }, [onboardingCompleted]);
 
       // Dark mode persistence and class toggle
       useEffect(() => {
-        try { localStorage.setItem(THEME_PREFERENCE_KEY, darkMode ? 'dark' : 'light'); } catch {}
-        try { localStorage.setItem('dashboard_dark_mode', darkMode ? '1' : '0'); } catch {}
-        try { localStorage.setItem('theme', darkMode ? 'dark' : 'light'); } catch {}
-        if (darkMode) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        persistThemePreference(darkMode);
       }, [darkMode]);
 
       // Hidden posts persistence (limit to 1000 entries)
       useEffect(() => {
-        try {
-          const MAX_HIDDEN_POSTS = 1000;
-          let arr = Array.from(hiddenPosts);
-          if (arr.length > MAX_HIDDEN_POSTS) {
-            arr = arr.slice(-MAX_HIDDEN_POSTS);
-          }
-          localStorage.setItem('dashboard_hidden_posts', JSON.stringify(arr));
-        } catch {}
+        persistHiddenPosts(hiddenPosts);
       }, [hiddenPosts]);
 
       // Notification settings persistence
       useEffect(() => {
-        try { localStorage.setItem('dashboard_notifications', notificationsEnabled ? '1' : '0'); } catch {}
+        writeString('dashboard_notifications', notificationsEnabled ? '1' : '0');
       }, [notificationsEnabled]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_upvote_threshold', String(upvoteThreshold)); } catch {}
+        writeString('dashboard_upvote_threshold', String(upvoteThreshold));
       }, [upvoteThreshold]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_alert_keywords', alertKeywords); } catch {}
+        writeString('dashboard_alert_keywords', alertKeywords);
       }, [alertKeywords]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_notify_strong_opportunities', notifyStrongOpportunities ? '1' : '0'); } catch {}
+        writeString('dashboard_notify_strong_opportunities', notifyStrongOpportunities ? '1' : '0');
       }, [notifyStrongOpportunities]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_strong_opportunity_threshold', String(priorityNotificationThreshold)); } catch {}
+        writeString('dashboard_strong_opportunity_threshold', String(priorityNotificationThreshold));
       }, [priorityNotificationThreshold]);
 
       // AI settings persistence
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_goals', opportunityBrief); } catch {}
+        writeString('dashboard_ai_goals', opportunityBrief);
       }, [opportunityBrief]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_context', opportunityContext); } catch {}
+        writeString('dashboard_ai_context', opportunityContext);
       }, [opportunityContext]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_business_offering', businessOffering); } catch {}
+        writeString('dashboard_business_offering', businessOffering);
       }, [businessOffering]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ideal_customer', idealCustomer); } catch {}
+        writeString('dashboard_ideal_customer', idealCustomer);
       }, [idealCustomer]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_problems_solved', problemsSolved); } catch {}
+        writeString('dashboard_problems_solved', problemsSolved);
       }, [problemsSolved]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_preferred_engagement', preferredEngagement); } catch {}
+        writeString('dashboard_preferred_engagement', preferredEngagement);
       }, [preferredEngagement]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_strategy_preset', strategyPreset); } catch {}
+        writeString('dashboard_strategy_preset', strategyPreset);
       }, [strategyPreset]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_opportunity_focus', opportunityFocus); } catch {}
+        writeString('dashboard_opportunity_focus', opportunityFocus);
       }, [opportunityFocus]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_opportunity_strictness', opportunityStrictness); } catch {}
+        writeString('dashboard_opportunity_strictness', opportunityStrictness);
       }, [opportunityStrictness]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_avoid', aiAvoid); } catch {}
+        writeString('dashboard_ai_avoid', aiAvoid);
       }, [aiAvoid]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_example_perfect', aiExamplePerfect); } catch {}
+        writeString('dashboard_ai_example_perfect', aiExamplePerfect);
       }, [aiExamplePerfect]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_example_strong', aiExampleStrong); } catch {}
+        writeString('dashboard_ai_example_strong', aiExampleStrong);
       }, [aiExampleStrong]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_example_reject', aiExampleReject); } catch {}
+        writeString('dashboard_ai_example_reject', aiExampleReject);
       }, [aiExampleReject]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_enabled', opportunityEngineEnabled ? '1' : '0'); } catch {}
+        writeString('dashboard_ai_enabled', opportunityEngineEnabled ? '1' : '0');
       }, [opportunityEngineEnabled]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_preset_dismissed', aiPresetDismissed ? '1' : '0'); } catch {}
+        writeString('dashboard_ai_preset_dismissed', aiPresetDismissed ? '1' : '0');
       }, [aiPresetDismissed]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_preset_id', aiPresetId); } catch {}
+        writeString('dashboard_ai_preset_id', aiPresetId);
       }, [aiPresetId]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_openrouter_model', openRouterModel); } catch {}
+        writeString('dashboard_openrouter_model', openRouterModel);
       }, [openRouterModel]);
       useEffect(() => {
-        try { localStorage.setItem('dashboard_ai_llm_limit', String(aiLlmPostLimit)); } catch {}
+        writeString('dashboard_ai_llm_limit', String(aiLlmPostLimit));
       }, [aiLlmPostLimit]);
 
       useEffect(() => {
-        try { localStorage.removeItem('dashboard_openrouter_api_key'); } catch {}
+        removeItem('dashboard_openrouter_api_key');
       }, []);
 
       const normalizedOpportunityFocus = useMemo(() => {
@@ -518,35 +533,23 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
       // Persist fetched data and timestamp
       useEffect(() => {
-        try {
-          if (data && data.length > 0) {
-            localStorage.setItem('dashboard_data', JSON.stringify(data));
-          }
-        } catch (e) {}
+        if (data && data.length > 0) {
+          storageModule.writeJSON('dashboard_data', data);
+        }
       }, [data]);
 
       useEffect(() => {
-        try {
-          if (fetchedAt) {
-            localStorage.setItem('dashboard_fetched_at', String(fetchedAt));
-          }
-        } catch {}
+        if (fetchedAt) {
+          writeString('dashboard_fetched_at', String(fetchedAt));
+        }
       }, [fetchedAt]);
 
       useEffect(() => {
-        try {
-          if (snapshotInfo) {
-            localStorage.setItem('dashboard_snapshot_info', JSON.stringify(snapshotInfo));
-          } else {
-            localStorage.removeItem('dashboard_snapshot_info');
-          }
-        } catch {}
+        persistSnapshotInfo(snapshotInfo);
       }, [snapshotInfo]);
 
       useEffect(() => {
-        try {
-          if (syncToken) localStorage.setItem('dashboard_sync_token', syncToken);
-        } catch {}
+        if (syncToken) writeString('dashboard_sync_token', syncToken);
       }, [syncToken]);
 
       // Restore and apply AI scores on initial load with restored data
@@ -555,62 +558,29 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         // Only run once when data is available, AI is enabled, and we haven't restored scores yet
         if (data.length > 0 && opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size === 0 && !hasRestoredScoresRef.current) {
           hasRestoredScoresRef.current = true;
-          // Load cached scores
-          try {
-            const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-            if (cacheStr) {
-              const cache = JSON.parse(cacheStr);
-              const now = Date.now();
-              const CACHE_EXPIRY = AI_CACHE_EXPIRY_MS;
-              const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
-              const combinedGoals = `${effectiveGoalText.trim()}||${effectiveContextText.trim()}`;
-              const currentGoalsHash = hashGoals(combinedGoals);
-              const currentCacheVersion = `${currentGoalsHash}_${AI_PROMPT_VERSION}_${openRouterModel}`;
-              const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
-              const cacheVersionMismatch = savedCacheVersion && savedCacheVersion !== currentCacheVersion;
-              if (cacheVersionMismatch) {
-                setAiScoresStale(true);
-              }
-              const rawScores = new Map();
-              const metadata = new Map();
-              const opportunities = new Map();
-              let staleByAge = false;
-              
-              // Get all post IDs from current data
-              const allPosts = data.flatMap(group => group.posts || []);
-              
-              // Load cached scores for posts that exist in cache
-              allPosts.forEach(post => {
-                const postId = String(post.id || post.data?.id || '');
-                if (!postId || !cache[postId]) return;
-                const cachedData = cache[postId];
-                if (cachedData.timestamp && cachedData.score !== null && cachedData.score !== undefined) {
-                  if ((now - cachedData.timestamp) >= CACHE_EXPIRY) {
-                    staleByAge = true;
-                  }
-                  rawScores.set(postId, cachedData.score);
-                  metadata.set(postId, {
-                    confidence: cachedData.confidence || 'medium',
-                    reason: cachedData.reason || '',
-                    source: cachedData.source || 'cache-restored',
-                    debug: cachedData.debug || null,
-                  });
-                  if (cachedData.opportunity && typeof cachedData.opportunity === 'object') {
-                    opportunities.set(postId, cachedData.opportunity);
-                  }
-                }
-              });
-              
-              if (rawScores.size > 0) {
-                const highRelevanceCount = Array.from(rawScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-                setPostScoreProxies(rawScores);
-                setPostScoreMetadata(metadata);
-                setPostOpportunities(opportunities);
-                setScoresVersion(v => v + 1);
-                setAiScoresStale(Boolean(cacheVersionMismatch || staleByAge));
-              }
-            }
-          } catch (error) {}
+          const currentCacheVersion = buildAiCacheVersion({
+            goalText: effectiveGoalText,
+            contextText: effectiveContextText,
+            promptVersion: AI_PROMPT_VERSION,
+            model: openRouterModel,
+            hashGoals,
+          });
+          const cacheVersionStatus = getAiCacheVersionStatus(currentCacheVersion);
+          const allPosts = data.flatMap(group => group.posts || []);
+          const cacheState = loadAiScoreCache({
+            posts: allPosts,
+            expiryMs: AI_CACHE_EXPIRY_MS,
+            fallbackSource: 'cache-restored',
+            fallbackReason: '',
+          });
+
+          if (cacheState.scores.size > 0) {
+            setPostScoreProxies(cacheState.scores);
+            setPostScoreMetadata(cacheState.metadata);
+            setPostOpportunities(cacheState.opportunities);
+            setScoresVersion(v => v + 1);
+            setAiScoresStale(Boolean(cacheVersionStatus.mismatched || cacheState.hadExpiredRequestedEntries));
+          }
         }
       }, [data, opportunityEngineEnabled, hasOpportunityGoals, effectiveGoalText, effectiveContextText, postScoreProxies.size, openRouterModel, AI_PROMPT_VERSION]); // Run when data or AI settings change
 
@@ -677,31 +647,29 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
       useEffect(() => {
         if (!authenticated || !syncToken) return;
-        if (hydratedOpportunityConfigRef.current === syncToken) return;
+        const configIdentity = getConfigIdentity({ snapshotInfo, syncToken });
+        if (hydratedOpportunityConfigRef.current === configIdentity) return;
 
         let cancelled = false;
         async function loadOpportunityConfig() {
           try {
-            const response = await fetch(`/api/settings/opportunity-config?token=${encodeURIComponent(syncToken)}`, {
-              credentials: 'include',
-              cache: 'no-store',
-            });
-            if (response.status === 404) {
-              hydratedOpportunityConfigRef.current = syncToken;
+            const result = loadWorkspaceOpportunityConfig
+              ? await loadWorkspaceOpportunityConfig({ snapshotInfo, syncToken })
+              : { ok: false, status: 500, payload: null };
+            if (result.status === 404) {
+              hydratedOpportunityConfigRef.current = configIdentity;
               return;
             }
-            if (!response.ok) {
+            if (!result.ok) {
               try {
-                const details = await response.json();
-                console.warn('Failed to load opportunity config', response.status, details);
+                console.warn('Failed to load opportunity config', result.status, result.payload);
               } catch {
-                console.warn('Failed to load opportunity config', response.status);
+                console.warn('Failed to load opportunity config', result.status);
               }
               return;
             }
 
-            const payload = await response.json();
-            const config = payload?.config || {};
+            const config = result.payload?.config || {};
             const opportunityConfig = config.opportunityConfig || {};
             const scoringConfig = config.scoringConfig || {};
             const examples = scoringConfig.examples || {};
@@ -728,13 +696,13 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             if (config.model) setOpenRouterModel(config.model);
             if (config.opportunityConfig || config.goals || config.aiContext) setOpportunityEngineEnabled(true);
 
-            hydratedOpportunityConfigRef.current = syncToken;
+            hydratedOpportunityConfigRef.current = configIdentity;
           } catch {}
         }
 
         loadOpportunityConfig();
         return () => { cancelled = true; };
-      }, [authenticated, syncToken]);
+      }, [authenticated, syncToken, snapshotInfo]);
 
       // Check secure API key status on mount
       useEffect(() => {
@@ -828,85 +796,24 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       }, [postOpportunities]);
 
       const getPriorityScore = useCallback((postId) => {
-        const opportunity = getOpportunityForPost(postId);
-        if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
-          return Number(opportunity.scores.priority) || 0;
-        }
-        const relevance = postScoreProxies.get(String(postId));
-        if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
-        return null;
+        return getPriorityScoreValue({
+          postId,
+          getOpportunityForPost,
+          postScoreProxies,
+        });
       }, [getOpportunityForPost, postScoreProxies]);
 
       const getOpportunityTypeLabel = useCallback((postId) => {
-        const type = getOpportunityForPost(postId)?.classification?.type || null;
-        if (!type) return null;
-        return String(type).replace(/_/g, ' ');
+        return formatOpportunityLabel(getOpportunityForPost(postId)?.classification?.type || null);
       }, [getOpportunityForPost]);
 
       const getRecommendedActionLabel = useCallback((postId) => {
-        const action = getOpportunityForPost(postId)?.action?.recommended || null;
-        if (!action) return null;
-        return String(action).replace(/_/g, ' ');
+        return formatOpportunityLabel(getOpportunityForPost(postId)?.action?.recommended || null);
       }, [getOpportunityForPost]);
 
-      const formatSignalLabel = useCallback((key) => {
-        return String(key || '')
-          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-          .replace(/_/g, ' ')
-          .replace(/^./, (char) => char.toUpperCase());
-      }, []);
-
-      const getOpportunitySignalSummary = useCallback((opportunity) => {
-        const signalEntries = Object.entries(opportunity?.signals || {})
-          .filter(([_, value]) => Number.isFinite(Number(value)))
-          .sort((a, b) => Number(b[1]) - Number(a[1]));
-
-        if (!signalEntries.length) return '';
-
-        return signalEntries
-          .slice(0, 4)
-          .map(([key, value]) => `${formatSignalLabel(key)} ${Math.round(Number(value) * 100)}`)
-          .join(' • ');
-      }, [formatSignalLabel]);
-
-      const normalizeEnum = useCallback((value, allowed, fallback) => {
-        const normalized = String(value || '').trim().toLowerCase();
-        return allowed.includes(normalized) ? normalized : fallback;
-      }, []);
-
-      const sanitizeModelId = useCallback((value) => {
-        const normalized = String(value || '').trim().slice(0, 100);
-        return /^[a-zA-Z0-9_.:\-\/]+$/.test(normalized) ? normalized : '';
-      }, []);
-
-      const buildSyncSettings = useCallback(() => ({
-        subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
-        opportunityBrief: opportunityBrief.trim().slice(0, 500),
-        opportunityContext: opportunityContext.trim().slice(0, 600),
-        aiAvoid: aiAvoid.trim().slice(0, 800),
-        aiPrompt: opportunityBrief.trim().slice(0, 500),
-        aiThreshold: Math.max(0, Math.min(5, Math.round(Number(priorityNotificationThreshold) || 4))),
-        openRouterModel: sanitizeModelId(openRouterModel),
-        scoringConfig: {
-          lookingFor: (effectiveGoalText.trim() || opportunityBrief.trim()).slice(0, 1200),
-          avoid: effectiveAvoidText.trim().slice(0, 800) || undefined,
-          examples: {
-            perfect: aiExamplePerfect.trim().slice(0, 1200) || undefined,
-            strong: aiExampleStrong.trim().slice(0, 1200) || undefined,
-            reject: aiExampleReject.trim().slice(0, 1200) || undefined,
-          },
-        },
-        opportunityConfig: {
-          businessOffering: businessOffering.trim().slice(0, 300),
-          idealCustomer: idealCustomer.trim().slice(0, 300),
-          problemsSolved: problemsSolved.trim().slice(0, 600),
-          preferredEngagement: normalizeEnum(preferredEngagement, ['reply', 'dm', 'either', 'research'], 'reply'),
-          strategyPreset: normalizeEnum(strategyPreset, ['balanced', 'sales', 'fast_wins', 'research'], 'balanced'),
-          opportunityTypes: normalizedOpportunityFocus.slice(0, 8),
-          strictness: normalizeEnum(opportunityStrictness, ['strict', 'balanced', 'broad'], 'balanced'),
-        },
-      }), [
+      const buildSyncSettings = useCallback(() => buildWorkspaceSyncSettings({
         subs,
+        normalizeSubredditName,
         opportunityBrief,
         opportunityContext,
         aiAvoid,
@@ -924,76 +831,42 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         strategyPreset,
         normalizedOpportunityFocus,
         opportunityStrictness,
+      }), [
+        subs,
         normalizeSubredditName,
-        normalizeEnum,
-        sanitizeModelId,
+        opportunityBrief,
+        opportunityContext,
+        aiAvoid,
+        priorityNotificationThreshold,
+        openRouterModel,
+        effectiveGoalText,
+        effectiveAvoidText,
+        aiExamplePerfect,
+        aiExampleStrong,
+        aiExampleReject,
+        businessOffering,
+        idealCustomer,
+        problemsSolved,
+        preferredEngagement,
+        strategyPreset,
+        normalizedOpportunityFocus,
+        opportunityStrictness,
       ]);
 
-      const buildSyncFilters = useCallback(() => ({
-        minScore: parseNumberFilter(minUpvoteFilter) ?? undefined,
-        minComments: parseNumberFilter(minCommentFilter) ?? undefined,
-        minPriority: parseNumberFilter(minPriorityFilter) ?? undefined,
-        keyword: keyword.trim() || undefined,
-      }), [minUpvoteFilter, minCommentFilter, minPriorityFilter, keyword]);
+      const buildSyncFilters = useCallback(() => buildWorkspaceSyncFilters({
+        parseNumberFilter,
+        minUpvoteFilter,
+        minCommentFilter,
+        minPriorityFilter,
+        keyword,
+      }), [parseNumberFilter, minUpvoteFilter, minCommentFilter, minPriorityFilter, keyword]);
 
-      const buildSyncPosts = useCallback((groups) => {
-        const MAX_SYNC_POSTS = 160;
-        const MAX_SYNC_TEXT_LENGTH = 280;
-        const allPosts = groups.flatMap(group => group.posts || []);
-        const ranked = [...allPosts].sort((a, b) => {
-          const aPriority = Number(postOpportunities.get(String(a.id))?.scores?.priority ?? a.aiPriority ?? -1);
-          const bPriority = Number(postOpportunities.get(String(b.id))?.scores?.priority ?? b.aiPriority ?? -1);
-          if (bPriority !== aPriority) return bPriority - aPriority;
-          const aComments = Number(a.num_comments) || 0;
-          const bComments = Number(b.num_comments) || 0;
-          if (bComments !== aComments) return bComments - aComments;
-          return (Number(b.score) || 0) - (Number(a.score) || 0);
-        });
-
-        return ranked.slice(0, MAX_SYNC_POSTS).map(post => {
-          const postId = String(post.id);
-          const opportunity = postOpportunities.get(postId) || null;
-          const metadata = postScoreMetadata.get(postId) || post.aiMetadata || null;
-          return {
-            id: post.id,
-            subreddit: String(post.subreddit || '').slice(0, 80),
-            title: String(post.title || '').slice(0, 240),
-            selftext: String(post.selftext || '').slice(0, MAX_SYNC_TEXT_LENGTH),
-            author: String(post.author || '').slice(0, 80),
-            reddit_url: post.reddit_url,
-            external_url: post.external_url,
-            domain: String(post.domain || '').slice(0, 120),
-            score: Number(post.score) || 0,
-            num_comments: Number(post.num_comments) || 0,
-            created_utc: post.created_utc,
-            link_flair_text: String(post.link_flair_text || '').slice(0, 80),
-            aiRelevance: postScoreProxies.get(postId) ?? post.aiRelevance ?? null,
-            aiMetadata: metadata ? {
-              source: metadata.source || null,
-              confidence: metadata.confidence || null,
-              reason: String(metadata.reason || '').slice(0, 160) || null,
-            } : null,
-            aiOpportunity: opportunity ? {
-              classification: opportunity.classification ? {
-                type: opportunity.classification.type || null,
-                label: opportunity.classification.label || null,
-              } : null,
-              scores: opportunity.scores ? {
-                overall: opportunity.scores.overall ?? null,
-                priority: opportunity.scores.priority ?? null,
-              } : null,
-              action: opportunity.action ? {
-                recommended: opportunity.action.recommended || null,
-                label: opportunity.action.label || null,
-              } : null,
-              explanation: opportunity.explanation ? {
-                summary: String(opportunity.explanation.summary || '').slice(0, 180),
-              } : null,
-            } : null,
-            aiPriority: opportunity?.scores?.priority ?? post.aiPriority ?? null,
-          };
-        });
-      }, [postOpportunities, postScoreMetadata, postScoreProxies]);
+      const buildSyncPosts = useCallback((groups) => buildWorkspaceSyncPosts({
+        groups,
+        postOpportunities,
+        postScoreMetadata,
+        postScoreProxies,
+      }), [postOpportunities, postScoreMetadata, postScoreProxies]);
 
       const syncDashboardSnapshot = useCallback(async (groupsOverride) => {
         const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
@@ -1009,24 +882,30 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           timestamp: new Date().toISOString(),
         };
 
-        if (new TextEncoder().encode(JSON.stringify(payload)).length > 200000) {
+        if (getPayloadSizeBytes(payload) > 200000) {
           setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           return;
         }
 
         try {
-          const response = await fetch('/api/sync', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (response.ok) {
+          const result = postWorkspaceSnapshot
+            ? await postWorkspaceSnapshot({
+                syncToken,
+                posts,
+                settings: payload.settings,
+                filters: payload.filters,
+              })
+            : { ok: false, status: 500, body: null };
+          if (result.ok) {
             setSyncPauseUntil(null);
-            setSnapshotInfo(prev => ({ ...(prev || {}), syncToken }));
-          } else if (response.status === 413) {
+            setSnapshotInfo(prev => ({
+              ...(prev || {}),
+              syncToken,
+              workspaceId: result.body?.workspaceId || prev?.workspaceId || null,
+            }));
+          } else if (result.status === 413) {
             setSyncPauseUntil(Date.now() + 15 * 60 * 1000);
-          } else if (response.status >= 500) {
+          } else if (result.status >= 500) {
             setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           }
         } catch {}
@@ -1047,33 +926,31 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         if (snapshotInfo?.syncToken !== syncToken) return;
         try {
-          const response = await fetch('/api/settings/opportunity-config', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token: syncToken,
-              subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
-              goals: opportunityBrief.trim().slice(0, 500),
-              aiContext: opportunityContext.trim().slice(0, 600),
-              aiPrompt: opportunityBrief.trim().slice(0, 500),
-              opportunityConfig: buildSyncSettings().opportunityConfig,
-              scoringConfig: buildSyncSettings().scoringConfig,
-              threshold: Math.max(0, Math.min(5, Number(priorityNotificationThreshold) || 4)),
-              model: String(openRouterModel || '').slice(0, 100),
-            }),
-          });
-          if (response.ok) {
+          const settings = buildSyncSettings();
+          const result = postWorkspaceOpportunityConfig
+            ? await postWorkspaceOpportunityConfig({
+                snapshotInfo,
+                syncToken,
+                subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
+                goals: opportunityBrief.trim().slice(0, 500),
+                aiContext: opportunityContext.trim().slice(0, 600),
+                aiPrompt: opportunityBrief.trim().slice(0, 500),
+                opportunityConfig: settings.opportunityConfig,
+                scoringConfig: settings.scoringConfig,
+                threshold: Math.max(0, Math.min(5, Number(priorityNotificationThreshold) || 4)),
+                model: String(openRouterModel || '').slice(0, 100),
+              })
+            : { ok: false, status: 500, payload: null };
+          if (result.ok) {
             setConfigSyncPauseUntil(null);
-          } else if (response.status === 400 || response.status === 413) {
+          } else if (result.status === 400 || result.status === 413) {
             try {
-              const details = await response.json();
-              console.warn('Failed to sync opportunity config', response.status, details);
+              console.warn('Failed to sync opportunity config', result.status, result.payload);
             } catch {
-              console.warn('Failed to sync opportunity config', response.status);
+              console.warn('Failed to sync opportunity config', result.status);
             }
             setConfigSyncPauseUntil(Date.now() + 15 * 60 * 1000);
-          } else if (response.status >= 500) {
+          } else if (result.status >= 500) {
             setConfigSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           }
         } catch {}
@@ -1236,84 +1113,25 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         const meta = postScoreMetadata.get(String(selectedPost.id)) || null;
         const opportunity = getOpportunityForPost(selectedPost.id);
         const velocity = selectedPostVelocity;
-        const items = [];
-        if (opportunity?.classification?.type) {
-          items.push({ label: 'Opportunity', value: String(opportunity.classification.type).replace(/_/g, ' ') });
-        }
-        if (opportunity?.action?.recommended) {
-          items.push({ label: 'Recommended action', value: String(opportunity.action.recommended).replace(/_/g, ' ') });
-        }
-        if (opportunity?.explanation?.summary) {
-          items.push({ label: 'Opportunity summary', value: opportunity.explanation.summary });
-        }
-        if (Array.isArray(opportunity?.explanation?.bullets) && opportunity.explanation.bullets.length > 0) {
-          items.push({ label: 'Why now', value: opportunity.explanation.bullets.join(' • ') });
-        }
-        if (opportunity?.scores) {
-          const scoreBits = [
-            Number.isFinite(Number(opportunity.scores.priority)) ? `Priority ${Math.round(Number(opportunity.scores.priority) * 100)}` : null,
-            Number.isFinite(Number(opportunity.scores.clientConversionLikelihood)) ? `Conversion ${Math.round(Number(opportunity.scores.clientConversionLikelihood) * 100)}` : null,
-            Number.isFinite(Number(opportunity.scores.replyLikelihood)) ? `Reply ${Math.round(Number(opportunity.scores.replyLikelihood) * 100)}` : null,
-          ].filter(Boolean);
-          if (scoreBits.length) {
-            items.push({ label: 'Engine scores', value: scoreBits.join(' • ') });
-          }
-        }
-        const signalSummary = getOpportunitySignalSummary(opportunity);
-        if (signalSummary) {
-          items.push({ label: 'Signals', value: signalSummary });
-        }
-        if (meta?.reason) {
-          items.push({ label: 'AI summary', value: meta.reason });
-        }
-        if (meta?.confidence || meta?.source) {
-          items.push({
-            label: 'Score source',
-            value: [
-              meta.source === 'llm' ? 'LLM-ranked' : meta?.source === 'heuristic' ? 'Heuristic-ranked' : null,
-              meta?.confidence ? `${meta.confidence} confidence` : null
-            ].filter(Boolean).join(' • ')
-          });
-        }
-        if (meta?.debug?.matchedKeywords?.length) {
-          items.push({ label: 'Matched signals', value: meta.debug.matchedKeywords.slice(0, 5).join(', ') });
-        }
-        if (velocity) {
-          items.push({
-            label: 'Momentum',
-            value: `${formatVelocity(velocity.upvotesPerHour)}/h upvotes • ${formatVelocity(velocity.commentsPerHour)}/h comments`
-          });
-        }
-        if (selectedPost.link_flair_text) {
-          items.push({ label: 'Context', value: `Flair: ${selectedPost.link_flair_text}` });
-        }
-        if (!items.length) {
-          items.push({
-            label: 'Signal',
-            value: buildWhyLine({
-              post: selectedPost,
-              relevanceMeta: meta,
-              upvotesPerHour: velocity?.upvotesPerHour,
-              commentsPerHour: velocity?.commentsPerHour,
-            }),
-          });
-        }
-        return items;
-      }, [selectedPost, postScoreMetadata, selectedPostVelocity, getOpportunityForPost, getOpportunitySignalSummary]);
+        return buildPostWhyItems({
+          selectedPost,
+          meta,
+          opportunity,
+          velocity,
+          formatVelocity,
+          buildWhyLine,
+        });
+      }, [selectedPost, postScoreMetadata, selectedPostVelocity, getOpportunityForPost]);
 
       const selectedPostNextAction = useMemo(() => {
         if (!selectedPost) return '';
         const opportunity = getOpportunityForPost(selectedPost.id);
-        const recommended = opportunity?.action?.recommended || '';
-        if (recommended === 'reply_now') return 'Recommended action: reply now while the thread is still active.';
-        if (recommended === 'dm_if_possible') return 'Recommended action: consider direct outreach if the thread context allows it.';
-        if (recommended === 'save_for_followup') return 'Recommended action: save for follow-up and revisit when you can engage well.';
-        if (recommended === 'research') return 'Recommended action: use this as market research or messaging input.';
-        if (recommended === 'ignore') return 'Recommended action: ignore unless the thread evolves.';
         const score = postScoreProxies.get(String(selectedPost.id));
-        if (score >= 4) return 'High-priority thread. Open it now and decide whether to reply, DM, or save it.';
-        if (score >= 3) return 'Worth a quick review. Check the thread for clear intent or follow-up context.';
-        return 'Lower-confidence match. Keep it in view only if the discussion fits your goals.';
+        return buildPostNextAction({
+          selectedPost,
+          opportunity,
+          score,
+        });
       }, [selectedPost, postScoreProxies, getOpportunityForPost]);
 
       const aiScoreStats = useMemo(() => {
@@ -1360,424 +1178,52 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       }, [data]);
 
       const runAiRanking = useCallback(async ({ perSub, triggeredByAuto = false, llmPostLimit = aiLlmPostLimit } = {}) => {
-        if (!opportunityEngineEnabled || !hasOpportunityGoals) {
-          setPostScoreProxies(new Map());
-          setPostScoreMetadata(new Map());
-          setPostOpportunities(new Map());
-          setScoresVersion(v => v + 1);
-          setAiActivity({
-            status: 'Off',
-            detail: 'Opportunity engine is disabled, so no ranking is running.',
-          });
-          return;
-        }
-
-        const groups = Array.isArray(perSub) ? perSub : data;
-        let effectiveLlmLimit = Math.max(10, Math.min(MAX_LLM_POST_LIMIT, Number(llmPostLimit) || DEFAULT_LLM_POST_LIMIT));
-        if (groups.length >= 20) {
-          effectiveLlmLimit = Math.min(effectiveLlmLimit, 40);
-        } else if (groups.length >= 12) {
-          effectiveLlmLimit = Math.min(effectiveLlmLimit, 60);
-        }
-        if (aiRateLimitPauseUntil && aiRateLimitPauseUntil > Date.now()) {
-          setAiActivity({
-            status: 'Paused',
-            detail: `Opportunity ranking is cooling down for ${formatTimeUntil(aiRateLimitPauseUntil)}.`,
-          });
-          if (triggeredByAuto) {
-            setOpportunityScanError(`Opportunity ranking cooling down for ${formatTimeUntil(aiRateLimitPauseUntil)}.`);
-          }
-          return;
-        }
-
-        try {
-          // Cache versioning: invalidate if goals, model, or prompt version changed
-          const combinedGoals = `${effectiveGoalText.trim()}||${effectiveContextText.trim()}`;
-          const currentGoalsHash = hashGoals(combinedGoals);
-          const CACHE_VERSION_KEY = 'dashboard_ai_cache_version';
-          const MODEL_KEY = 'dashboard_ai_model';
-          const PROMPT_VERSION_KEY = 'dashboard_ai_prompt_version';
-          const currentCacheVersion = `${currentGoalsHash}_${AI_PROMPT_VERSION}_${openRouterModel}`;
-          let latestPromptVersion = AI_PROMPT_VERSION;
-          let latestModel = openRouterModel;
-          
-          try {
-            const savedCacheVersion = localStorage.getItem(CACHE_VERSION_KEY);
-            if (savedCacheVersion && savedCacheVersion !== currentCacheVersion) {
-              localStorage.removeItem('dashboard_ai_scores_cache');
-            }
-            localStorage.setItem(CACHE_VERSION_KEY, currentCacheVersion);
-          } catch {}
-
-          // Load cached scores and metadata with version check
-          // NOTE: We cache raw LLM scores (0-5) and always recalibrate on load
-          // This ensures scores are relative to the current visible feed
-          let cachedScores = new Map();
-          let cachedMetadata = new Map();
-          let cachedOpportunities = new Map();
-          try {
-            const cacheStr = localStorage.getItem('dashboard_ai_scores_cache');
-            if (cacheStr) {
-              const cache = JSON.parse(cacheStr);
-              const now = Date.now();
-              const CACHE_EXPIRY = AI_CACHE_EXPIRY_MS;
-              Object.entries(cache).forEach(([postId, data]) => {
-                if (data.timestamp && (now - data.timestamp) < CACHE_EXPIRY) {
-                  if (data.score !== null && data.score !== undefined) {
-                    cachedScores.set(postId, data.score);
-                    // Load metadata if available
-                    if (data.source || data.confidence || data.reason) {
-                      cachedMetadata.set(postId, {
-                        source: data.source || 'llm',
-                        confidence: data.confidence || 'medium',
-                        reason: data.reason || 'Cached opportunity score',
-                        debug: data.debug || null,
-                      });
-                    }
-                    if (data.opportunity && typeof data.opportunity === 'object') {
-                      cachedOpportunities.set(postId, data.opportunity);
-                    }
-                  }
-                }
-              });
-              
-              // Clean up expired entries
-              const validEntries = Object.entries(cache).filter(([_, data]) => 
-                data.timestamp && (now - data.timestamp) < CACHE_EXPIRY && data.score !== null && data.score !== undefined
-              );
-              if (validEntries.length < Object.keys(cache).length) {
-                localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(Object.fromEntries(validEntries)));
-              }
-            }
-          } catch (cacheError) {}
-
-          // Get all posts
-          const allNewPosts = groups.flatMap(g => g.posts || []);
-          setAiActivity({
-            status: 'Preparing',
-            detail: `Checking cached scores for ${allNewPosts.length} post${allNewPosts.length === 1 ? '' : 's'}.`,
-          });
-          // Filter out posts that already have cached scores
-          const uncachedPosts = allNewPosts.filter(post => !cachedScores.has(String(post.id)));
-
-          if (uncachedPosts.length > 0) {
-            const thisRequestId = ++opportunityScanRequestIdRef.current;
-            setOpportunityScanError(null);
-            setOpportunityScanLoading(true);
-            setAiActivity({
-              status: 'Heuristic pass',
-              detail: `Scoring ${uncachedPosts.length} uncached post${uncachedPosts.length === 1 ? '' : 's'} before the AI rerank.`,
-            });
-            
-            // Two-stage ranking: heuristic prefilter + LLM rerank
-            const keywords = extractGoalKeywords(effectiveGoalText.trim());
-            
-            // Compute heuristic scores for all uncached posts
-            const postsWithHeuristic = uncachedPosts.map(post => {
-              const details = computeHeuristicDetails
-                ? computeHeuristicDetails(post, keywords)
-                : { score: computeHeuristicScore(post, keywords), matchedTitle: [], matchedSelftext: [], matchedSubreddit: [], keywordScore: 0, engagementScore: 0, domainBonus: 0 };
-              return {
-                post,
-                heuristicScore: details.score,
-                heuristicDetails: details,
-              };
-            });
-            
-            // Sort by heuristic score and take top N for LLM ranking
-            const MAX_LLM_POSTS = Math.min(effectiveLlmLimit, postsWithHeuristic.length);
-            postsWithHeuristic.sort((a, b) => b.heuristicScore - a.heuristicScore);
-            const topPosts = postsWithHeuristic.slice(0, MAX_LLM_POSTS).map(x => x.post);
-            const remainingPosts = postsWithHeuristic.slice(MAX_LLM_POSTS);
-            setAiActivity({
-              status: 'LLM rerank',
-              detail: `Sending ${topPosts.length} high-priority post${topPosts.length === 1 ? '' : 's'} to ${openRouterModel.trim()} and keeping ${remainingPosts.length} as heuristic-only.`,
-            });
-            const heuristicDetailsById = new Map(
-              postsWithHeuristic.map(entry => [String(entry.post.id), entry.heuristicDetails])
-            );
-            
-            let scoresForHighRelevance = null;
-            try {
-              const allScores = new Map(cachedScores);
-              const allMetadata = new Map(cachedMetadata); // Store metadata for all scored posts
-              const allOpportunities = new Map(cachedOpportunities);
-              const cache = {};
-              
-              // Load existing cache
-              try {
-                const existingCache = localStorage.getItem('dashboard_ai_scores_cache');
-                if (existingCache) {
-                  Object.assign(cache, JSON.parse(existingCache));
-                }
-              } catch {}
-              
-              const scoredPostMap = new Map(topPosts.map(p => [String(p.id), p]));
-              const response = await fetch('/api/reddit/ai-rank', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  posts: topPosts.map(p => ({
-                    id: p.id,
-                    title: p.title,
-                    selftext: p.selftext || '',
-                    subreddit: p.subreddit,
-                    url: p.reddit_url,
-                    external_url: p.external_url,
-                    domain: p.domain,
-                    score: p.score,
-                    num_comments: p.num_comments,
-                    created_utc: p.created_utc,
-                    link_flair_text: p.link_flair_text,
-                  })),
-                  userGoals: effectiveGoalText.trim(),
-                  userContext: effectiveContextText && effectiveContextText.trim() ? effectiveContextText.trim() : undefined,
-                  scoringConfig: {
-                    lookingFor: effectiveGoalText.trim(),
-                    avoid: effectiveAvoidText && effectiveAvoidText.trim() ? effectiveAvoidText.trim() : undefined,
-                    examples: {
-                      perfect: aiExamplePerfect && aiExamplePerfect.trim() ? aiExamplePerfect.trim() : undefined,
-                      strong: aiExampleStrong && aiExampleStrong.trim() ? aiExampleStrong.trim() : undefined,
-                      reject: aiExampleReject && aiExampleReject.trim() ? aiExampleReject.trim() : undefined,
-                    },
-                  },
-                  openRouterApiKey: secureKeyStatus.hasKey ? undefined : (openRouterApiKey.trim() || undefined),
-                  openRouterModel: openRouterModel.trim(),
-                  modelTemperature: AI_FIXED_TEMPERATURE,
-                  modelTopP: AI_FIXED_TOP_P
-                }),
-              });
-
-              if (!response.ok) {
-                let retryAfterSeconds = Number(response.headers.get('Retry-After')) || 0;
-                let parsedError = null;
-                try { parsedError = await response.json(); } catch {}
-                retryAfterSeconds = Number(parsedError?.retryAfter) || retryAfterSeconds || 0;
-                if (response.status === 429 && retryAfterSeconds > 0) {
-                  const pauseUntil = Date.now() + retryAfterSeconds * 1000;
-                  setAiRateLimitPauseUntil(pauseUntil);
-                  setOpportunityScanError(`Opportunity ranking rate-limited. Cooling down ~${retryAfterSeconds}s.`);
-                }
-                throw new Error(parsedError?.message || `AI ranking failed with HTTP ${response.status}`);
-              }
-
-              setAiRateLimitPauseUntil(null);
-              const result = await response.json();
-              const resultPromptVersion = result.promptVersion || AI_PROMPT_VERSION;
-              const resultModel = result.model || openRouterModel;
-              latestPromptVersion = resultPromptVersion;
-              latestModel = resultModel;
-              if (result.model) localStorage.setItem(MODEL_KEY, result.model);
-              if (result.promptVersion) localStorage.setItem(PROMPT_VERSION_KEY, result.promptVersion);
-              const updatedCacheVersion = `${currentGoalsHash}_${resultPromptVersion}_${resultModel}`;
-              if (updatedCacheVersion !== currentCacheVersion) {
-                localStorage.removeItem('dashboard_ai_scores_cache');
-                localStorage.setItem(CACHE_VERSION_KEY, updatedCacheVersion);
-              }
-              const scoresObj = result.scores || {};
-              const metadataObj = result.metadata || {};
-              const opportunitiesObj = result.opportunities || {};
-              if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
-                Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
-                  const postIdStr = String(postId);
-                  if (relevanceScore !== null && relevanceScore !== undefined) {
-                    allScores.set(postIdStr, relevanceScore);
-                    const meta = metadataObj[postId] || {};
-                    const opportunity = opportunitiesObj[postId] || null;
-                    const heuristicDetails = heuristicDetailsById.get(postIdStr);
-                    allMetadata.set(postIdStr, {
-                      source: 'llm',
-                      confidence: meta.confidence || 'medium',
-                      reason: meta.reason || 'LLM-ranked opportunity',
-                      debug: buildRelevanceDebug({
-                        postId: postIdStr,
-                        heuristicDetails,
-                        postMap: scoredPostMap,
-                        llmReason: meta.reason,
-                        llmConfidence: meta.confidence,
-                        source: 'llm',
-                      })
-                    });
-                    if (opportunity) {
-                      allOpportunities.set(postIdStr, opportunity);
-                    }
-                    cache[postIdStr] = {
-                      score: relevanceScore,
-                      timestamp: Date.now(),
-                      version: result.promptVersion || 'v3.1',
-                      model: result.model || 'unknown',
-                      confidence: meta.confidence || 'medium',
-                      reason: meta.reason || 'LLM-ranked opportunity',
-                      source: 'llm',
-                      debug: allMetadata.get(postIdStr)?.debug || null,
-                      opportunity: opportunity || null,
-                    };
-                  } else {
-                    allScores.set(postIdStr, null);
-                  }
-                });
-              }
-              
-              // Save updated cache with LRU eviction (max 5000 entries)
-              try {
-                const MAX_CACHE_ENTRIES = 5000;
-                const entries = Object.entries(cache);
-                if (entries.length > MAX_CACHE_ENTRIES) {
-                  // Sort by timestamp (oldest first) and keep only newest entries
-                  entries.sort((a, b) => (a[1].timestamp || 0) - (b[1].timestamp || 0));
-                  const toKeep = entries.slice(-MAX_CACHE_ENTRIES);
-                  const trimmedCache = Object.fromEntries(toKeep);
-                  localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(trimmedCache));
-                } else {
-                  localStorage.setItem('dashboard_ai_scores_cache', JSON.stringify(cache));
-                }
-              } catch (cacheError) {
-                // If quota exceeded, clear cache and retry
-                if (cacheError.name === 'QuotaExceededError') {
-                  try {
-                    localStorage.removeItem('dashboard_ai_scores_cache');
-                  } catch {}
-                }
-              }
-              
-              // Add heuristic scores for remaining posts (map to 0-5 range, will be calibrated)
-              remainingPosts.forEach(({ post, heuristicScore, heuristicDetails }) => {
-                const postId = String(post.id);
-                if (!allScores.has(postId)) {
-                  // Heuristic-only scores are capped lower than LLM scores
-                  const normalizedScore = Math.min(3, Math.round(heuristicScore * 0.3));
-                  allScores.set(postId, normalizedScore);
-                  allMetadata.set(postId, { 
-                    source: 'heuristic', 
-                    confidence: 'low', 
-                    reason: 'Keyword-based opportunity',
-                    debug: buildRelevanceDebug({
-                      postId,
-                      heuristicDetails,
-                      postMap: new Map(allNewPosts.map(p => [String(p.id), p])),
-                      source: 'heuristic',
-                    })
-                  });
-                  cache[postId] = {
-                    score: normalizedScore,
-                    timestamp: Date.now(),
-                    version: latestPromptVersion || AI_PROMPT_VERSION,
-                    model: latestModel || openRouterModel,
-                    confidence: 'low',
-                    reason: 'Keyword-based opportunity',
-                    source: 'heuristic',
-                    debug: allMetadata.get(postId)?.debug || null,
-                    opportunity: null,
-                  };
-                }
-              });
-              
-              const highRelevanceCount = Array.from(allScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-
-              if (opportunityScanRequestIdRef.current !== thisRequestId) return;
-              setPostScoreProxies(allScores);
-              setPostScoreMetadata(allMetadata);
-              setPostOpportunities(allOpportunities);
-              setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-              setAiScoresStale(false);
-              setAiActivity({
-                status: 'Complete',
-                detail: `Ranked ${topPosts.length} post${topPosts.length === 1 ? '' : 's'} with AI and ${remainingPosts.length} heuristically.`,
-              });
-              scoresForHighRelevance = allScores;
-            } catch (aiError) {
-              console.error('Error in AI ranking batch processing:', aiError);
-              if (opportunityScanRequestIdRef.current !== thisRequestId) return;
-              setPostScoreProxies(cachedScores);
-              setPostScoreMetadata(cachedMetadata);
-              setPostOpportunities(cachedOpportunities);
-              setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-              setAiActivity({
-                status: 'Fallback',
-                detail: `AI ranking failed, so the app kept ${cachedScores.size} cached score${cachedScores.size === 1 ? '' : 's'}.`,
-              });
-              scoresForHighRelevance = cachedScores;
-            } finally {
-              setOpportunityScanLoading(false);
-            }
-            // High-relevance notifications (use freshly computed scores)
-            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && scoresForHighRelevance && scoresForHighRelevance.size > 0) {
-              const threshold = Number(priorityNotificationThreshold) || 4;
-              const priorityThreshold = threshold / 5;
-              const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
-              const toNotify = [];
-              for (const [postId, score] of scoresForHighRelevance.entries()) {
-                const opportunityPriority = Number(allOpportunities.get(postId)?.scores?.priority);
-                const passesPriority = Number.isFinite(opportunityPriority) && opportunityPriority >= priorityThreshold;
-                const passesLegacy = score != null && score >= threshold;
-                if ((passesPriority || passesLegacy) && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
-                  toNotify.push({ postId, post: idToPost.get(postId) });
-                }
-              }
-              toNotify.forEach(({ post }) => {
-                new Notification('Strong opportunity found', { body: post.title, icon: '/favicon.ico' });
-              });
-              if (toNotify.length > 0) {
-                const toAdd = toNotify.map(({ postId }) => postId);
-                setNotifiedStrongOpportunityPostIds(prev => {
-                  const n = new Set(prev);
-                  toAdd.forEach(id => n.add(id));
-                  return n.size <= 500 ? n : new Set([...n].slice(-500));
-                });
-              }
-            }
-          } else {
-            // All posts are cached, use cached scores directly
-            const highRelevanceCount = Array.from(cachedScores.values()).filter(s => s !== null && s !== undefined && s >= 4).length;
-            setPostScoreProxies(cachedScores);
-            setPostScoreMetadata(cachedMetadata);
-            setPostOpportunities(cachedOpportunities);
-            setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
-            setAiScoresStale(false);
-            setAiActivity({
-              status: 'Cached',
-              detail: `Used ${cachedScores.size} cached score${cachedScores.size === 1 ? '' : 's'} without rerunning the model.`,
-            });
-            // High-relevance notifications (use freshly computed scores)
-            if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && cachedScores && cachedScores.size > 0) {
-              const threshold = Number(priorityNotificationThreshold) || 4;
-              const priorityThreshold = threshold / 5;
-              const idToPost = new Map(allNewPosts.map(p => [String(p.id), p]));
-              const toNotify = [];
-              for (const [postId, score] of cachedScores.entries()) {
-                const opportunityPriority = Number(cachedOpportunities.get(postId)?.scores?.priority);
-                const passesPriority = Number.isFinite(opportunityPriority) && opportunityPriority >= priorityThreshold;
-                const passesLegacy = score != null && score >= threshold;
-                if ((passesPriority || passesLegacy) && !notifiedStrongOpportunityPostIds.has(postId) && idToPost.has(postId)) {
-                  toNotify.push({ postId, post: idToPost.get(postId) });
-                }
-              }
-              toNotify.forEach(({ post }) => {
-                new Notification('Strong opportunity found', { body: post.title, icon: '/favicon.ico' });
-              });
-              if (toNotify.length > 0) {
-                const toAdd = toNotify.map(({ postId }) => postId);
-                setNotifiedStrongOpportunityPostIds(prev => {
-                  const n = new Set(prev);
-                  toAdd.forEach(id => n.add(id));
-                  return n.size <= 500 ? n : new Set([...n].slice(-500));
-                });
-              }
-            }
-          }
-        } catch (aiError) {
-          console.error('Error in AI ranking integration:', aiError);
-          setOpportunityScanLoading(false);
-          setAiActivity({
-            status: 'Failed',
-            detail: aiError.message || 'Opportunity ranking failed before results could be updated.',
-          });
-          if (triggeredByAuto) {
-            setOpportunityScanError('Opportunity ranking failed during auto-refresh — scores may be stale.');
-          }
-        }
-      }, [opportunityEngineEnabled, opportunityBrief, opportunityContext, aiAvoid, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, data, extractGoalKeywords, computeHeuristicScore, notificationsEnabled, notifyStrongOpportunities, priorityNotificationThreshold, notifiedStrongOpportunityPostIds, secureKeyStatus.hasKey, openRouterApiKey, openRouterModel, AI_PROMPT_VERSION, aiRateLimitPauseUntil, formatTimeUntil]);
+        await runAiRankingFlow({
+          perSub,
+          data,
+          triggeredByAuto,
+          llmPostLimit,
+          opportunityEngineEnabled,
+          hasOpportunityGoals,
+          maxLlmPostLimit: MAX_LLM_POST_LIMIT,
+          defaultLlmPostLimit: DEFAULT_LLM_POST_LIMIT,
+          aiRateLimitPauseUntil,
+          formatTimeUntil,
+          effectiveGoalText,
+          effectiveContextText,
+          effectiveAvoidText,
+          aiPromptVersion: AI_PROMPT_VERSION,
+          openRouterModel,
+          hashGoals,
+          aiCacheExpiryMs: AI_CACHE_EXPIRY_MS,
+          secureKeyAvailable: secureKeyStatus.hasKey,
+          openRouterApiKey,
+          aiFixedTemperature: AI_FIXED_TEMPERATURE,
+          aiFixedTopP: AI_FIXED_TOP_P,
+          aiExamplePerfect,
+          aiExampleStrong,
+          aiExampleReject,
+          extractGoalKeywords,
+          computeHeuristicDetails,
+          computeHeuristicScore,
+          buildRelevanceDebug,
+          setPostScoreProxies,
+          setPostScoreMetadata,
+          setPostOpportunities,
+          setScoresVersion,
+          setAiActivity,
+          setOpportunityScanError,
+          setOpportunityScanLoading,
+          setAiRateLimitPauseUntil,
+          setAiScoresStale,
+          notificationsEnabled,
+          notifyStrongOpportunities,
+          priorityNotificationThreshold,
+          notifiedStrongOpportunityPostIds,
+          setNotifiedStrongOpportunityPostIds,
+          opportunityScanRequestIdRef,
+        });
+      }, [data, opportunityEngineEnabled, hasOpportunityGoals, aiLlmPostLimit, aiRateLimitPauseUntil, formatTimeUntil, effectiveGoalText, effectiveContextText, effectiveAvoidText, openRouterModel, secureKeyStatus.hasKey, openRouterApiKey, aiExamplePerfect, aiExampleStrong, aiExampleReject, notificationsEnabled, notifyStrongOpportunities, priorityNotificationThreshold, notifiedStrongOpportunityPostIds]);
 
       const refresh = useCallback(async (options = {}) => {
         const triggeredByAuto = Boolean(options.triggeredByAuto);
@@ -1795,14 +1241,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         }
 
         const subsCount = subs.length;
-        let effectiveMaxPages = maxPages;
-        if (subsCount >= 20) {
-          effectiveMaxPages = Math.min(effectiveMaxPages, 2);
-        } else if (subsCount >= 12) {
-          effectiveMaxPages = Math.min(effectiveMaxPages, 3);
-        } else if (subsCount >= 8) {
-          effectiveMaxPages = Math.min(effectiveMaxPages, 4);
-        }
+        let effectiveMaxPages = getEffectiveMaxPages(maxPages, subsCount);
         const wantsDeepFetch = maxPages === 0 || maxPages > 4;
         const shouldUseCheckpointedCoverage = true;
 
@@ -1830,772 +1269,101 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
         try {
           if (shouldUseCheckpointedCoverage) {
-            setFetchMethod('paged');
-            const pagedStartedAt = Date.now();
-            const skipSyncForLargeBatch = subsCount >= 12;
-            if (skipSyncForLargeBatch) {
-              setSidecarSyncSuppressedUntil(Date.now() + 30 * 60 * 1000);
-            } else {
-              setSidecarSyncSuppressedUntil(null);
-            }
-            const pageLimit = Math.min(subsCount >= 20 ? 10 : (subsCount >= 12 ? 15 : 25), limit);
-            const targetWindowDays = Math.max(1, Math.min(days, 5));
-            const coverageQuery = new URLSearchParams({
-              subs: subs.join(','),
+            keepCoverageController = await startCoverageRefreshFlow({
+              subs,
+              subsCount,
               mode,
               time,
-              days: String(days),
-              target_window_days: String(targetWindowDays),
-            });
-            const coverageStates = new Map();
-            const coverageResults = new Map();
-            let authMode = null;
-            let rateLimitedSubs = [];
-            let pagedRetryAfterSeconds = 0;
-            let globalCooldownUntil = 0;
-            const isCurrentCoverageRun = () => (
-              coverageRunIdRef.current === refreshRunId
-              && coverageAbortRef.current === controller
-              && !controller.signal.aborted
-            );
-
-            const goalCutoffUtc = () => Math.floor(Date.now() / 1000) - (targetWindowDays * 86400);
-            const isCoverageComplete = (state) => {
-              if (!state) return false;
-              if (state.status === 'complete') return true;
-              const coveredThrough = Number(state.covered_through_utc) || 0;
-              return coveredThrough > 0 && coveredThrough <= goalCutoffUtc();
-            };
-            const isPageCapped = (state) => (
-              effectiveMaxPages !== 0
-              && Number(state?.page_count || 0) >= effectiveMaxPages
-              && !isCoverageComplete(state)
-            );
-            const applyCoverage = (summary, results = []) => {
-              if (summary && Array.isArray(summary.subreddits)) {
-                summary.subreddits.forEach((entry) => {
-                  coverageStates.set(String(entry.subreddit || '').toLowerCase(), entry);
-                });
-              }
-              if (Array.isArray(results)) {
-                results.forEach((entry) => {
-                  const subKey = String(entry?.subreddit || '').toLowerCase();
-                  if (!subKey) return;
-                  coverageResults.set(subKey, entry);
-                  if (entry?.state) {
-                    coverageStates.set(subKey, entry.state);
-                  }
-                });
-              }
-            };
-            const computeProgress = () => {
-              const completedSubs = subs.filter((sub) => {
-                const state = coverageStates.get(String(sub || '').toLowerCase());
-                return isCoverageComplete(state) || isPageCapped(state);
-              }).length;
-              const totalPosts = subs.reduce((sum, sub) => {
-                const result = coverageResults.get(String(sub || '').toLowerCase());
-                return sum + (Array.isArray(result?.posts) ? result.posts.length : 0);
-              }, 0);
-              return { completedSubs, totalPosts };
-            };
-            const buildCoverageCounts = () => ({
-              complete1dCount: subs.filter((sub) => {
-                const state = coverageStates.get(String(sub || '').toLowerCase());
-                return Boolean(state?.complete_1d);
-              }).length,
-              complete3dCount: subs.filter((sub) => {
-                const state = coverageStates.get(String(sub || '').toLowerCase());
-                return Boolean(state?.complete_3d);
-              }).length,
-              complete5dCount: subs.filter((sub) => {
-                const state = coverageStates.get(String(sub || '').toLowerCase());
-                return Boolean(state?.complete_5d);
-              }).length,
-            });
-            const buildPerSubFromCoverage = () => {
-              const previousBySub = new Map((data || []).map(item => [String(item.subreddit || '').toLowerCase(), item]));
-              return subs.map((sub) => {
-                const subKey = String(sub || '').toLowerCase();
-                const state = coverageStates.get(subKey);
-                const result = coverageResults.get(subKey);
-                const previous = previousBySub.get(subKey);
-
-                if (result) {
-                  return {
-                    subreddit: sub,
-                    meta: result?.state?.meta || result?.meta || state?.meta || previous?.meta || null,
-                    posts: Array.isArray(result?.posts) ? result.posts : (previous?.posts || []),
-                    partial: isPageCapped(state),
-                    coverage_state: state || null,
-                    error: state?.last_error || null,
-                    stale: false,
-                  };
-                }
-
-                return {
-                  subreddit: sub,
-                  posts: previous?.posts || [],
-                  meta: previous?.meta || state?.meta || null,
-                  partial: isPageCapped(state),
-                  coverage_state: state || previous?.coverage_state || null,
-                  error: state?.last_error || null,
-                  stale: Boolean(previous),
-                  stale_reason: previous ? 'coverage_pending' : null,
-                };
-              });
-            };
-            const syncVisibleCoverageState = (summaryOverride = null) => {
-              const perSub = buildPerSubFromCoverage();
-              setData(perSub);
-              setFetchedAt(Date.now());
-              setSnapshotInfo(null);
-              if (summaryOverride) {
-                setFetchSummary(summaryOverride);
-              }
-              return perSub;
-            };
-
-            const initialCoverageResponse = await fetch(`/api/reddit/coverage?${coverageQuery.toString()}`, {
-              method: forceRefresh ? 'DELETE' : 'GET',
-              signal: controller.signal,
-              credentials: 'include',
-              ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
-            });
-            if (!initialCoverageResponse.ok) {
-              throw new Error(`HTTP ${initialCoverageResponse.status}`);
-            }
-
-            const coverageResponse = forceRefresh
-              ? await fetch(`/api/reddit/coverage?${coverageQuery.toString()}`, {
-                  signal: controller.signal,
-                  credentials: 'include',
-                  headers: { 'Cache-Control': 'no-cache' },
-                })
-              : initialCoverageResponse;
-            if (!coverageResponse.ok) {
-              throw new Error(`HTTP ${coverageResponse.status}`);
-            }
-            const initialCoverage = await coverageResponse.json();
-            if (initialCoverage?.storage) {
-              setStorageStatus(initialCoverage.storage);
-            }
-            const coverageScopeId = initialCoverage?.scopeId || null;
-            applyCoverage(initialCoverage?.summary, initialCoverage?.results);
-            syncVisibleCoverageState({
-              tone: 'accent',
-              status: 'Running',
-              detail: `Loaded cached coverage for ${subsCount} subreddits. Resuming any missing pages now.`,
-              completedSubs: computeProgress().completedSubs,
-              attemptedSubs: subsCount,
-            });
-            setFetchActivity({
-              status: 'Loaded checkpoints',
-              detail: `Loaded saved coverage for ${subsCount} subreddit${subsCount === 1 ? '' : 's'}. Resuming missing pages now.`,
-            });
-            const continueCoverageInBackground = async () => {
-              try {
-                while (true) {
-                if (!isCurrentCoverageRun()) return;
-                const { completedSubs, totalPosts } = computeProgress();
-                const pendingSubs = subs.filter((sub) => {
-                  const subKey = String(sub || '').toLowerCase();
-                  const state = coverageStates.get(subKey);
-                  if (isCoverageComplete(state) || isPageCapped(state)) return false;
-                  if (Number(state?.cooldown_until || 0) > Date.now()) return false;
-                  if (globalCooldownUntil > Date.now()) return false;
-                  return true;
-                });
-
-                if (!pendingSubs.length) {
-                  const nextCooldownUntil = Math.min(...subs
-                    .map((sub) => {
-                      const state = coverageStates.get(String(sub || '').toLowerCase());
-                      if (isCoverageComplete(state) || isPageCapped(state)) return Infinity;
-                      return Number(state?.cooldown_until || 0) || Infinity;
-                    })
-                    .concat(globalCooldownUntil > Date.now() ? [globalCooldownUntil] : []));
-                  if (Number.isFinite(nextCooldownUntil) && nextCooldownUntil > Date.now()) {
-                    const waitMs = Math.max(750, Math.min(10000, nextCooldownUntil - Date.now()));
-                    setFetchSummary({
-                      tone: 'accent',
-                      status: 'Paused',
-                      detail: `Coverage is checkpointed. Waiting about ${Math.ceil(waitMs / 1000)}s before the next Reddit request.`,
-                      completedSubs,
-                      attemptedSubs: subsCount,
-                    });
-                    setFetchActivity({
-                      status: 'Waiting on Reddit',
-                      detail: `Checkpointed coverage is paused for about ${Math.ceil(waitMs / 1000)}s before the next Reddit request.`,
-                    });
-                    syncVisibleCoverageState();
-                    await new Promise((resolve) => setTimeout(resolve, waitMs));
-                    continue;
-                  }
-                  break;
-                }
-
-                for (let subIdx = 0; subIdx < pendingSubs.length; subIdx += 1) {
-                  if (!isCurrentCoverageRun()) return;
-                  const sub = pendingSubs[subIdx];
-                  const subKey = String(sub || '').toLowerCase();
-                  const state = coverageStates.get(subKey);
-                  const pageCount = Number(state?.page_count || 0);
-                  setFetchSummary({
-                    tone: 'accent',
-                    status: 'Running',
-                    detail: `Checkpointing coverage for r/${sub}. ${completedSubs}/${subsCount} subreddits are already covered or capped. ${totalPosts} posts stored so far.`,
-                    completedSubs,
-                    attemptedSubs: subsCount,
-                  });
-                  setFetchActivity({
-                    status: `Fetching r/${sub}`,
-                    detail: `${completedSubs}/${subsCount} subreddits complete or capped. ${totalPosts} post${totalPosts === 1 ? '' : 's'} stored so far.`,
-                  });
-
-                  const advanceResponse = await fetch('/api/reddit/advance', {
-                    method: 'POST',
-                    signal: controller.signal,
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
-                    },
-                    body: JSON.stringify({
-                      subs,
-                      sub,
-                      mode,
-                      time,
-                      days,
-                      target_window_days: targetWindowDays,
-                      limit: pageLimit,
-                      include_meta: subsCount < 12 && pageCount === 0,
-                      scopeId: coverageScopeId,
-                    }),
-                  });
-
-                  if (advanceResponse.status === 401) {
-                    setNeedsAuth(true);
-                    setAuthenticated(false);
-                    setAuthChecking(false);
-                    setFetchSummary(null);
-                    setError('Sign in with Reddit to fetch your dashboard.');
-                    return;
-                  }
-
-                  if (advanceResponse.status === 429) {
-                    // App-level rate limit — pause and resume rather than terminate.
-                    let rateBody = null;
-                    try { rateBody = await advanceResponse.json(); } catch (e) {}
-                    pagedRetryAfterSeconds = Number(rateBody?.retryAfter) || pagedRetryAfterSeconds || 60;
-                    globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
-                    localPauseUntil = globalCooldownUntil;
-                    setRateLimitPauseUntil(localPauseUntil);
-                    rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
-                    syncVisibleCoverageState({
-                      tone: 'accent',
-                      status: 'Paused',
-                      detail: `Coverage paused for r/${sub}. Too many requests — resuming in about ${pagedRetryAfterSeconds}s.`,
-                      completedSubs,
-                      attemptedSubs: subsCount,
-                    });
-                    setFetchActivity({
-                      status: 'Rate limited',
-                      detail: `Reddit paused coverage for r/${sub}. Retrying in about ${pagedRetryAfterSeconds}s.`,
-                    });
-                    break;
-                  }
-
-                  if (!advanceResponse.ok) {
-                    throw new Error(`HTTP ${advanceResponse.status}`);
-                  }
-
-                  const advancePayload = await advanceResponse.json();
-                  if (advancePayload?.storage) {
-                    setStorageStatus(advancePayload.storage);
-                  }
-                  if (advancePayload?.rate_limited) {
-                    pagedRetryAfterSeconds = Number(advancePayload?.retryAfter) || pagedRetryAfterSeconds || 15;
-                    globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
-                    localPauseUntil = globalCooldownUntil;
-                    setRateLimitPauseUntil(localPauseUntil);
-                    rateLimitedSubs = Array.from(new Set([...rateLimitedSubs, sub]));
-                    if (advancePayload?.summary || advancePayload?.result) {
-                      applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
-                    }
-                    syncVisibleCoverageState({
-                      tone: 'accent',
-                      status: 'Paused',
-                      detail: `Saved progress for r/${sub}. Reddit asked for a short cooldown, so coverage will resume in about ${pagedRetryAfterSeconds}s.`,
-                      completedSubs,
-                      attemptedSubs: subsCount,
-                    });
-                    setFetchActivity({
-                      status: 'Cooldown saved',
-                      detail: `Saved progress for r/${sub}. Coverage will resume in about ${pagedRetryAfterSeconds}s.`,
-                    });
-                    break;
-                  }
-                  if (advancePayload?.advanced === false && Number(advancePayload?.cooldown_until || 0) > Date.now()) {
-                    globalCooldownUntil = Number(advancePayload.cooldown_until);
-                    localPauseUntil = globalCooldownUntil;
-                    setRateLimitPauseUntil(localPauseUntil);
-                    if (advancePayload?.summary || advancePayload?.result) {
-                      applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
-                    }
-                    syncVisibleCoverageState({
-                      tone: 'accent',
-                      status: 'Paused',
-                      detail: `Saved progress for r/${sub}. Waiting for Reddit's cooldown window to expire before retrying.`,
-                      completedSubs,
-                      attemptedSubs: subsCount,
-                    });
-                    setFetchActivity({
-                      status: 'Waiting on cooldown',
-                      detail: `Saved progress for r/${sub} and waiting for Reddit's cooldown window to expire.`,
-                    });
-                    break;
-                  }
-                  authMode = authMode || advancePayload?.auth_mode || null;
-                  applyCoverage(advancePayload?.summary, advancePayload?.result ? [advancePayload.result] : []);
-                  rateLimitedSubs = rateLimitedSubs.filter((value) => value !== sub);
-                  if (!subs.some((candidate) => {
-                    const candidateState = coverageStates.get(String(candidate || '').toLowerCase());
-                    return Number(candidateState?.cooldown_until || 0) > Date.now();
-                  })) {
-                    pagedRetryAfterSeconds = 0;
-                  }
-                  if (!isCoverageComplete(coverageStates.get(subKey)) && effectiveMaxPages !== 0 && (pageCount + 1) >= effectiveMaxPages) {
-                    coverageStates.set(subKey, {
-                      ...(coverageStates.get(subKey) || {}),
-                      status: 'capped',
-                    });
-                  }
-                  const progressAfterAdvance = computeProgress();
-                  syncVisibleCoverageState({
-                    tone: 'accent',
-                    status: 'Running',
-                    detail: `Checkpointing coverage for r/${sub}. ${progressAfterAdvance.completedSubs}/${subsCount} subreddits are already covered or capped. ${progressAfterAdvance.totalPosts} posts stored so far.`,
-                    completedSubs: progressAfterAdvance.completedSubs,
-                    attemptedSubs: subsCount,
-                  });
-                  setFetchActivity({
-                    status: `Stored r/${sub}`,
-                    detail: `${progressAfterAdvance.completedSubs}/${subsCount} subreddits complete or capped. ${progressAfterAdvance.totalPosts} post${progressAfterAdvance.totalPosts === 1 ? '' : 's'} stored so far.`,
-                  });
-
-                  await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
-                }
-                }
-
-                if (!isCurrentCoverageRun()) return;
-                const pagedResults = subs.map((sub) => {
-                const subKey = String(sub || '').toLowerCase();
-                const state = coverageStates.get(subKey);
-                const result = coverageResults.get(subKey);
-                return {
-                  subreddit: sub,
-                  meta: result?.state?.meta || result?.meta || state?.meta || null,
-                  posts: Array.isArray(result?.posts) ? result.posts : [],
-                  partial: isPageCapped(state),
-                  coverage_state: state || null,
-                  error: state?.last_error || null,
-                };
-              });
-
-                const activeCooldownSubs = subs.filter((sub) => {
-                  const state = coverageStates.get(String(sub || '').toLowerCase());
-                  return Number(state?.cooldown_until || 0) > Date.now();
-                });
-                const payload = {
-                mode,
-                time,
-                days,
-                limit: Math.min(25, limit),
-                max_pages: maxPages,
-                fetch_all_pages: maxPages === 0,
-                auth_mode: authMode,
-                results: pagedResults,
-                fetched_at: Date.now(),
-                request_capped: false,
-                rate_limited: activeCooldownSubs.length > 0,
-                rate_limited_subreddits: Array.from(new Set([
-                  ...rateLimitedSubs,
-                  ...activeCooldownSubs,
-                ])),
-                retry_after_seconds: pagedRetryAfterSeconds,
-                timed_out: false,
-                timed_out_subreddits: [],
-                coverage_summary: buildCoverageCounts(),
-                metrics: {
-                  subredditCount: pagedResults.length,
-                  totalPosts: pagedResults.reduce((sum, item) => sum + (item.posts?.length || 0), 0),
-                  rateLimitedCount: activeCooldownSubs.length,
-                  durationMs: Date.now() - pagedStartedAt,
-                  timedOutCount: 0,
-                },
-              };
-
-                const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
-                if (payload.rate_limited && retryAfterSeconds > 0) {
-                  localPauseUntil = Date.now() + retryAfterSeconds * 1000;
-                  setRateLimitPauseUntil(localPauseUntil);
-                } else {
-                  localPauseUntil = null;
-                  setRateLimitPauseUntil(null);
-                }
-
-                const perSub = buildPerSubFromCoverage();
-
-                setNeedsAuth(false);
-                setAuthenticated(payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated);
-                setAuthChecking(false);
-                setData(perSub);
-                setFetchedAt(Number(payload?.fetched_at) || Date.now());
-                setSnapshotInfo(null);
-                setFetchSummary(buildFetchSummary(payload, perSub, {
-                  requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
-                  depthAutoCapped: false,
-                  effectiveMaxPages: maxPages,
-                  subsCount,
-                }));
-                const totalFetchedPosts = perSub.reduce((sum, group) => sum + ((group?.posts || []).length), 0);
-                setFetchActivity({
-                  status: 'Fetch complete',
-                  detail: `Fetched ${totalFetchedPosts} post${totalFetchedPosts === 1 ? '' : 's'}. Starting opportunity ranking next.`,
-                });
-
-                if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
-                  await syncDashboardSnapshot(perSub);
-                }
-                await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
-
-                const plan = getAutoRefreshPlan({
-                  autoRefreshEnabled,
-                  subsLength: subs.length,
-                  intervalMinutes: autoRefreshInterval,
-                  now: Date.now(),
-                  minMinutes: MIN_AUTO_REFRESH_MINUTES,
-                });
-                const pausedNext = localPauseUntil && localPauseUntil > Date.now() ? localPauseUntil : null;
-                setNextRefreshAt(pausedNext || plan.nextRefreshAt);
-                if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
-              } finally {
-                setLoading(false);
-                setFetchActivity(null);
-                if (coverageAbortRef.current === controller) {
-                  coverageAbortRef.current = null;
-                }
-              }
-            };
-
-            keepCoverageController = true;
-            void continueCoverageInBackground().catch((fetchError) => {
-              // Use run ID instead of isCurrentCoverageRun() here, because the
-              // finally block inside continueCoverageInBackground already cleared
-              // coverageAbortRef before this catch handler runs, which would make
-              // isCurrentCoverageRun() always return false and silently swallow errors.
-              if (coverageRunIdRef.current !== refreshRunId) return;
-              setNeedsAuth(false);
-              setSnapshotInfo(null);
-              setFetchSummary(null);
-              setFetchActivity({
-                status: 'Failed',
-                detail: fetchError?.message || 'Fetch failed before the checkpointed run completed.',
-              });
-              if (fetchError?.name === 'AbortError') {
-                return;
-              }
-              setError(fetchError.message || 'Fetch failed — check your connection and try again');
+              days,
+              limit,
+              maxPages,
+              forceRefresh,
+              triggeredByAuto,
+              effectiveMaxPages,
+              controller,
+              refreshRunId,
+              coverageAbortRef,
+              coverageRunIdRef,
+              data,
+              authenticated,
+              autoRefreshEnabled,
+              autoRefreshInterval,
+              minAutoRefreshMinutes: MIN_AUTO_REFRESH_MINUTES,
+              getAutoRefreshPlan,
+              aiLlmPostLimit,
+              buildCoverageQuery,
+              requestCoverage,
+              requestCoverageAdvance,
+              isCoverageComplete,
+              isCoveragePageCapped,
+              computeCoverageProgress,
+              buildCoverageCounts,
+              buildFetchSummary,
+              setFetchMethod,
+              setSidecarSyncSuppressedUntil,
+              setFetchSummary,
+              setFetchActivity,
+              setData,
+              setFetchedAt,
+              setSnapshotInfo,
+              setStorageStatus,
+              setNeedsAuth,
+              setAuthenticated,
+              setAuthChecking,
+              setError,
+              setRateLimitPauseUntil,
+              setLoading,
+              setNextRefreshAt,
+              setLastAutoRefreshAt,
+              syncDashboardSnapshot,
+              runAiRanking,
             });
             return;
           }
 
-          setFetchMethod('server');
-          setSidecarSyncSuppressedUntil(null);
-          const determineChunkSize = () => {
-            if (subsCount > 21) return wantsDeepFetch ? 6 : 7;
-            if (subsCount > 14) return 7;
-            if (subsCount > 7 && wantsDeepFetch) return 7;
-            return subsCount;
-          };
-          const chunkSize = determineChunkSize();
-          const subChunks = [];
-          for (let i = 0; i < subs.length; i += chunkSize) {
-            subChunks.push(subs.slice(i, i + chunkSize));
-          }
-
-          const shapeForChunk = (chunkLength) => {
-            let chunkLimit = limit;
-            let chunkMaxPages = maxPages;
-            if (chunkLength >= 12) {
-              chunkLimit = Math.min(25, chunkLimit);
-            } else if (chunkLength >= 6) {
-              chunkLimit = Math.min(25, chunkLimit);
-            }
-            if (chunkLength >= 20) {
-              chunkMaxPages = Math.min(chunkMaxPages, 2);
-            } else if (chunkLength >= 12) {
-              chunkMaxPages = Math.min(chunkMaxPages, 3);
-            } else if (chunkLength >= 8) {
-              chunkMaxPages = Math.min(chunkMaxPages, 4);
-            }
-            return {
-              chunkLimit,
-              chunkMaxPages,
-              chunkWasCapped: chunkLimit !== limit || chunkMaxPages !== maxPages,
-            };
-          };
-
-          const mergedRequestStartedAt = Date.now();
-          const mergedPayload = {
+          localPauseUntil = await runSnapshotRefreshFlow({
+            subs,
+            subsCount,
             mode,
             time,
             days,
-            limit: limit,
-            max_pages: maxPages,
-            fetch_all_pages: maxPages === 0,
-            results: [],
-            fetched_at: Date.now(),
-            request_capped: false,
-            rate_limited: false,
-            rate_limited_subreddits: [],
-            retry_after_seconds: 0,
-            timed_out: false,
-            timed_out_subreddits: [],
-            auth_mode: null,
-            metrics: {
-              subredditCount: 0,
-              totalPosts: 0,
-              rateLimitedCount: 0,
-              durationMs: 0,
-              timedOutCount: 0,
-              retryAfterSeconds: 0,
-              redditRequestCount: 0,
-              sharedCooldownHit: false,
-              requestCapped: false,
-            },
-          };
-          let sawRateLimitedHeader = false;
-
-          for (let chunkIdx = 0; chunkIdx < subChunks.length; chunkIdx++) {
-            const chunkSubs = subChunks[chunkIdx];
-            const { chunkLimit, chunkMaxPages, chunkWasCapped } = shapeForChunk(chunkSubs.length);
-            setFetchActivity({
-              status: `Fetching batch ${chunkIdx + 1}/${subChunks.length}`,
-              detail: `Requesting ${chunkSubs.length} subreddit${chunkSubs.length === 1 ? '' : 's'} through the snapshot API.`,
-            });
-            const params = new URLSearchParams({
-              subs: chunkSubs.join(','),
-              mode,
-              time,
-              days: String(days),
-              limit: String(chunkLimit)
-            });
-            params.set('max_pages', chunkMaxPages === 0 ? 'all' : String(chunkMaxPages));
-            if (forceRefresh) {
-              params.set('_ts', `${Date.now()}_${chunkIdx}`);
-              params.set('fresh', '1');
-            }
-
-            const requestUrl = `${DEFAULT_API_URL}?${params.toString()}`;
-            let response = await fetch(requestUrl, {
-              signal: controller.signal,
-              ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
-            });
-
-            if (forceRefresh && response.status >= 500) {
-              const fallbackParams = new URLSearchParams(params);
-              fallbackParams.delete('_ts');
-              fallbackParams.delete('fresh');
-              const fallbackUrl = `${DEFAULT_API_URL}?${fallbackParams.toString()}`;
-              const fallbackResponse = await fetch(fallbackUrl, { signal: controller.signal });
-              if (fallbackResponse.ok) {
-                response = fallbackResponse;
-              }
-            }
-
-            if (response.status === 401) {
-              setNeedsAuth(true);
-              setAuthenticated(false);
-              setAuthChecking(false);
-              setFetchSummary(null);
-              setError('Sign in with Reddit to fetch your dashboard.');
-              return;
-            }
-
-            if (response.status === 429) {
-              let responseBody = null;
-              try { responseBody = await response.json(); } catch (e) {}
-              const retryHeader = Number(response.headers.get('Retry-After')) || 0;
-              const retryAfterSeconds = Number(responseBody?.retryAfter) || retryHeader || 0;
-              if (retryAfterSeconds > 0) {
-                localPauseUntil = Date.now() + retryAfterSeconds * 1000;
-                setRateLimitPauseUntil(localPauseUntil);
-              }
-              const isAppLimit = responseBody?.source === 'app';
-              const sourceLabel = isAppLimit ? '⚡ App throttle' : '🔒 Rate limit';
-              const sourceMessage = responseBody?.message || (isAppLimit ? 'Too many requests from this browser.' : 'Dashboard request limit reached.');
-              setFetchSummary(null);
-              setError(`${sourceLabel}: ${sourceMessage}${retryAfterSeconds > 0 ? ` Retry in ~${retryAfterSeconds}s.` : ''}`);
-              return;
-            }
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            sawRateLimitedHeader = sawRateLimitedHeader || response.headers.get('X-Rate-Limited') === '1';
-            const chunkPayload = await response.json();
-            if (chunkPayload?.storage) {
-              setStorageStatus(chunkPayload.storage);
-            }
-            const chunkRetryAfter = Number(chunkPayload?.retry_after_seconds) || Number(response.headers.get('Retry-After')) || 0;
-            mergedPayload.results.push(...(Array.isArray(chunkPayload.results) ? chunkPayload.results : []));
-            mergedPayload.rate_limited = mergedPayload.rate_limited || Boolean(chunkPayload.rate_limited);
-            mergedPayload.timed_out = mergedPayload.timed_out || Boolean(chunkPayload.timed_out);
-            mergedPayload.retry_after_seconds = Math.max(mergedPayload.retry_after_seconds, chunkRetryAfter);
-            mergedPayload.rate_limited_subreddits.push(...(Array.isArray(chunkPayload.rate_limited_subreddits) ? chunkPayload.rate_limited_subreddits : []));
-            mergedPayload.timed_out_subreddits.push(...(Array.isArray(chunkPayload.timed_out_subreddits) ? chunkPayload.timed_out_subreddits : []));
-            mergedPayload.auth_mode = mergedPayload.auth_mode || chunkPayload?.auth_mode || null;
-            mergedPayload.metrics.subredditCount += Number(chunkPayload?.metrics?.subredditCount) || chunkSubs.length;
-            mergedPayload.metrics.totalPosts += Number(chunkPayload?.metrics?.totalPosts) || 0;
-            mergedPayload.metrics.rateLimitedCount += Number(chunkPayload?.metrics?.rateLimitedCount) || 0;
-            mergedPayload.metrics.timedOutCount += Number(chunkPayload?.metrics?.timedOutCount) || 0;
-            mergedPayload.metrics.retryAfterSeconds = Math.max(mergedPayload.metrics.retryAfterSeconds, Number(chunkPayload?.metrics?.retryAfterSeconds) || chunkRetryAfter || 0);
-            mergedPayload.metrics.redditRequestCount += Number(chunkPayload?.metrics?.redditRequestCount) || 0;
-            mergedPayload.metrics.sharedCooldownHit = mergedPayload.metrics.sharedCooldownHit || Boolean(chunkPayload?.metrics?.sharedCooldownHit);
-            mergedPayload.request_capped = mergedPayload.request_capped || Boolean(chunkPayload?.request_capped) || chunkWasCapped;
-            mergedPayload.metrics.requestCapped = mergedPayload.metrics.requestCapped || Boolean(chunkPayload?.metrics?.requestCapped) || mergedPayload.request_capped;
-
-            if (chunkPayload?.rate_limited || response.headers.get('X-Rate-Limited') === '1') {
-              break;
-            }
-
-            if (chunkIdx < subChunks.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 400));
-            }
-          }
-
-          mergedPayload.fetched_at = Date.now();
-          mergedPayload.rate_limited_subreddits = Array.from(new Set(mergedPayload.rate_limited_subreddits));
-          mergedPayload.timed_out_subreddits = Array.from(new Set(mergedPayload.timed_out_subreddits));
-          mergedPayload.metrics.durationMs = Date.now() - mergedRequestStartedAt;
-
-          const payload = mergedPayload;
-          const retryAfterSeconds = Number(payload?.retry_after_seconds) || 0;
-          const rateLimitedHeader = sawRateLimitedHeader;
-          if (rateLimitedHeader || payload.rate_limited) {
-            if (retryAfterSeconds > 0) {
-              localPauseUntil = Date.now() + retryAfterSeconds * 1000;
-              setRateLimitPauseUntil(localPauseUntil);
-            }
-            const affected = Array.isArray(payload.rate_limited_subreddits) ? payload.rate_limited_subreddits.length : 0;
-            const affectedMsg = affected ? ` on ${affected} subreddit${affected === 1 ? '' : 's'}` : '';
-            const cooldownMsg = retryAfterSeconds > 0 ? `Cooling down ~${retryAfterSeconds}s.` : 'Try fewer subs or smaller fetch depth.';
-            setError(`🔒 Reddit rate limit${affectedMsg}. ${cooldownMsg}`);
-          } else {
-            localPauseUntil = null;
-            setRateLimitPauseUntil(null);
-          }
-          const results = Array.isArray(payload.results) ? payload.results : [];
-          const previousBySub = new Map((data || []).map(item => [String(item.subreddit || '').toLowerCase(), item]));
-          const perSub = subs.map(sub => {
-            const subKey = sub.toLowerCase();
-            const match = results.find(r => (r.subreddit || '').toLowerCase() === subKey);
-            const previous = previousBySub.get(subKey);
-
-            if (!match && previous) {
-              return { ...previous, subreddit: sub, stale: true, stale_reason: 'missing_result' };
-            }
-
-            if (match?.error && previous) {
-              return {
-                ...previous,
-                subreddit: sub,
-                stale: true,
-                stale_reason: match.error_code || 'fetch_error',
-                error: match.error || null,
-              };
-            }
-
-              if (match) {
-                return {
-                  subreddit: match.subreddit,
-                  meta: match.meta || previous?.meta || null,
-                  posts: Array.isArray(match.posts) ? match.posts : [],
-                  partial: Boolean(match.partial),
-                  coverage_state: match.coverage_state || null,
-                  error: match.error || null,
-                  stale: false,
-                };
-              }
-
-            return {
-              subreddit: sub,
-              posts: previous?.posts || [],
-              meta: previous?.meta || null,
-              partial: false,
-              error: null,
-              stale: Boolean(previous),
-              stale_reason: previous ? 'fallback_previous' : null,
-            };
+            limit,
+            maxPages,
+            forceRefresh,
+            triggeredByAuto,
+            wantsDeepFetch,
+            effectiveMaxPages,
+            controller,
+            defaultApiUrl: DEFAULT_API_URL,
+            data,
+            previousPostScores,
+            notificationsEnabled,
+            upvoteThreshold,
+            alertKeywords,
+            aiLlmPostLimit,
+            determineSnapshotChunkSize,
+            shapeSnapshotChunk,
+            buildSnapshotParams,
+            requestSnapshotChunk,
+            buildFetchSummary,
+            setFetchMethod,
+            setSidecarSyncSuppressedUntil,
+            setFetchActivity,
+            setNeedsAuth,
+            setAuthenticated,
+            setAuthChecking,
+            setFetchSummary,
+            setError,
+            setStorageStatus,
+            setRateLimitPauseUntil,
+            setData,
+            setFetchedAt,
+            setSnapshotInfo,
+            setPreviousPostScores,
+            syncDashboardSnapshot,
+            runAiRanking,
+            localPauseUntil,
           });
-          setNeedsAuth(false);
-          setAuthenticated(payload?.auth_mode !== 'public');
-          setAuthChecking(false);
-          setData(perSub);
-          setFetchedAt(Number(payload?.fetched_at) || Date.now());
-          setSnapshotInfo(payload?.snapshot || null);
-          setFetchSummary(buildFetchSummary(payload, perSub, {
-            requestedFetchAllPages: maxPages === 0 || Boolean(payload?.fetch_all_pages),
-            depthAutoCapped: Boolean(payload?.request_capped),
-            effectiveMaxPages: payload?.request_capped ? effectiveMaxPages : maxPages,
-            subsCount,
-          }));
-          const totalFetchedPosts = perSub.reduce((sum, group) => sum + ((group?.posts || []).length), 0);
-          setFetchActivity({
-            status: 'Fetch complete',
-            detail: `Fetched ${totalFetchedPosts} post${totalFetchedPosts === 1 ? '' : 's'}. Starting opportunity ranking next.`,
-          });
-
-          if (payload?.auth_mode !== 'public') {
-            await syncDashboardSnapshot(perSub);
-          }
-
-          await runAiRanking({ perSub, triggeredByAuto, llmPostLimit: aiLlmPostLimit });
-
-          // Check for notifications on auto-refresh
-          if (triggeredByAuto) {
-            const allNewPosts = perSub.flatMap(g => g.posts || []);
-            const newScores = new Map();
-            allNewPosts.forEach(post => newScores.set(post.id, Number(post.score) || 0));
-            setPreviousPostScores(newScores);
-
-            if (Notification.permission === 'granted') {
-              if (notificationsEnabled) {
-                // Check for upvote threshold crossing
-                allNewPosts.forEach(post => {
-                  const prevScore = previousPostScores.get(post.id);
-                  const currentScore = Number(post.score) || 0;
-                  if (prevScore !== undefined && prevScore < upvoteThreshold && currentScore >= upvoteThreshold) {
-                    new Notification('Post crossed threshold!', { body: `"${post.title}" now has ${currentScore} upvotes`, icon: '/favicon.ico' });
-                  }
-                });
-              }
-              if (alertKeywords.trim()) {
-                const keywords = alertKeywords.toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
-                allNewPosts.forEach(post => {
-                  if (!previousPostScores.has(post.id)) {
-                    const title = (post.title || '').toLowerCase();
-                    const selftext = (post.selftext || '').toLowerCase();
-                    const matchedKeyword = keywords.find(kw => title.includes(kw) || selftext.includes(kw));
-                    if (matchedKeyword) {
-                      new Notification(`Keyword "${matchedKeyword}" found!`, { body: post.title, icon: '/favicon.ico' });
-                    }
-                  }
-                });
-              }
-            }
-          }
         } catch (fetchError) {
           setNeedsAuth(false);
           setSnapshotInfo(null);
@@ -3047,85 +1815,14 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         if (key === 'ai') setMinPriorityFilter('');
       }
 
-      function buildFetchSummary(payload, perSub, options = {}) {
-        const requestedFetchAllPages = Boolean(options?.requestedFetchAllPages);
-        const depthAutoCapped = Boolean(options?.depthAutoCapped);
-        const effectiveMaxPages = Number(options?.effectiveMaxPages);
-        const subsCount = Number(options?.subsCount) || 0;
-        const timedOutSubs = Array.isArray(payload?.timed_out_subreddits) ? payload.timed_out_subreddits : [];
-        const rateLimitedSubs = Array.isArray(payload?.rate_limited_subreddits) ? payload.rate_limited_subreddits : [];
-        const partialSubs = Array.isArray(perSub) ? perSub.filter(group => group?.partial).map(group => group.subreddit) : [];
-        const attemptedSubs = Array.isArray(perSub) ? perSub.length : 0;
-        const coverageSummary = payload?.coverage_summary || {};
-        const coverageDetail = coverageSummary && attemptedSubs > 0
-          ? ` Coverage: ${Number(coverageSummary.complete1dCount) || 0}/${attemptedSubs} at 1d, ${Number(coverageSummary.complete3dCount) || 0}/${attemptedSubs} at 3d, ${Number(coverageSummary.complete5dCount) || 0}/${attemptedSubs} at 5d.`
-          : '';
-        const incompleteSubs = Array.from(new Set([
-          ...timedOutSubs,
-          ...rateLimitedSubs,
-          ...partialSubs,
-        ].filter(Boolean)));
-        const completedSubs = Math.max(0, attemptedSubs - incompleteSubs.length);
-
-        if (timedOutSubs.length > 0) {
-          return {
-            tone: 'warning',
-            status: 'Incomplete',
-            detail: `Stopped early on ${timedOutSubs.length} subreddit${timedOutSubs.length === 1 ? '' : 's'} because the request timed out.${coverageDetail}`,
-            completedSubs,
-            attemptedSubs,
-          };
-        }
-
-        if (rateLimitedSubs.length > 0) {
-          return {
-            tone: 'warning',
-            status: 'Incomplete',
-            detail: `Stopped early on ${rateLimitedSubs.length} subreddit${rateLimitedSubs.length === 1 ? '' : 's'} because Reddit rate-limited the request.${coverageDetail}`,
-            completedSubs,
-            attemptedSubs,
-          };
-        }
-
-        if (partialSubs.length > 0) {
-          return {
-            tone: 'warning',
-            status: 'Capped',
-            detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.${coverageDetail}`,
-            completedSubs,
-            attemptedSubs,
-          };
-        }
-
-        if (depthAutoCapped && Number.isFinite(effectiveMaxPages)) {
-          return {
-            tone: 'warning',
-            status: 'Capped',
-            detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.${coverageDetail}`,
-            completedSubs,
-            attemptedSubs,
-          };
-        }
-
-        return {
-          tone: 'success',
-          status: 'Complete',
-          detail: requestedFetchAllPages
-            ? `Fetched all available posts Reddit returned for the selected timeframe.${coverageDetail}`
-            : `Fetched the requested scope for the selected timeframe.${coverageDetail}`,
-          completedSubs: attemptedSubs,
-          attemptedSubs,
-        };
-      }
-
       function renderStatusChip(label, value, tone = 'neutral', title = undefined) {
         const toneClass =
           tone === 'success'
-            ? 'bg-emerald-100/90 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-800/60'
+            ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-800/60'
             : tone === 'warning'
-              ? 'bg-amber-100/90 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60'
+              ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60'
               : tone === 'accent'
-                ? 'bg-sky-100/90 text-sky-900 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-800/60'
+                ? 'bg-sky-100 text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-800/60'
                 : 'bg-white text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700';
         return h('span', {
           className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`,
@@ -3193,7 +1890,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           'p-3 rounded-lg border transition-colors',
           selected
             ? 'border-sky-400 bg-sky-50 dark:border-[#0284C7]/55 dark:bg-[#0284C7]/15'
-            : 'border-zinc-200 dark:border-zinc-700 bg-white/70 dark:bg-zinc-800/60',
+            : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800',
           emphasize ? 'shadow-sm' : '',
         ].join(' ');
 
@@ -3237,7 +1934,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         onTouchEnd: handleTouchEnd
       },
         // Header
-        h('header', { className: 'bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
+        h('header', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
             h('div', { className: 'flex items-center gap-2.5' },
               h('svg', { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', className: 'shrink-0', 'aria-hidden': 'true' },
                 h('rect', { x: 1.5, y: 2.5, width: 17, height: 11, rx: 2, stroke: '#0284C7', strokeWidth: 1.5 }),
@@ -3349,7 +2046,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           )
         ),
         loading && fetchActivity && h('div', {
-          className: 'border-b border-sky-200 bg-sky-50/80 px-4 py-2 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/20 dark:text-sky-200'
+          className: 'border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900 dark:border-sky-800/60 dark:bg-sky-900/20 dark:text-sky-200'
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, `${fetchActivity.status}: ${fetchActivity.detail}`),
@@ -3358,10 +2055,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         ),
         fetchSummary && !loading && !error && h('div', {
           className: `border-b px-4 py-2 text-xs sm:text-sm shrink-0 ${fetchSummary.tone === 'warning'
-            ? 'bg-amber-100/70 text-amber-900 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/60'
+            ? 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/60'
             : fetchSummary.tone === 'accent'
-              ? 'bg-sky-100/70 text-sky-950 border-sky-200 dark:bg-sky-950/30 dark:text-sky-200 dark:border-sky-900/60'
-              : 'bg-emerald-100/70 text-emerald-900 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-200 dark:border-emerald-900/60'}`
+              ? 'bg-sky-100 text-sky-900 border-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-800/60'
+              : 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/60'}`
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, fetchSummary.detail),
@@ -3371,103 +2068,24 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
         // Main content area
         h('div', { className: 'flex-1 flex overflow-hidden' },
-          // Left sidebar - Subreddits
-          h('aside', { className: `w-52 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
-            h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
-              h('span', { className: 'font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Subreddits'),
-                h('button', {
-                onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                'aria-label': 'Add subreddit',
-                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
-                title: 'Add subreddit'
-              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
-              ))
-            ),
-            h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-2 space-y-1' },
-              subs.length === 0
-                ? h('div', { className: 'p-3 text-center' },
-                    h('div', { className: 'w-10 h-10 mx-auto mb-3 rounded-xl bg-[#0284C7]/8 dark:bg-[#0284C7]/12 border border-[#0284C7]/20 dark:border-[#0284C7]/25 flex items-center justify-center' },
-                      h('svg', { className: 'w-5 h-5 text-[#0284C7] dark:text-sky-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4v16m8-8H4' })
-                      )
-                    ),
-                    h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white mb-1' }, 'Add subreddits'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-3' }, 'Pick a starter pack or add custom subs.'),
-                    h('div', { className: 'space-y-2' },
-                      STARTER_PACKS.map(pack =>
-                        h('button', {
-                          key: pack.id,
-                          onClick: () => handleApplyStarterPack(pack),
-                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-white dark:hover:bg-zinc-800 text-left text-sm transition-colors'
-                        },
-                          h('span', { className: 'flex items-center gap-2.5' },
-                            renderStarterPackIcon(pack.id),
-                            h('span', { className: 'min-w-0' },
-                              h('span', { className: 'block font-medium text-zinc-700 dark:text-zinc-300' }, pack.label),
-                              h('span', { className: 'block text-xs text-zinc-500 dark:text-zinc-400' }, `${pack.subs.length} starter subreddits`)
-                            )
-                          )
-                        )
-                      )
-                    ),
-                    h('button', {
-                      onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                      className: 'mt-3 text-xs text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                    }, 'Add custom subreddits')
-                  )
-                : [
-                    h('button', {
-                      key: 'all',
-                      onClick: () => setSelectedSub('ALL'),
-                      className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-zinc-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`
-                    },
-                      h('div', { className: 'flex items-center justify-between' },
-                        h('span', null, 'All'),
-                        h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, allPosts.length)
-                      )
-                    ),
-                    ...subs.map(sub => {
-                      const postCount = allPosts.filter(p => p.subreddit?.toLowerCase() === sub.toLowerCase()).length;
-                      const isSelected = selectedSub.toLowerCase() === sub.toLowerCase();
-                      const meta = subMetaMap.get(sub) || {};
-                      const coverageState = coverageStateBySub.get(String(sub || '').toLowerCase()) || null;
-                      return h('div', {
-                      key: sub,
-                        className: `group rounded-lg transition-colors ${isSelected ? 'bg-white ring-1 ring-zinc-200 shadow-sm dark:bg-zinc-800 dark:ring-zinc-700' : 'hover:bg-white dark:hover:bg-zinc-800'}`
-                      },
-                        h('button', {
-                      onClick: () => setSelectedSub(sub),
-                          className: `w-full px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`
-                    },
-                      h('div', { className: 'flex items-center justify-between' },
-                            h('span', { className: `text-sm font-medium ${isSelected ? 'text-zinc-950 dark:text-sky-200' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
-                        h('div', { className: 'flex items-center gap-2' },
-                              h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, postCount),
-                          h('button', {
-                                onClick: (e) => { e.stopPropagation(); handleRemoveSub(sub); },
-                                'aria-label': `Remove r/${sub}`,
-                                className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
-                            title: `Remove r/${sub}`
-                              }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
-                              ))
-                            )
-                          ),
-                          h('div', { className: 'mt-1 flex items-center gap-1.5 flex-wrap' },
-                            meta.subscribers && h('div', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500' }, `${formatSubs(meta.subscribers)} members`),
-                            coverageState && renderCoveragePill('1d', Boolean(coverageState.complete_1d)),
-                            coverageState && renderCoveragePill('3d', Boolean(coverageState.complete_3d)),
-                            coverageState && renderCoveragePill('5d', Boolean(coverageState.complete_5d)),
-                            coverageState?.status === 'cooldown' && h('span', { className: 'text-[10px] text-amber-600 dark:text-amber-400 font-medium' }, 'cooldown'),
-                            coverageState?.status === 'capped' && h('span', { className: 'text-[10px] text-amber-600 dark:text-amber-400 font-medium' }, 'capped')
-                          )
-                        )
-                      );
-                    })
-                  ]
-            )
-          ),
+          renderSidebar({
+            h,
+            mobileView,
+            subs,
+            setAddSubOpen,
+            addSubInputRef,
+            STARTER_PACKS,
+            handleApplyStarterPack,
+            renderStarterPackIcon,
+            setSelectedSub,
+            selectedSub,
+            allPosts,
+            subMetaMap,
+            coverageStateBySub,
+            formatSubs,
+            renderCoveragePill,
+            handleRemoveSub,
+          }),
 
           // Center - Post list
           h('main', { className: `flex-1 flex-col bg-zinc-100 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
@@ -3578,7 +2196,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     key: `ai-${preset.value}`,
                     onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
                     'aria-pressed': minPriorityFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
@@ -3651,16 +2269,16 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               }, '+ Save filters'),
               filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1.5 flex-wrap' },
                 filterPresets.map(preset =>
-                  h('span', { key: preset.id, className: 'inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50 text-[11px] font-medium text-violet-700 dark:text-violet-300' },
+                  h('span', { key: preset.id, className: 'inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-[#0284C7]/15 border border-sky-200 dark:border-[#0284C7]/30 text-[11px] font-medium text-[#0369A1] dark:text-sky-300' },
                     h('button', {
                       onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setKeyword(preset.keyword); },
                       title: `Apply: ${preset.label}`,
-                      className: 'pl-2.5 pr-1 py-1 hover:text-violet-900 dark:hover:text-violet-100 transition-colors'
+                      className: 'pl-2.5 pr-1 py-1 hover:text-[#0284C7] dark:hover:text-sky-100 transition-colors'
                     }, preset.label),
                     h('button', {
                       onClick: () => setFilterPresets(prev => prev.filter(p => p.id !== preset.id)),
                       'aria-label': `Remove preset "${preset.label}"`,
-                      className: 'pr-2 py-1 text-violet-400 hover:text-violet-700 dark:hover:text-violet-200 transition-colors'
+                      className: 'pr-2 py-1 text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-100 transition-colors'
                     }, '×')
                   )
                 )
@@ -3690,7 +2308,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 ? h('div', { className: 'flex flex-col items-center justify-center h-full p-10 text-center' },
                     subs.length === 0
                       ? [
-                          h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-[#0284C7]/8 dark:bg-[#0284C7]/12 border border-[#0284C7]/20 dark:border-[#0284C7]/25 flex items-center justify-center' },
+                          h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-sky-50 dark:bg-[#0284C7]/15 border border-sky-200 dark:border-[#0284C7]/30 flex items-center justify-center' },
                             h('svg', { className: 'w-6 h-6 text-[#0284C7] dark:text-sky-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4v16m8-8H4' })
                             )
@@ -3733,7 +2351,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                             )
                           ]
                         : [
-                            h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center' },
+                            h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center' },
                               h('svg', { className: 'w-6 h-6 text-zinc-400 dark:text-zinc-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
                               )
@@ -3755,170 +2373,35 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                             )
                           ]
                   )
-                : h('ul', { role: 'list', className: 'list-none divide-y divide-zinc-200 dark:divide-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
-                    visiblePosts.slice(0, postPageLimit).map(post => {
-                        const isSelected = selectedPost?.id === post.id;
-                        const score = Number(post.score) || 0;
-                        const comments = Number(post.num_comments) || 0;
-                        const flair = post.link_flair_text;
-                        const flairBg = post.link_flair_background_color || '#e4e4e7';
-                        const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
-                        const relevanceScore = postScoreProxies.get(String(post.id));
-                        const relevanceMeta = postScoreMetadata.get(String(post.id));
-                        const opportunity = getOpportunityForPost(post.id);
-                        const priorityScore = getPriorityScore(post.id);
-                        const opportunityType = getOpportunityTypeLabel(post.id);
-                        const recommendedAction = getRecommendedActionLabel(post.id);
-                        const hasPriority = priorityScore !== null;
-                        const isHighlyRelevant = hasPriority
-                          ? priorityScore >= 0.65
-                          : relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
-                        const isVeryHighRelevant = hasPriority
-                          ? priorityScore >= 0.85
-                          : relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
-                        const velocity = velocityMeta.map.get(String(post.id));
-                        const isSpiking = velocityMeta.spiking.has(String(post.id));
-                        const upvotesPerHour = velocity?.upvotesPerHour || 0;
-                        const commentsPerHour = velocity?.commentsPerHour || 0;
-                        const borderClass = isSelected
-                          ? 'border-l-4 border-[#0284C7]'
-                          : isHighlyRelevant
-                            ? 'border-l-4 border-emerald-500'
-                            : '';
-                        const bgClass = isSelected 
-                          ? 'bg-white dark:bg-zinc-800'
-                          : isVeryHighRelevant
-                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
-                            : 'bg-zinc-50 dark:bg-zinc-900';
-                        return h('li', {
-                          key: post.id,
-                          className: `group relative w-full text-left px-4 py-3.5 hover:bg-white dark:hover:bg-zinc-800 transition-colors ${bgClass} ${borderClass}`,
-                          onMouseEnter: () => handlePostHoverStart(post),
-                          onMouseLeave: handlePostHoverEnd
-                        },
-                        h('button', {
-                          onClick: () => { setSelectedPost(post); setDetailCollapsed(false); setMobileView('detail'); },
-                          className: 'w-full text-left'
-                        },
-                        h('div', { className: 'flex gap-3' },
-                          post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default' && post.thumbnail !== 'nsfw' && h('img', {
-                            src: post.thumbnail,
-                            alt: '',
-                            className: 'w-16 h-16 object-cover rounded-lg shrink-0 bg-zinc-200 dark:bg-zinc-700'
-                          }),
-                          h('div', { className: 'flex-1 min-w-0' },
-                            h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 mb-1.5 flex-wrap' },
-                              h('span', null, `r/${post.subreddit}`),
-                              flair && h('span', {
-                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
-                                style: { backgroundColor: flairBg, color: flairTextColor }
-                              }, flair),
-                              h('span', null, '•'),
-                              h('span', { title: absoluteDate(post.created_utc) }, timeAgo(post.created_utc)),
-                              opportunityType && h('span', {
-                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 capitalize'
-                              }, opportunityType),
-                              recommendedAction && h('span', {
-                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 capitalize'
-                              }, recommendedAction),
-                              isSpiking && h('span', {
-                                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-200'
-                              }, 'Spiking'),
-                              h('span', { className: 'inline-flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400' },
-                                renderGlyph('M13 2L4 14h6l-1 8 9-12h-6l1-8z', 'w-3 h-3'),
-                                `${formatVelocity(upvotesPerHour)}/h`
-                              ),
-                              priorityScore !== null && h('span', {
-                                className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
-                                title: opportunity?.explanation?.summary
-                                  ? `Priority ${Math.round(priorityScore * 100)}/100 — ${opportunity.explanation.summary}`
-                                  : `Opportunity priority: ${Math.round(priorityScore * 100)}/100 (higher = better match for your goals)`
-                              }, `P${Math.round(priorityScore * 100)}`),
-                              !hasPriority && relevanceScore !== undefined && relevanceScore !== null && h('span', {
-                                className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
-                                  relevanceScore >= 5 ? 'bg-emerald-600 text-white' :
-                                  relevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
-                                  relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
-                                  'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-                                }`,
-                                title: aiScoresStale
-                                  ? `AI score ${relevanceScore}/5 (cached, may be stale — re-run ranking for fresh scores). ${relevanceMeta?.reason || ''}`
-                                  : relevanceMeta
-                                    ? `AI relevance: ${relevanceScore}/5 (0=reject, 5=perfect match) • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}`
-                                    : `AI relevance: ${relevanceScore}/5 (0=reject, 5=perfect match)`
-                              }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
-                            ),
-                            h('h3', { className: 'text-sm font-semibold text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
-                            showAiReasons && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1 mt-0.5' },
-                              opportunity?.explanation?.summary || buildWhyLine({
-                                post,
-                                relevanceMeta,
-                                upvotesPerHour,
-                                commentsPerHour
-                              })
-                            ),
-                            h('div', { className: 'flex items-center gap-3 mt-2 text-xs' },
-                              h('span', { className: 'inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium' },
-                                renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'),
-                                score
-                              ),
-                              h('span', { className: 'inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium' },
-                                renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
-                                comments
-                              ),
-                              commentsPerHour > 0 && h('span', { className: 'inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400' },
-                                renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'),
-                                `${formatVelocity(commentsPerHour)}/h`
-                              ),
-                              h('span', { className: 'text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
-                            )
-                          )
-                        )),
-                        h('div', { className: 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity' },
-                          h('button', {
-                            onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
-                            className: 'p-2 rounded-lg bg-white dark:bg-zinc-700 shadow-sm border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors'
-                          },
-                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z' })
-                          )),
-                          activePostMenu === post.id && h('div', {
-                            className: 'absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 py-1 z-20 animate-fadeIn',
-                            onClick: (e) => e.stopPropagation()
-                          },
-                          h('button', {
-                            onClick: () => { window.open(post.reddit_url || post.external_url, '_blank'); setActivePostMenu(null); },
-                            className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
-                          },
-                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
-                          ),
-                          'Open in Reddit'),
-                          h('button', {
-                            onClick: () => handleCopyLink(post),
-                            className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
-                          },
-                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3' })
-                          ),
-                          'Copy link'),
-                          h('button', {
-                            onClick: () => handleHidePost(post.id),
-                            className: 'w-full px-3 py-2 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2'
-                          },
-                          h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21' })
-                          ),
-                          'Hide post'))
-                        ));
-                      }),
-                    visiblePosts.length > postPageLimit && h('li', { className: 'flex items-center justify-center py-6 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
-                      h('button', {
-                        onClick: () => setPostPageLimit(prev => prev + 150),
-                        className: 'px-5 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                      }, `Load ${Math.min(150, visiblePosts.length - postPageLimit)} more posts  (${postPageLimit} of ${visiblePosts.length} shown)`)
-                    )
-                  ),
+                : renderPostList({
+                    h,
+                    visiblePosts,
+                    postPageLimit,
+                    selectedPostId: selectedPost?.id || null,
+                    postScoreProxies,
+                    postScoreMetadata,
+                    velocityMeta,
+                    getOpportunityForPost,
+                    getPriorityScore,
+                    getOpportunityTypeLabel,
+                    getRecommendedActionLabel,
+                    handlePostHoverStart,
+                    handlePostHoverEnd,
+                    onSelectPost: (post) => { setSelectedPost(post); setDetailCollapsed(false); setMobileView('detail'); },
+                    activePostMenu,
+                    setActivePostMenu,
+                    handleCopyLink,
+                    handleHidePost,
+                    setPostPageLimit,
+                    showAiReasons,
+                    aiScoresStale,
+                    aiScoreLabel,
+                    buildWhyLine,
+                    formatVelocity,
+                    renderGlyph,
+                    timeAgo,
+                    absoluteDate,
+                  }),
               // Hover preview tooltip
               hoverPost && h('div', { 
                 className: 'fixed z-50 max-w-sm bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-4 pointer-events-none animate-fadeIn',
@@ -3937,176 +2420,30 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           ),
 
           // Right - Post detail
-          !detailCollapsed && h('aside', { className: `w-96 bg-white dark:bg-zinc-800 flex-col shrink-0 ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}` },
-            h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
-              h('div', { className: 'flex items-center gap-2' },
-                h('button', {
-                  onClick: () => setMobileView('posts'),
-                  'aria-label': 'Back to posts',
-                  className: 'lg:hidden p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
-                  title: 'Back to posts'
-                }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
-                )),
-                h('span', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400' }, 'Post Detail')
-              ),
-              h('button', {
-                onClick: () => setDetailCollapsed(true),
-                'aria-label': 'Collapse detail pane',
-                className: 'hidden lg:block p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
-                title: 'Collapse detail pane'
-              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 5l7 7-7 7M5 5l7 7-7 7' })
-              ))
-            ),
-            h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-4' },
-            !selectedPost
-                ? h('div', { className: 'flex flex-col items-center justify-center h-full gap-3 text-center px-6' },
-                    h('div', { className: 'w-14 h-14 rounded-2xl bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center' },
-                      h('svg', { className: 'w-6 h-6 text-zinc-400 dark:text-zinc-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
-                      )
-                    ),
-                    h('div', null,
-                      h('p', { className: 'text-sm font-medium text-zinc-600 dark:text-zinc-300' }, 'No post selected'),
-                      h('p', { className: 'text-xs text-zinc-400 dark:text-zinc-500 mt-1' }, 'Click any post from the list to see details here.')
-                    )
-                  )
-                : h('article', { className: 'space-y-4' },
-                    h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 flex-wrap' },
-                      h('span', { className: 'px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium text-xs' }, `r/${selectedPost.subreddit}`),
-                      (() => {
-                        const detailOpportunity = getOpportunityForPost(selectedPost.id);
-                        const type = detailOpportunity?.classification?.type;
-                        if (!type) return null;
-                        return h('span', { className: 'px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium text-[11px] capitalize' }, String(type).replace(/_/g, ' '));
-                      })(),
-                      (() => {
-                        const detailOpportunity = getOpportunityForPost(selectedPost.id);
-                        const action = detailOpportunity?.action?.recommended;
-                        if (!action) return null;
-                        return h('span', { className: 'px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium text-[11px] capitalize' }, String(action).replace(/_/g, ' '));
-                      })(),
-                      selectedPost.link_flair_text && h('span', { 
-                        className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
-                        style: { backgroundColor: selectedPost.link_flair_background_color || '#e4e4e7', color: selectedPost.link_flair_text_color === 'light' ? '#fff' : '#18181b' }
-                      }, selectedPost.link_flair_text),
-                      h('span', { title: absoluteDate(selectedPost.created_utc) }, timeAgo(selectedPost.created_utc))
-                    ),
-                    h('h2', { className: 'text-lg font-bold text-zinc-900 dark:text-white leading-snug' }, selectedPost.title),
-                    (() => {
-                      const detailRelevanceScore = postScoreProxies.get(String(selectedPost.id));
-                      const detailRelevanceMeta = postScoreMetadata.get(String(selectedPost.id));
-                      const detailOpportunity = getOpportunityForPost(selectedPost.id);
-                      const detailPriority = getPriorityScore(selectedPost.id);
-                      if (detailPriority !== null || (detailRelevanceScore !== undefined && detailRelevanceScore !== null)) {
-                        return h('div', { 
-                          className: 'flex items-center gap-2 py-1 flex-wrap',
-                          title: detailOpportunity?.explanation?.summary || (detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : (detailPriority !== null ? `Opportunity priority ${Math.round(detailPriority * 100)}/100` : `Opportunity score: ${detailRelevanceScore}/5`))
-                        },
-                          detailPriority !== null && h('span', {
-                            className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
-                            title: detailOpportunity?.explanation?.summary
-                              ? `Priority ${Math.round(detailPriority * 100)}/100 — ${detailOpportunity.explanation.summary}`
-                              : `Opportunity priority: ${Math.round(detailPriority * 100)}/100 — how well this post matches your goals (0=no match, 100=perfect)`
-                          }, `Priority ${Math.round(detailPriority * 100)}/100`),
-                          detailPriority === null && h('span', {
-                            className: `px-2 py-0.5 rounded text-xs font-bold font-mono shadow-sm ${aiScoresStale ? 'opacity-50' : ''} ${
-                              detailRelevanceScore >= 5 ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
-                              detailRelevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
-                              detailRelevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
-                              'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-                            }`,
-                            title: aiScoresStale
-                              ? `AI relevance ${detailRelevanceScore}/5 — cached scores (may be outdated). Re-run ranking for fresh results.`
-                              : `AI relevance: ${detailRelevanceScore}/5 (0=reject, 5=perfect match for your goals)`
-                          }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
-                          detailPriority === null && h('div', { 
-                            className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
-                          },
-                            h('div', { 
-                              className: `h-full rounded-full transition-all ${
-                                detailRelevanceScore >= 5 ? 'bg-emerald-600' :
-                                detailRelevanceScore >= 4 ? 'bg-emerald-500 dark:bg-emerald-400' :
-                                detailRelevanceScore >= 3 ? 'bg-amber-500 dark:bg-amber-400' :
-                                'bg-zinc-400 dark:bg-zinc-500'
-                              }`,
-                              style: { width: `${Math.min(100, Math.max(0, (detailRelevanceScore / 5) * 100))}%` }
-                            })
-                          ),
-                          showAiReasons && (detailOpportunity?.explanation?.summary || detailRelevanceMeta?.reason) && h('span', { 
-                            className: 'text-xs text-zinc-600 dark:text-zinc-400 line-clamp-1'
-                          }, detailOpportunity?.explanation?.summary || detailRelevanceMeta.reason)
-                        );
-                      }
-                      return null;
-                    })(),
-                    h('section', { className: 'sticky top-4 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/10' },
-                      h('div', { className: 'flex items-start justify-between gap-3' },
-                        h('div', { className: 'min-w-0' },
-                          h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0369A1] dark:text-sky-300' }, 'Opportunity Summary'),
-                          h('p', { className: 'mt-1 text-sm font-medium text-zinc-900 dark:text-white' }, selectedPostNextAction)
-                        ),
-                        h('button', {
-                          type: 'button',
-                          onClick: () => {
-                            setShowAiReasons(true);
-                            if (mobileView !== 'detail') setMobileView('detail');
-                          },
-                          className: 'shrink-0 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-[#0369A1] hover:bg-sky-100 dark:border-[#0284C7]/30 dark:text-sky-300 dark:hover:bg-[#0284C7]/20 transition-colors'
-                        }, 'Keep visible')
-                      ),
-                      h('div', { className: 'mt-3 space-y-2' },
-                        selectedPostWhyItems.map(item =>
-                          h('div', { key: item.label, className: 'rounded-lg bg-white/80 px-3 py-2 dark:bg-zinc-900/40' },
-                            h('p', { className: 'text-[11px] font-mono uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, item.label),
-                            h('p', { className: 'mt-1 text-sm text-zinc-700 dark:text-zinc-200' }, item.value)
-                          )
-                        )
-                      ),
-                      h('div', { className: 'mt-3 flex flex-wrap items-center gap-2' },
-                        h('button', {
-                          type: 'button',
-                          onClick: () => handleCopyLink(selectedPost),
-                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-700/50 dark:text-zinc-200 dark:hover:bg-zinc-700/70 transition-colors'
-                        },
-                          renderGlyph('M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3', 'w-3.5 h-3.5'),
-                          'Copy link'
-                        ),
-                        h('button', {
-                          type: 'button',
-                          onClick: () => handleHidePost(selectedPost.id),
-                          className: 'inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-700/50 dark:text-zinc-200 dark:hover:bg-zinc-700/70 transition-colors'
-                        },
-                          renderGlyph('M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21', 'w-3.5 h-3.5'),
-                          'Hide post'
-                        )
-                      )
-                    ),
-                    h('div', { className: 'flex items-center gap-3 text-sm' },
-                      h('span', { className: 'inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium' },
-                        renderGlyph('M7 14l5-5 5 5', 'w-3.5 h-3.5'), selectedPost.score),
-                      h('span', { className: 'inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium' },
-                        renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3.5 h-3.5'), selectedPost.num_comments),
-                      h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `u/${selectedPost.author}`)
-                    ),
-                    h('a', {
-                      href: selectedPost.reddit_url || selectedPost.external_url,
-                      target: '_blank',
-                      rel: 'noreferrer',
-                      className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-[#0284C7] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                    },
-                      'Open on Reddit',
-                      h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' })
-                      )
-                    ),
-                    h('div', { className: 'border-t border-zinc-200 dark:border-zinc-700 pt-4' },
-                      renderBody(selectedPost)
-                  )
-                )
-          )
-        ),
+          renderPostDetailPane({
+            h,
+            detailCollapsed,
+            mobileView,
+            setMobileView,
+            setDetailCollapsed,
+            selectedPost,
+            getOpportunityForPost,
+            getPriorityScore,
+            postScoreProxies,
+            postScoreMetadata,
+            aiScoresStale,
+            aiScoreLabel,
+            showAiReasons,
+            setShowAiReasons,
+            selectedPostNextAction,
+            selectedPostWhyItems,
+            handleCopyLink,
+            handleHidePost,
+            renderGlyph,
+            absoluteDate,
+            timeAgo,
+            renderBody,
+          }),
 
           // Collapsed detail toggle
           detailCollapsed && h('button', {
@@ -4118,372 +2455,77 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           ))
         ),
 
-        // Mobile bottom navigation
-        h('nav', { className: 'lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-800 border-t border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-around z-40' },
-          h('button', {
-            onClick: () => setMobileView('subs'),
-            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'subs' ? 'text-[#0284C7] dark:text-sky-400' : 'text-zinc-500 dark:text-zinc-400'}`
-          },
-            h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
-            ),
-            h('span', { className: 'text-xs font-medium' }, 'Subreddits')
-          ),
-          h('button', {
-            onClick: () => setMobileView('posts'),
-            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'posts' ? 'text-[#0284C7] dark:text-sky-400' : 'text-zinc-500 dark:text-zinc-400'}`
-          },
-            h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 6h16M4 10h16M4 14h16M4 18h16' })
-            ),
-            h('span', { className: 'text-xs font-medium' }, 'Posts')
-          ),
-          h('button', {
-            onClick: () => setMobileView('detail'),
-            className: `flex flex-col items-center gap-1 px-4 py-1 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${mobileView === 'detail' ? 'text-[#0284C7] dark:text-sky-400' : 'text-zinc-500 dark:text-zinc-400'}`
-          },
-            h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
-            ),
-            h('span', { className: 'text-xs font-medium' }, 'Detail')
-          )
-        ),
+        renderMobileBottomNav({
+          h,
+          mobileView,
+          setMobileView,
+        }),
 
-        onboardingOpen && h('div', { className: 'fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4', onClick: closeOnboarding },
-          h('div', {
-            className: 'w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-800',
-            onClick: (e) => e.stopPropagation()
+        renderOnboardingModal({
+          h,
+          onboardingOpen,
+          closeOnboarding,
+          onboardingCurrentStep,
+          renderGlyph,
+          onboardingSteps,
+          onboardingStep,
+          setOnboardingStep,
+          subs,
+          handleRemoveSub,
+          onboardingSubInput,
+          setOnboardingSubInput,
+          handleOnboardingAddSubs,
+          STARTER_PACKS,
+          handleApplyStarterPack,
+          renderStarterPackIcon,
+          POPULAR_SUBREDDITS,
+          handleAddSub,
+          AI_PRESETS,
+          applyPreset,
+          aiPresetId,
+          renderPresetIcon,
+          truncateText,
+          opportunityEngineEnabled,
+          setOpportunityEngineEnabled,
+          aiPresetSuggestion,
+          setOpportunityBrief,
+          opportunityBrief,
+          hasOpportunityGoals,
+          secureKeyStatus,
+          selectedModelInfo,
+          modelGroups,
+          setOpenRouterModel,
+          openRouterModel,
+          maxPages,
+          setMaxPages,
+          mode,
+          setMode,
+          autoRefreshEnabled,
+          autoRefreshInterval,
+          setAutoRefreshEnabled,
+          setAutoRefreshInterval,
+          AUTO_REFRESH_OPTIONS,
+          onboardingCanContinue,
+          completeOnboarding,
+          loading,
+          onSkip: () => {
+            setOnboardingCompleted(true);
+            setOnboardingOpen(false);
           },
-            h('div', { className: 'border-b border-zinc-200 px-5 py-4 dark:border-zinc-700' },
-              h('div', { className: 'flex items-start justify-between gap-4' },
-                h('div', null,
-                  h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0284C7] dark:text-sky-300' }, 'Quick Setup'),
-                  h('h2', { className: 'mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-white' }, onboardingCurrentStep.title),
-                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, onboardingCurrentStep.description)
-                ),
-                h('button', {
-                  type: 'button',
-                  onClick: closeOnboarding,
-                  className: 'rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200'
-                }, renderGlyph('M6 18L18 6M6 6l12 12', 'w-5 h-5'))
-              ),
-              h('div', { className: 'mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4' },
-                onboardingSteps.map((step, index) =>
-                  h('button', {
-                    key: step.id,
-                    type: 'button',
-                    onClick: () => setOnboardingStep(index),
-                    className: `rounded-xl border px-3 py-2 text-left transition-colors ${index === onboardingStep ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
-                  },
-                    h('p', { className: `text-[11px] font-mono uppercase tracking-wide ${index === onboardingStep ? 'text-[#0284C7] dark:text-sky-300' : 'text-zinc-400 dark:text-zinc-500'}` }, `Step ${index + 1}`),
-                    h('p', { className: `mt-1 text-sm font-medium ${index === onboardingStep ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}` }, step.title)
-                  )
-                )
-              )
-            ),
-            h('div', { className: 'p-5' },
-              onboardingCurrentStep.id === 'subs' && h('div', { className: 'space-y-5' },
-                h('div', null,
-                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Selected subreddits'),
-                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, 'Pick 3 to 5 to start. You can change them later.'),
-                  h('div', { className: 'mt-3 flex min-h-12 flex-wrap gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-600 dark:bg-zinc-900/40' },
-                    subs.length
-                      ? subs.map(sub =>
-                          h('button', {
-                            key: sub,
-                            type: 'button',
-                            onClick: () => handleRemoveSub(sub),
-                            className: 'inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-[#0284C7]'
-                          }, `r/${sub}`, renderGlyph('M6 18L18 6M6 6l12 12', 'w-3 h-3'))
-                        )
-                      : h('p', { className: 'text-sm text-zinc-400 dark:text-zinc-500' }, 'No subreddits selected yet.')
-                  )
-                ),
-                h('div', { className: 'grid gap-5 lg:grid-cols-[1.1fr_0.9fr]' },
-                  h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-                    h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Add your own list'),
-                    h('textarea', {
-                      value: onboardingSubInput,
-                      onChange: (e) => setOnboardingSubInput(e.target.value),
-                      placeholder: 'programming, webdev, javascript',
-                      rows: 4,
-                      className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0284C7] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
-                    }),
-                    h('div', { className: 'mt-3 flex items-center justify-between gap-3' },
-                      h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate names with commas or new lines.'),
-                      h('button', {
-                        type: 'button',
-                        onClick: handleOnboardingAddSubs,
-                        disabled: !onboardingSubInput.trim(),
-                        className: 'rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]'
-                      }, 'Add list')
-                    )
-                  ),
-                  h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-                    h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Starter packs'),
-                    h('div', { className: 'mt-3 space-y-2' },
-                      STARTER_PACKS.map(pack =>
-                        h('button', {
-                          key: pack.id,
-                          type: 'button',
-                          onClick: () => handleApplyStarterPack(pack),
-                          className: 'flex w-full items-center gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-left transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'
-                        },
-                          renderStarterPackIcon(pack.id),
-                          h('div', { className: 'min-w-0' },
-                            h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, pack.label),
-                            h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, pack.subs.map(sub => `r/${sub}`).join(', '))
-                          )
-                        )
-                      )
-                    )
-                  )
-                ),
-                h('div', null,
-                  h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Popular'),
-                  h('div', { className: 'mt-2 flex flex-wrap gap-2' },
-                    POPULAR_SUBREDDITS.slice(0, 12).map(sub =>
-                      h('button', {
-                        key: sub,
-                        type: 'button',
-                        onClick: () => handleAddSub(sub),
-                        disabled: subs.some(s => s.toLowerCase() === sub.toLowerCase()),
-                        className: 'rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600'
-                      }, `r/${sub}`)
-                    )
-                  )
-                )
-              ),
-              onboardingCurrentStep.id === 'goal' && h('div', { className: 'space-y-5' },
-                h('div', null,
-                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Preset'),
-                  h('div', { className: 'mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3' },
-                    AI_PRESETS.map(preset =>
-                      h('button', {
-                        key: preset.id,
-                        type: 'button',
-                        onClick: () => applyPreset(preset),
-                        className: `rounded-xl border p-4 text-left transition-colors ${aiPresetId === preset.id ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
-                      },
-                        h('div', { className: 'flex items-center gap-2' },
-                          renderPresetIcon(preset.id, aiPresetId === preset.id),
-                          h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, preset.label)
-                        ),
-                        h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, truncateText(preset.goals, 110))
-                      )
-                    )
-                  )
-                ),
-                h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-                  h('div', { className: 'flex items-center justify-between gap-3' },
-                    h('div', null,
-                      h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Opportunity brief'),
-                      h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, opportunityEngineEnabled ? 'Describe the conversations and opportunities you want surfaced first.' : 'Optional if you plan to keep the engine off.')
-                    ),
-                    aiPresetSuggestion && aiPresetSuggestion.id !== aiPresetId && h('button', {
-                      type: 'button',
-                      onClick: () => applyPreset(aiPresetSuggestion),
-                      className: 'rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-[#0369A1] transition-colors hover:bg-sky-100 dark:border-[#0284C7]/30 dark:bg-[#0284C7]/15 dark:text-sky-300'
-                    }, `Use suggested: ${aiPresetSuggestion.label}`)
-                  ),
-                  h('textarea', {
-                    value: opportunityBrief,
-                    onChange: (e) => setOpportunityBrief(e.target.value),
-                    rows: 4,
-                    placeholder: 'I want to find high-intent posts from people actively asking for help.',
-                    className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0284C7] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white'
-                  })
-                )
-              ),
-              onboardingCurrentStep.id === 'ai' && h('div', { className: 'grid gap-4 md:grid-cols-2' },
-                h('button', {
-                  type: 'button',
-                  onClick: () => setOpportunityEngineEnabled(false),
-                  className: `rounded-xl border p-5 text-left transition-colors ${!opportunityEngineEnabled ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
-                },
-                  h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, 'Manual scan'),
-                  h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, 'Browse Reddit posts with filters only. Best if you want a lightweight setup first.')
-                ),
-                h('button', {
-                  type: 'button',
-                  onClick: () => setOpportunityEngineEnabled(true),
-                  className: `rounded-xl border p-5 text-left transition-colors ${opportunityEngineEnabled ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
-                },
-                  h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, 'Opportunity engine'),
-                  h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, 'Rank the feed against your business profile so the strongest opportunities rise to the top.')
-                ),
-                opportunityEngineEnabled && h('div', { className: 'md:col-span-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-                  h('div', { className: 'flex flex-wrap items-start justify-between gap-3' },
-                    h('div', null,
-                      h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Model'),
-                      h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, secureKeyStatus.hasKey ? 'You already have a secure key saved.' : 'You can save a key later in Settings if you want more model options.')
-                    ),
-                    selectedModelInfo && h('span', { className: 'rounded-full bg-zinc-100 px-3 py-1 text-xs font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200' }, selectedModelInfo.name)
-                  ),
-                  h('div', { className: 'mt-3 grid gap-3 md:grid-cols-2' },
-                    modelGroups.recommended.concat(modelGroups.latestFree.slice(0, 1)).filter((model, index, arr) => arr.findIndex(item => item.id === model.id) === index).map(model =>
-                      h('button', {
-                        key: model.id,
-                        type: 'button',
-                        onClick: () => setOpenRouterModel(model.id),
-                        className: `rounded-xl border p-3 text-left transition-colors ${openRouterModel === model.id ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
-                      },
-                        h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, model.name),
-                        h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, model.hint || model.id)
-                      )
-                    )
-                  )
-                )
-              ),
-              onboardingCurrentStep.id === 'depth' && h('div', { className: 'grid gap-5 lg:grid-cols-[1fr_0.9fr]' },
-                h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Fetch depth'),
-                  h('div', { className: 'mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3' },
-                    [1, 3, 5, 10, 0].map(value =>
-                      h('button', {
-                        key: String(value),
-                        type: 'button',
-                        onClick: () => setMaxPages(value),
-                        className: `rounded-xl border px-3 py-3 text-left transition-colors ${maxPages === value ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`
-                      },
-                        h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, value === 0 ? 'All pages' : `${value} page${value === 1 ? '' : 's'}`),
-                        h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, value <= 1 ? 'Fastest' : value === 0 ? 'Deepest scan' : 'Balanced coverage')
-                      )
-                    )
-                  ),
-                  h('div', { className: 'mt-4 grid gap-4 sm:grid-cols-2' },
-                    h('label', { className: 'block' },
-                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Feed'),
-                      h('select', {
-                        value: mode,
-                        onChange: (e) => setMode(e.target.value),
-                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                      },
-                        h('option', { value: 'new' }, 'Latest posts'),
-                        h('option', { value: 'top' }, 'Top posts')
-                      )
-                    ),
-                    h('label', { className: 'block' },
-                      h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Auto-refresh'),
-                      h('select', {
-                        value: autoRefreshEnabled ? autoRefreshInterval : 0,
-                        onChange: (e) => {
-                          const nextValue = Number(e.target.value);
-                          if (nextValue === 0) {
-                            setAutoRefreshEnabled(false);
-                          } else {
-                            setAutoRefreshEnabled(true);
-                            setAutoRefreshInterval(nextValue);
-                          }
-                        },
-                        className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                      },
-                        h('option', { value: 0 }, 'Off'),
-                        AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `Every ${opt} min`))
-                      )
-                    )
-                  )
-                ),
-                h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'What happens next'),
-                  h('ul', { className: 'mt-3 space-y-3 text-sm text-zinc-600 dark:text-zinc-300' },
-                    h('li', null, `Scan ${subs.length || 0} subreddit${subs.length === 1 ? '' : 's'}.`),
-                    h('li', null, opportunityEngineEnabled ? 'The opportunity engine will rank posts against your business profile.' : 'The feed will stay manual until you enable the opportunity engine.'),
-                    h('li', null, `Fetch depth is set to ${maxPages === 0 ? 'all available pages' : `${maxPages} page${maxPages === 1 ? '' : 's'}`}.`)
-                  )
-                )
-              )
-            ),
-            h('div', { className: 'flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-700' },
-              h('div', { className: 'flex items-center gap-2' },
-                h('button', {
-                  type: 'button',
-                  onClick: () => {
-                    setOnboardingCompleted(true);
-                    setOnboardingOpen(false);
-                  },
-                  className: 'text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
-                }, 'Skip for now'),
-                onboardingStep > 0 && h('button', {
-                  type: 'button',
-                  onClick: () => setOnboardingStep(step => Math.max(0, step - 1)),
-                  className: 'rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-700'
-                }, 'Back')
-              ),
-              h('div', { className: 'flex items-center gap-2' },
-                onboardingStep < onboardingSteps.length - 1
-                  ? h('button', {
-                      type: 'button',
-                      onClick: () => setOnboardingStep(step => Math.min(onboardingSteps.length - 1, step + 1)),
-                      disabled: !onboardingCanContinue,
-                      className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]'
-                    }, 'Continue')
-                  : h('button', {
-                      type: 'button',
-                      onClick: completeOnboarding,
-                      disabled: !onboardingCanContinue || subs.length === 0 || loading,
-                      className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]'
-                    }, loading ? 'Loading…' : 'Finish and fetch')
-              )
-            )
-          )
-        ),
+        }),
 
-        // Add subreddit modal
-        addSubOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4', onClick: () => setAddSubOpen(false) },
-          h('div', {
-            className: 'w-full max-w-md bg-white dark:bg-zinc-800 rounded-xl shadow-xl',
-            onClick: (e) => e.stopPropagation()
-          },
-            h('div', { className: 'p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
-              h('h3', { className: 'font-semibold text-zinc-900 dark:text-white' }, 'Add Subreddits'),
-                h('button', {
-                  onClick: () => setAddSubOpen(false),
-                  className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors'
-                }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
-              ))
-            ),
-            h('div', { className: 'p-4 space-y-4' },
-              h('div', null,
-                h('label', { className: 'block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5' }, 'Subreddit names'),
-                h('textarea', {
-                  ref: addSubInputRef,
-                  value: addSubInput,
-                  onChange: (e) => setAddSubInput(e.target.value),
-                  placeholder: 'programming, webdev, javascript...',
-                  className: 'w-full px-3 py-2 border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
-                  rows: 3
-                }),
-                h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate with commas or new lines')
-              ),
-              h('div', null,
-                h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-2' }, 'Popular'),
-                h('div', { className: 'flex flex-wrap gap-1.5' },
-                  POPULAR_SUBREDDITS.slice(0, 10).map(sub =>
-                    h('button', {
-                      key: sub,
-                      onClick: () => { handleAddSub(sub); setAddSubOpen(false); },
-                      disabled: subs.some(s => s.toLowerCase() === sub.toLowerCase()),
-                      className: 'px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
-                    }, sub)
-                  )
-                )
-              )
-            ),
-            h('div', { className: 'p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end gap-2' },
-              h('button', {
-                onClick: () => setAddSubOpen(false),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors'
-              }, 'Cancel'),
-              h('button', {
-                onClick: handleAddSubSubmit,
-                disabled: !addSubInput.trim(),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-              }, 'Add')
-            )
-          )
-        ),
+        renderAddSubredditModal({
+          h,
+          addSubOpen,
+          setAddSubOpen,
+          addSubInputRef,
+          addSubInput,
+          setAddSubInput,
+          POPULAR_SUBREDDITS,
+          subs,
+          handleAddSub,
+          handleAddSubSubmit,
+        }),
 
         // Hide undo toast
         lastHiddenPost && h('div', {
@@ -4503,518 +2545,99 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           }, '×')
         ),
 
-        // Settings modal
-        settingsOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4', onClick: () => setSettingsOpen(false) },
-          h('div', {
-            className: 'w-full max-w-lg bg-white dark:bg-zinc-800 rounded-xl shadow-xl max-h-[90vh] overflow-auto',
-            onClick: (e) => e.stopPropagation()
-          },
-            h('div', { className: 'p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-800' },
-              h('h3', { className: 'font-semibold text-zinc-900 dark:text-white' }, 'Settings'),
-                h('button', {
-                onClick: () => setSettingsOpen(false),
-                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors'
-              }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
-              ))
-            ),
-            h('div', { className: 'p-4 space-y-5' },
-              h('div', { className: 'flex items-center justify-between' },
-                h('div', null,
-                  h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Auto-refresh'),
-                  h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Automatically fetch new posts')
-                ),
-                h('div', { className: 'flex items-center gap-3' },
-                  h('select', {
-                    value: autoRefreshInterval,
-                    onChange: (e) => setAutoRefreshInterval(Number(e.target.value)),
-                    disabled: !autoRefreshEnabled,
-                    className: 'px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                  },
-                    AUTO_REFRESH_OPTIONS.map(opt => h('option', { key: opt, value: opt }, `${opt} min`))
-                  ),
-                  h('button', {
-                    onClick: () => setAutoRefreshEnabled(!autoRefreshEnabled),
-                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${autoRefreshEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
-                  },
-                    h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${autoRefreshEnabled ? 'translate-x-5' : ''}` })
-                  )
-                )
-              ),
-              h('div', { className: 'grid grid-cols-2 gap-4' },
-                h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Feed type'),
-                    h('select', {
-                      value: mode,
-                    onChange: (e) => setMode(e.target.value),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    },
-                      h('option', { value: 'new' }, 'Latest posts'),
-                      h('option', { value: 'top' }, 'Top posts')
-                    )
-                  ),
-                  h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Top posts time range'),
-                    h('select', {
-                      value: time,
-                    onChange: (e) => setTime(e.target.value),
-                      disabled: mode !== 'top',
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    },
-                      h('option', { value: 'hour' }, 'Hour'),
-                      h('option', { value: 'day' }, 'Day'),
-                      h('option', { value: 'week' }, 'Week'),
-                      h('option', { value: 'month' }, 'Month')
-                    )
-                  ),
-                h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Time window'),
-                    h('select', {
-                      value: days,
-                    onChange: (e) => setDays(Number(e.target.value)),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    },
-                    h('option', { value: 1 }, 'Day'),
-                      h('option', { value: 3 }, '3 Days'),
-                    h('option', { value: 7 }, 'Week')
-                    )
-                  ),
-                h('label', { className: 'block' },
-                  h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Fetch depth'),
-                    h('select', {
-                      value: maxPages,
-                    onChange: (e) => setMaxPages(Number(e.target.value)),
-                    className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    },
-                      [
-                        h('option', { key: 'all', value: 0 }, 'All pages'),
-                        ...[1, 2, 3, 5, 7, 10, 15, 20, 30].map(n => h('option', { key: n, value: n }, n))
-                      ]
-                  )
-                )
-              ),
-              // Notifications section
-              h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
-                h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-3' }, 'Notifications'),
-                h('div', { className: 'space-y-4' },
-                  h('div', { className: 'flex items-center justify-between' },
-                    h('div', null,
-                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Enable alerts'),
-                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified on auto-refresh')
-                    ),
-                    h('div', { className: 'flex items-center gap-2' },
-                      Notification.permission !== 'granted' && h('button', {
-                        onClick: requestNotificationPermission,
-                        className: 'px-2.5 py-1 text-xs font-medium rounded-full bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                      }, 'Allow notifications'),
-                      h('button', {
-                        onClick: () => setNotificationsEnabled(!notificationsEnabled),
-                        disabled: Notification.permission !== 'granted',
-                        className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notificationsEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
-                      },
-                        h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notificationsEnabled ? 'translate-x-5' : ''}` })
-                      )
-                    )
-                  ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Upvote threshold'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Alert when a post crosses this score'),
-                    h('input', {
-                      type: 'number',
-                      value: upvoteThreshold,
-                      onChange: (e) => setUpvoteThreshold(Number(e.target.value) || 100),
-                      disabled: !notificationsEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    })
-                  ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Alert keywords'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Notify when new posts contain these (comma-separated). Works even if Enable alerts is off.'),
-                    h('input', {
-                      type: 'text',
-                      value: alertKeywords,
-                      onChange: (e) => setAlertKeywords(e.target.value),
-                      placeholder: 'breaking, launch, announcement...',
-                      disabled: Notification.permission !== 'granted',
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    })
-                  ),
-                  h('div', { className: 'flex items-center justify-between' },
-                    h('div', null,
-                      h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on strong opportunities'),
-                      h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post reaches your threshold (opportunity engine must be enabled)')
-                    ),
-                    h('button', {
-                      onClick: () => setNotifyStrongOpportunities(!notifyStrongOpportunities),
-                      disabled: !opportunityEngineEnabled || !hasOpportunityGoals,
-                      className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyStrongOpportunities ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
-                    },
-                      h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifyStrongOpportunities ? 'translate-x-5' : ''}` })
-                    )
-                  ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strong-opportunity threshold'),
-                    h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'Minimum priority proxy (4 or 5) to trigger a notification'),
-                    h('select', {
-                      value: priorityNotificationThreshold,
-                      onChange: (e) => setPriorityNotificationThreshold(Number(e.target.value) || 4),
-                      disabled: !notifyStrongOpportunities || !opportunityEngineEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                    },
-                      h('option', { value: 4 }, '4+'),
-                      h('option', { value: 5 }, '5+')
-                    )
-                  )
-                )
-              ),
-              // Opportunity engine section
-              h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
-                // Header: label + enable toggle
-                h('div', { className: 'flex items-center justify-between mb-4' },
-                  h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Opportunity Engine'),
-                  h('button', {
-                    onClick: () => setOpportunityEngineEnabled(!opportunityEngineEnabled),
-                    title: opportunityEngineEnabled ? 'Disable opportunity engine' : 'Enable opportunity engine',
-                    className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${opportunityEngineEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`
-                  },
-                    h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${opportunityEngineEnabled ? 'translate-x-5' : ''}` })
-                  )
-                ),
-                h('div', { className: 'space-y-4' },
-
-                  // 1. Business profile
-                  h('div', null,
-                    h('div', { className: 'flex flex-wrap gap-1.5 mb-2' },
-                      AI_PRESETS.map(preset => h('button', {
-                        key: preset.id,
-                        type: 'button',
-                        onClick: () => applyPreset(preset),
-                        disabled: !opportunityEngineEnabled,
-                        className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#0284C7] text-white border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!opportunityEngineEnabled ? 'opacity-50 cursor-not-allowed' : ''}`
-                      },
-                        h('span', { className: 'inline-flex items-center gap-1.5' },
-                          renderPresetIcon(preset.id, aiPresetId === preset.id),
-                          h('span', null, preset.label)
-                        )
-                      ))
-                    ),
-                    h('div', { className: 'grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3' },
-                      h('label', { className: 'block sm:col-span-2' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'What do you sell?'),
-                        h('input', {
-                          type: 'text',
-                          value: businessOffering,
-                          onChange: (e) => setBusinessOffering(e.target.value),
-                          placeholder: 'SEO consulting for B2B SaaS teams',
-                          disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        })
-                      ),
-                      h('label', { className: 'block' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Ideal customer'),
-                        h('input', {
-                          type: 'text',
-                          value: idealCustomer,
-                          onChange: (e) => setIdealCustomer(e.target.value),
-                          placeholder: 'Founders and marketing leads at SMBs',
-                          disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        })
-                      ),
-                      h('label', { className: 'block' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Preferred engagement'),
-                        h('select', {
-                          value: preferredEngagement,
-                          onChange: (e) => setPreferredEngagement(e.target.value),
-                          disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        },
-                          h('option', { value: 'reply' }, 'Public reply'),
-                          h('option', { value: 'dm' }, 'DM / outreach'),
-                          h('option', { value: 'either' }, 'Either'),
-                          h('option', { value: 'research' }, 'Research only')
-                        )
-                      ),
-                      h('label', { className: 'block sm:col-span-2' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Problems you solve'),
-                        h('textarea', {
-                          value: problemsSolved,
-                          onChange: (e) => setProblemsSolved(e.target.value),
-                          placeholder: 'Traffic drops, poor search visibility, weak conversion pages',
-                          disabled: !opportunityEngineEnabled,
-                          rows: 2,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        })
-                      ),
-                      h('label', { className: 'block' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strategy'),
-                        h('select', {
-                          value: strategyPreset,
-                          onChange: (e) => setStrategyPreset(e.target.value),
-                          disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        },
-                          h('option', { value: 'balanced' }, 'Balanced'),
-                          h('option', { value: 'sales' }, 'Sales'),
-                          h('option', { value: 'fast_wins' }, 'Fast wins'),
-                          h('option', { value: 'research' }, 'Research')
-                        )
-                      ),
-                      h('label', { className: 'block' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strictness'),
-                        h('select', {
-                          value: opportunityStrictness,
-                          onChange: (e) => setOpportunityStrictness(e.target.value),
-                          disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        },
-                          h('option', { value: 'strict' }, 'Strict'),
-                          h('option', { value: 'balanced' }, 'Balanced'),
-                          h('option', { value: 'broad' }, 'Broad recall')
-                        )
-                      ),
-                      h('label', { className: 'block sm:col-span-2' },
-                        h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Opportunity types'),
-                        h('input', {
-                          type: 'text',
-                          value: opportunityFocus,
-                          onChange: (e) => setOpportunityFocus(e.target.value),
-                          placeholder: 'lead, pain_point, tool_search',
-                          disabled: !opportunityEngineEnabled,
-                          className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        })
-                      )
-                    ),
-                    h('textarea', {
-                      value: opportunityBrief,
-                      onChange: (e) => setOpportunityBrief(e.target.value),
-                      placeholder: 'Optional: extra instructions or nuanced opportunities to prioritize',
-                      disabled: !opportunityEngineEnabled,
-                      rows: 3,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none'
-                    })
-                  ),
-
-                  // 2. Tune (collapsible)
-                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden' },
-                    h('button', {
-                      type: 'button',
-                      onClick: () => setAiAdvancedOpen(!aiAdvancedOpen),
-                      disabled: !opportunityEngineEnabled,
-                      className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-                    },
-                      h('span', null, 'Advanced tuning'),
-                      h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiAdvancedOpen ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
-                      )
-                    ),
-                    aiAdvancedOpen && h('div', { className: 'px-3 pb-3 pt-3 space-y-3 border-t border-zinc-200 dark:border-zinc-700' },
-                      h('label', { className: 'block' },
-                        h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Avoid'),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'What should score low? e.g. job posts, memes, ads'),
-                        h('input', {
-                          type: 'text',
-                          value: aiAvoid,
-                          onChange: (e) => setAiAvoid(e.target.value),
-                          placeholder: 'job postings, memes, generic questions without intent',
-                          disabled: !opportunityEngineEnabled,
-                          className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                        })
-                      ),
-                      h('div', null,
-                        h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-2' }, 'Few-shot examples'),
-                        h('div', { className: 'space-y-2' },
-                          h('label', { className: 'flex items-start gap-2' },
-                            h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 pt-2' }, 'PERFECT'),
-                            h('textarea', {
-                              value: aiExamplePerfect,
-                              onChange: (e) => setAiExamplePerfect(e.target.value),
-                              rows: 2,
-                              disabled: !opportunityEngineEnabled,
-                              placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
-                              className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
-                            })
-                          ),
-                          h('label', { className: 'flex items-start gap-2' },
-                            h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-sky-600 dark:text-sky-400 pt-2' }, 'STRONG'),
-                            h('textarea', {
-                              value: aiExampleStrong,
-                              onChange: (e) => setAiExampleStrong(e.target.value),
-                              rows: 2,
-                              disabled: !opportunityEngineEnabled,
-                              placeholder: 'How can we improve our local rankings?',
-                              className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
-                            })
-                          ),
-                          h('label', { className: 'flex items-start gap-2' },
-                            h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-500 pt-2' }, 'REJECT'),
-                            h('textarea', {
-                              value: aiExampleReject,
-                              onChange: (e) => setAiExampleReject(e.target.value),
-                              rows: 2,
-                              disabled: !opportunityEngineEnabled,
-                              placeholder: 'Hiring SEO specialist, $20/hr',
-                              className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none'
-                            })
-                          )
-                        )
-                      )
-                    )
-                  ),
-
-                  // 3. Model & Key (collapsible)
-                  h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden' },
-                    h('button', {
-                      type: 'button',
-                      onClick: () => setAiShowModelKey(!aiShowModelKey),
-                      disabled: !opportunityEngineEnabled,
-                      className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-                    },
-                      h('span', { className: 'flex items-center gap-2' },
-                        'Model & Key',
-                        secureKeyStatus.hasKey && h('span', { className: 'text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-medium' }, '\u2713 key saved')
-                      ),
-                      h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiShowModelKey ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
-                      )
-                    ),
-                    aiShowModelKey && h('div', { className: 'px-3 pb-3 pt-3 space-y-4 border-t border-zinc-200 dark:border-zinc-700' },
-                      // API Key
-                      h('div', null,
-                        h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1' }, 'OpenRouter API Key'),
-                        h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-2' },
-                          'Get a free key at ',
-                          h('a', { href: 'https://openrouter.ai/keys', target: '_blank', rel: 'noopener noreferrer', className: 'text-[#0284C7] dark:text-sky-400 hover:underline' }, 'openrouter.ai/keys')
-                        ),
-                        secureKeyStatus.hasKey
-                          ? h('div', { className: 'flex items-center gap-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800' },
-                              h('svg', { className: 'w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' })
-                              ),
-                              h('div', { className: 'flex-1 min-w-0' },
-                                h('p', { className: 'text-xs font-medium text-emerald-700 dark:text-emerald-300' }, 'Secure key stored'),
-                                h('p', { className: 'text-xs text-emerald-600 dark:text-emerald-400 font-mono truncate' }, secureKeyStatus.keyPreview)
-                              ),
-                              h('button', {
-                                onClick: deleteSecureApiKey,
-                                className: 'p-1 text-emerald-600 dark:text-emerald-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors',
-                                title: 'Remove key'
-                              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
-                              ))
-                            )
-                          : h('div', { className: 'flex gap-2' },
-                              h('input', {
-                                type: 'password',
-                                value: openRouterApiKey,
-                                onChange: (e) => setOpenRouterApiKey(e.target.value),
-                                placeholder: 'sk-or-v1-...',
-                                disabled: !opportunityEngineEnabled,
-                                className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono'
-                              }),
-                              openRouterApiKey.trim() && h('button', {
-                                onClick: saveSecureApiKey,
-                                disabled: savingSecureKey || !opportunityEngineEnabled,
-                                className: 'px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap',
-                                title: 'Save key securely (HttpOnly cookie)'
-                              }, savingSecureKey ? 'Saving...' : 'Save securely')
-                            ),
-                        !secureKeyStatus.hasKey && openRouterApiKey.trim() && h('p', { className: 'mt-1 text-xs text-amber-600 dark:text-amber-400' },
-                          '\u26a0\ufe0f Click "Save securely" to protect your key from XSS attacks'
-                        )
-                      ),
-                      // Model
-                      h('div', null,
-                        h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2' }, 'Model'),
-                        modelGroups.recommended.length > 0 && h('div', { className: 'mb-3 p-2.5 rounded-lg border border-sky-200 dark:border-[#0369A1]/55 bg-sky-50 dark:bg-[#0284C7]/10' },
-                          h('p', { className: 'text-[10px] font-semibold text-[#0369A1] dark:text-sky-300 uppercase tracking-[0.12em] mb-1.5' }, 'Recommended'),
-                          renderModelCard(modelGroups.recommended[0], { emphasize: true })
-                        ),
-                        h('div', { className: 'grid gap-2 sm:grid-cols-2' },
-                          modelGroups.latestFree.length > 0
-                            ? modelGroups.latestFree.map(model => renderModelCard(model, { compact: true }))
-                            : h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'No free models found.')
-                        ),
-                        showAllModels && h('div', { className: 'mt-2' },
-                          h('select', {
-                            value: openRouterModel,
-                            onChange: (e) => setOpenRouterModel(e.target.value),
-                            disabled: !opportunityEngineEnabled,
-                            className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                          },
-                            modelGroups.all.map(model =>
-                              h('option', { key: `all-${model.id}`, value: model.id }, `${model.name} \u2014 ${model.hint}`)
-                            )
-                          )
-                        ),
-                        h('div', { className: 'mt-2 flex items-center justify-between gap-2' },
-                          h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate' }, openRouterModel),
-                          h('button', {
-                            type: 'button',
-                            onClick: () => setShowAllModels(!showAllModels),
-                            disabled: !opportunityEngineEnabled,
-                            className: 'text-xs text-[#0284C7] dark:text-sky-400 hover:underline disabled:opacity-50 whitespace-nowrap shrink-0'
-                          }, showAllModels ? 'Fewer' : 'All models')
-                        ),
-                        modelsLoading && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mt-1' }, 'Loading models...'),
-                        modelsError && h('p', { className: 'text-xs text-rose-600 dark:text-rose-400 mt-1' }, modelsError)
-                      )
-                    )
-                  ),
-
-                  // 4. Prompt preview (toggle link)
-                  h('div', null,
-                    h('button', {
-                      type: 'button',
-                      onClick: () => setAiShowPromptPreview(!aiShowPromptPreview),
-                      className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors flex items-center gap-1.5'
-                    },
-                      h('svg', { className: `w-3 h-3 transition-transform ${aiShowPromptPreview ? 'rotate-90' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5l7 7-7 7' })
-                      ),
-                      'Preview engine prompt',
-                      h('span', { className: 'px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 font-mono text-[10px]' }, AI_PROMPT_VERSION)
-                    ),
-                    aiShowPromptPreview && h('pre', { className: 'mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
-                      buildScoringPromptPreview({ goals: effectiveGoalText, context: effectiveContextText, avoid: effectiveAvoidText, examples: { perfect: aiExamplePerfect, strong: aiExampleStrong, reject: aiExampleReject } })
-                    )
-                  ),
-
-                  // 6. Status banners
-                  opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2' },
-                    h('span', null, opportunityScanError),
-                    h('button', { onClick: () => setOpportunityScanError(null), className: 'text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 font-medium' }, '\u00d7')
-                  ),
-                  aiActivity?.detail && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-sky-200 dark:border-sky-800/60 bg-sky-50/70 dark:bg-sky-900/20 text-xs text-sky-800 dark:text-sky-200' },
-                    `${aiActivity.status}: ${aiActivity.detail}`
-                  ),
-                  aiScoresStale && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
-                    'Scores are cached \u2014 badges show ~ prefix. Re-run for fresh results.'
-                  ),
-
-                  // 7. Run ranking
-                  h('div', { className: 'flex items-center gap-3' },
-                    h('button', {
-                      type: 'button',
-                      onClick: rerankNow,
-                      disabled: !opportunityEngineEnabled || !hasOpportunityGoals || opportunityScanLoading || loading || data.length === 0,
-                      className: 'flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                    }, opportunityScanLoading ? 'Analyzing\u2026' : 'Run opportunity scan'),
-                    opportunityScanLoading && h('div', { className: 'flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 shrink-0' },
-                      h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' })
-                    )
-                  )
-                )
-              )
-            ),
-            h('div', { className: 'p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end sticky bottom-0 bg-white dark:bg-zinc-800' },
-                h('button', {
-                onClick: () => setSettingsOpen(false),
-                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors'
-              }, 'Done')
-            )
-          )
-        )
+        renderSettingsModal({
+          h,
+          settingsOpen,
+          setSettingsOpen,
+          AUTO_REFRESH_OPTIONS,
+          autoRefreshInterval,
+          setAutoRefreshInterval,
+          autoRefreshEnabled,
+          setAutoRefreshEnabled,
+          mode,
+          setMode,
+          time,
+          setTime,
+          days,
+          setDays,
+          maxPages,
+          setMaxPages,
+          requestNotificationPermission,
+          notificationsEnabled,
+          setNotificationsEnabled,
+          upvoteThreshold,
+          setUpvoteThreshold,
+          alertKeywords,
+          setAlertKeywords,
+          notifyStrongOpportunities,
+          setNotifyStrongOpportunities,
+          opportunityEngineEnabled,
+          setOpportunityEngineEnabled,
+          hasOpportunityGoals,
+          priorityNotificationThreshold,
+          setPriorityNotificationThreshold,
+          AI_PRESETS,
+          applyPreset,
+          aiPresetId,
+          renderPresetIcon,
+          businessOffering,
+          setBusinessOffering,
+          idealCustomer,
+          setIdealCustomer,
+          preferredEngagement,
+          setPreferredEngagement,
+          problemsSolved,
+          setProblemsSolved,
+          strategyPreset,
+          setStrategyPreset,
+          opportunityStrictness,
+          setOpportunityStrictness,
+          opportunityFocus,
+          setOpportunityFocus,
+          opportunityBrief,
+          setOpportunityBrief,
+          aiAdvancedOpen,
+          setAiAdvancedOpen,
+          aiAvoid,
+          setAiAvoid,
+          aiExamplePerfect,
+          setAiExamplePerfect,
+          aiExampleStrong,
+          setAiExampleStrong,
+          aiExampleReject,
+          setAiExampleReject,
+          aiShowModelKey,
+          setAiShowModelKey,
+          secureKeyStatus,
+          deleteSecureApiKey,
+          openRouterApiKey,
+          setOpenRouterApiKey,
+          saveSecureApiKey,
+          savingSecureKey,
+          modelGroups,
+          openRouterModel,
+          setOpenRouterModel,
+          showAllModels,
+          setShowAllModels,
+          modelsLoading,
+          modelsError,
+          renderModelCard,
+          aiShowPromptPreview,
+          setAiShowPromptPreview,
+          AI_PROMPT_VERSION,
+          buildScoringPromptPreview,
+          effectiveGoalText,
+          effectiveContextText,
+          effectiveAvoidText,
+          opportunityScanError,
+          setOpportunityScanError,
+          aiActivity,
+          aiScoresStale,
+          rerankNow,
+          opportunityScanLoading,
+          loading,
+          dataLength: data.length,
+        })
       );
     }
     const AppWithAuth = authModule.createAppWithAuth
