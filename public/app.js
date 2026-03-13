@@ -1830,7 +1830,7 @@ const {
             : tone === 'warning'
               ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60'
               : tone === 'accent'
-                ? 'bg-sky-100 text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-800/60'
+                ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-800/60'
                 : 'bg-white text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700';
         return h('span', {
           className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`,
@@ -1897,7 +1897,7 @@ const {
         const containerClass = [
           'p-3 rounded-lg border transition-colors',
           selected
-            ? 'border-sky-400 bg-sky-50 dark:border-[#0284C7]/55 dark:bg-[#0284C7]/15'
+            ? 'border-amber-400 bg-amber-50 dark:border-[#D97706]/55 dark:bg-[#D97706]/15'
             : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800',
           emphasize ? 'shadow-sm' : '',
         ].join(' ');
@@ -1909,12 +1909,12 @@ const {
               h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' }, model.id)
             ),
             h('div', { className: 'flex items-center gap-2 shrink-0' },
-              selected && h('span', { className: 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#0284C7] text-white' }, 'Selected'),
+              selected && h('span', { className: 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#D97706] text-white' }, 'Selected'),
               h('button', {
                 type: 'button',
                 onClick: () => setOpenRouterModel(model.id),
                 disabled: !opportunityEngineEnabled,
-                className: 'px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed'
+                className: 'px-2 py-1 rounded-md text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed'
               }, selected ? 'Using' : 'Select')
             )
           ),
@@ -1945,8 +1945,8 @@ const {
         h('header', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
             h('div', { className: 'flex items-center gap-2.5' },
               h('svg', { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', className: 'shrink-0', 'aria-hidden': 'true' },
-                h('rect', { x: 1.5, y: 2.5, width: 17, height: 11, rx: 2, stroke: '#0284C7', strokeWidth: 1.5 }),
-                h('path', { d: 'M7 19h6M10 13.5V19', stroke: '#0284C7', strokeWidth: 1.5, strokeLinecap: 'round' }),
+                h('rect', { x: 1.5, y: 2.5, width: 17, height: 11, rx: 2, stroke: '#D97706', strokeWidth: 1.5 }),
+                h('path', { d: 'M7 19h6M10 13.5V19', stroke: '#D97706', strokeWidth: 1.5, strokeLinecap: 'round' }),
                 h('path', { d: 'M5 9.5l2-2.5 2.5 2.5 2-2 3 3', stroke: '#38BDF8', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })
               ),
               h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder')
@@ -1956,7 +1956,7 @@ const {
               h('button', {
                 onClick: () => setDarkMode(!darkMode),
                 'aria-label': darkMode ? 'Switch to light mode' : 'Switch to dark mode',
-                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: darkMode ? 'Light mode' : 'Dark mode'
               }, darkMode 
                 ? h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1968,7 +1968,7 @@ const {
               ),
               h('button', {
                 onClick: () => openOnboarding(0),
-                className: 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Open onboarding'
               },
                 renderGlyph('M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z', 'w-3.5 h-3.5'),
@@ -1977,7 +1977,7 @@ const {
               h('button', {
                 onClick: () => setSettingsOpen(true),
                 'aria-label': 'Open settings',
-              className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+              className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
               title: 'Settings'
             }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }),
@@ -1988,11 +1988,11 @@ const {
                 : authenticated
                   ? h('button', {
                       onClick: () => { window.location.href = '/api/auth/logout'; },
-                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                     }, 'Sign out')
                   : h('button', {
                       onClick: () => { window.location.href = '/api/auth/start'; },
-                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                    className: 'px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#D97706] text-white hover:bg-zinc-800 dark:hover:bg-[#B45309] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                     }, 'Sign in')
           )
         ),
@@ -2036,7 +2036,7 @@ const {
                     ],
             (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
-              className: 'text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
+              className: 'text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
             }, renderStatusChip('Alerts', 'On', 'accent'))
           ),
           h('div', { className: 'flex items-center gap-2' },
@@ -2044,7 +2044,7 @@ const {
               onClick: () => refresh({ force: true }),
               disabled: loading,
               'aria-label': 'Refresh posts',
-              className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-[#0284C7] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+              className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-[#D97706] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
             },
               h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
@@ -2054,7 +2054,7 @@ const {
           )
         ),
         loading && fetchActivity && h('div', {
-          className: 'border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900 dark:border-sky-800/60 dark:bg-sky-900/20 dark:text-sky-200'
+          className: 'border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200'
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, `${fetchActivity.status}: ${fetchActivity.detail}`),
@@ -2065,7 +2065,7 @@ const {
           className: `border-b px-4 py-2 text-xs sm:text-sm shrink-0 ${fetchSummary.tone === 'warning'
             ? 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/60'
             : fetchSummary.tone === 'accent'
-              ? 'bg-sky-100 text-sky-900 border-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-800/60'
+              ? 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/60'
               : 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/60'}`
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
@@ -2145,7 +2145,7 @@ const {
                   opportunityEngineEnabled && hasOpportunityGoals && h('button', {
                     onClick: rerankNow,
                     disabled: opportunityScanLoading || loading,
-                    className: 'px-2.5 py-1 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                    className: 'px-2.5 py-1 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
                   }, opportunityScanLoading ? '…' : 'Refresh ranking'),
                   h('button', {
                     onClick: () => setSettingsOpen(true),
@@ -2153,7 +2153,7 @@ const {
                   }, opportunityEngineEnabled && hasOpportunityGoals ? 'Edit engine' : 'Set up engine'),
                   postScoreProxies.size > 0 && h('button', {
                     onClick: () => setShowAiReasons(!showAiReasons),
-                    className: `px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${showAiReasons ? 'border-[#0284C7] text-[#0284C7] dark:text-sky-400 dark:border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
+                    className: `px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${showAiReasons ? 'border-[#D97706] text-[#D97706] dark:text-amber-400 dark:border-[#D97706]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
                   }, showAiReasons ? 'Reasons on' : 'Reasons')
                 )
               )
@@ -2171,7 +2171,7 @@ const {
                   value: keyword,
                   onChange: (e) => setKeyword(e.target.value),
                   placeholder: 'Search keywords… (⌘K)',
-                  className: 'w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                  className: 'w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                 })
               ),
               h('div', { className: 'flex items-center gap-1.5' },
@@ -2181,7 +2181,7 @@ const {
                     key: `upvote-${preset.value}`,
                     onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
                     'aria-pressed': minUpvoteFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minUpvoteFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minUpvoteFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
@@ -2192,7 +2192,7 @@ const {
                     key: `comment-${preset.value}`,
                     onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
                     'aria-pressed': minCommentFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minCommentFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minCommentFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
@@ -2204,13 +2204,13 @@ const {
                     key: `ai-${preset.value}`,
                     onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
                     'aria-pressed': minPriorityFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
               (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
                 onClick: () => setSettingsOpen(true),
-                className: 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-[#D97706]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Alerts settings'
               }, h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
@@ -2236,7 +2236,7 @@ const {
                   setSortBy(by);
                   setSortOrder(order);
                 },
-                className: 'px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
+                className: 'px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                 },
                 h('option', { value: 'date-desc' }, 'Latest posts'),
                 h('option', { value: 'date-asc' }, 'Oldest posts'),
@@ -2273,20 +2273,20 @@ const {
                   }]);
                 },
                 title: 'Save current filters as a reusable preset',
-                className: 'text-xs text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 font-medium shrink-0'
+                className: 'text-xs text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 font-medium shrink-0'
               }, '+ Save filters'),
               filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1.5 flex-wrap' },
                 filterPresets.map(preset =>
-                  h('span', { key: preset.id, className: 'inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-[#0284C7]/15 border border-sky-200 dark:border-[#0284C7]/30 text-[11px] font-medium text-[#0369A1] dark:text-sky-300' },
+                  h('span', { key: preset.id, className: 'inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-[#D97706]/15 border border-amber-200 dark:border-[#D97706]/30 text-[11px] font-medium text-[#B45309] dark:text-amber-300' },
                     h('button', {
                       onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setKeyword(preset.keyword); },
                       title: `Apply: ${preset.label}`,
-                      className: 'pl-2.5 pr-1 py-1 hover:text-[#0284C7] dark:hover:text-sky-100 transition-colors'
+                      className: 'pl-2.5 pr-1 py-1 hover:text-[#D97706] dark:hover:text-amber-100 transition-colors'
                     }, preset.label),
                     h('button', {
                       onClick: () => setFilterPresets(prev => prev.filter(p => p.id !== preset.id)),
                       'aria-label': `Remove preset "${preset.label}"`,
-                      className: 'pr-2 py-1 text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-100 transition-colors'
+                      className: 'pr-2 py-1 text-amber-400 hover:text-[#B45309] dark:hover:text-amber-100 transition-colors'
                     }, '×')
                   )
                 )
@@ -2306,7 +2306,7 @@ const {
               ),
               h('button', {
                 onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
-                className: 'text-xs font-medium text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300'
+                className: 'text-xs font-medium text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300'
               }, 'Clear filters')
             ),
 
@@ -2316,8 +2316,8 @@ const {
                 ? h('div', { className: 'flex flex-col items-center justify-center h-full p-10 text-center' },
                     subs.length === 0
                       ? [
-                          h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-sky-50 dark:bg-[#0284C7]/15 border border-sky-200 dark:border-[#0284C7]/30 flex items-center justify-center' },
-                            h('svg', { className: 'w-6 h-6 text-[#0284C7] dark:text-sky-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                          h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-amber-50 dark:bg-[#D97706]/15 border border-amber-200 dark:border-[#D97706]/30 flex items-center justify-center' },
+                            h('svg', { className: 'w-6 h-6 text-[#D97706] dark:text-amber-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4v16m8-8H4' })
                             )
                           ),
@@ -2350,7 +2350,7 @@ const {
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
                               h('button', {
                                 onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
-                                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#D97706] dark:hover:bg-[#B45309] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                               }, 'Clear all filters'),
                               minPriorityFilter && h('button', {
                                 onClick: () => setMinPriorityFilter(''),
@@ -2372,7 +2372,7 @@ const {
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
                               h('button', {
                                 onClick: () => refresh({ force: true }),
-                                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                                className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#D97706] dark:hover:bg-[#B45309] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                               }, 'Refresh posts'),
                               h('button', {
                                 onClick: () => setSettingsOpen(true),
@@ -2544,12 +2544,12 @@ const {
           h('span', null, lastHiddenPost.title ? `Post hidden: "${truncateText(lastHiddenPost.title, 40)}"` : 'Post hidden'),
           h('button', {
             onClick: () => handleUnhidePost(lastHiddenPost.id),
-            className: 'font-semibold text-sky-300 hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded'
+            className: 'font-semibold text-amber-300 hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded'
           }, 'Undo'),
           h('button', {
             onClick: () => setLastHiddenPost(null),
             'aria-label': 'Dismiss',
-            className: 'text-zinc-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded ml-1'
+            className: 'text-zinc-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded ml-1'
           }, '×')
         ),
 

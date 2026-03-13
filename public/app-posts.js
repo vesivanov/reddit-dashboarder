@@ -179,7 +179,7 @@
         const upvotesPerHour = velocity?.upvotesPerHour || 0;
         const commentsPerHour = velocity?.commentsPerHour || 0;
         const borderClass = isSelected
-          ? 'border-l-4 border-[#0284C7]'
+          ? 'border-l-4 border-[#D97706]'
           : isHighlyRelevant
             ? 'border-l-4 border-emerald-500'
             : '';
@@ -215,7 +215,7 @@
               h('span', null, '•'),
               h('span', { title: absoluteDate(post.created_utc) }, timeAgo(post.created_utc)),
               opportunityType && h('span', {
-                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 capitalize',
+                className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 capitalize',
               }, opportunityType),
               recommendedAction && h('span', {
                 className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 capitalize',
@@ -228,7 +228,7 @@
                 `${formatVelocity(upvotesPerHour)}/h`
               ),
               priorityScore !== null && h('span', {
-                className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
+                className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950',
                 title: opportunity?.explanation?.summary
                   ? `Priority ${Math.round(priorityScore * 100)}/100 — ${opportunity.explanation.summary}`
                   : `Opportunity priority: ${Math.round(priorityScore * 100)}/100 (higher = better match for your goals)`,
@@ -314,7 +314,7 @@
       visiblePosts.length > postPageLimit && h('li', { className: 'flex items-center justify-center py-6 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
         h('button', {
           onClick: () => setPostPageLimit((prev) => prev + 150),
-          className: 'px-5 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+          className: 'px-5 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
         }, `Load ${Math.min(150, visiblePosts.length - postPageLimit)} more posts  (${postPageLimit} of ${visiblePosts.length} shown)`)
       )
     );
@@ -392,7 +392,7 @@
               return h('article', { className: 'space-y-4' },
                 h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 flex-wrap' },
                   h('span', { className: 'px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium text-xs' }, `r/${selectedPost.subreddit}`),
-                  detailType && h('span', { className: 'px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 font-medium text-[11px] capitalize' }, formatOpportunityLabel(detailType)),
+                  detailType && h('span', { className: 'px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium text-[11px] capitalize' }, formatOpportunityLabel(detailType)),
                   detailAction && h('span', { className: 'px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium text-[11px] capitalize' }, formatOpportunityLabel(detailAction)),
                   selectedPost.link_flair_text && h('span', {
                     className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
@@ -409,7 +409,7 @@
                   title: detailOpportunity?.explanation?.summary || (detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : (detailPriority !== null ? `Opportunity priority ${Math.round(detailPriority * 100)}/100` : `Opportunity score: ${detailRelevanceScore}/5`)),
                 },
                   detailPriority !== null && h('span', {
-                    className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
+                    className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-amber-500 dark:text-zinc-950',
                     title: detailOpportunity?.explanation?.summary
                       ? `Priority ${Math.round(detailPriority * 100)}/100 — ${detailOpportunity.explanation.summary}`
                       : `Opportunity priority: ${Math.round(detailPriority * 100)}/100 — how well this post matches your goals (0=no match, 100=perfect)`,
@@ -440,10 +440,10 @@
                     className: 'text-xs text-zinc-600 dark:text-zinc-400 line-clamp-1',
                   }, detailOpportunity?.explanation?.summary || detailRelevanceMeta.reason)
                 ),
-                h('section', { className: 'sticky top-4 z-10 rounded-xl border border-sky-200/80 bg-sky-50/90 p-3 backdrop-blur dark:border-[#0284C7]/25 dark:bg-[#0284C7]/10' },
+                h('section', { className: 'sticky top-4 z-10 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3 backdrop-blur dark:border-[#D97706]/25 dark:bg-[#D97706]/10' },
                   h('div', { className: 'flex items-start justify-between gap-3' },
                     h('div', { className: 'min-w-0' },
-                      h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0369A1] dark:text-sky-300' }, 'Opportunity Summary'),
+                      h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#B45309] dark:text-amber-300' }, 'Opportunity Summary'),
                       h('p', { className: 'mt-1 text-sm font-medium text-zinc-900 dark:text-white' }, selectedPostNextAction)
                     ),
                     h('button', {
@@ -452,7 +452,7 @@
                         setShowAiReasons(true);
                         if (mobileView !== 'detail') setMobileView('detail');
                       },
-                      className: 'shrink-0 rounded-lg border border-sky-200 px-2.5 py-1 text-xs font-medium text-[#0369A1] hover:bg-sky-100 dark:border-[#0284C7]/30 dark:text-sky-300 dark:hover:bg-[#0284C7]/20 transition-colors',
+                      className: 'shrink-0 rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-medium text-[#B45309] hover:bg-amber-100 dark:border-[#D97706]/30 dark:text-amber-300 dark:hover:bg-[#D97706]/20 transition-colors',
                     }, 'Keep visible')
                   ),
                   h('div', { className: 'mt-3 space-y-2' },
@@ -493,7 +493,7 @@
                   href: selectedPost.reddit_url || selectedPost.external_url,
                   target: '_blank',
                   rel: 'noreferrer',
-                  className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-[#0284C7] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                  className: 'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 dark:bg-[#D97706] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#B45309] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 },
                   'Open on Reddit',
                   h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },

@@ -23,7 +23,7 @@
         h('button', {
           onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
           'aria-label': 'Add subreddit',
-          className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+          className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
           title: 'Add subreddit',
         }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
           h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
@@ -32,8 +32,8 @@
       h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-2 space-y-1' },
         subs.length === 0
           ? h('div', { className: 'p-3 text-center' },
-              h('div', { className: 'w-10 h-10 mx-auto mb-3 rounded-xl bg-[#0284C7]/8 dark:bg-[#0284C7]/12 border border-[#0284C7]/20 dark:border-[#0284C7]/25 flex items-center justify-center' },
-                h('svg', { className: 'w-5 h-5 text-[#0284C7] dark:text-sky-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              h('div', { className: 'w-10 h-10 mx-auto mb-3 rounded-xl bg-[#D97706]/8 dark:bg-[#D97706]/12 border border-[#D97706]/20 dark:border-[#D97706]/25 flex items-center justify-center' },
+                h('svg', { className: 'w-5 h-5 text-[#D97706] dark:text-amber-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4v16m8-8H4' })
                 )
               ),
@@ -58,14 +58,14 @@
               ),
               h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
-                className: 'mt-3 text-xs text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'mt-3 text-xs text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
               }, 'Add custom subreddits')
             )
           : [
               h('button', {
                 key: 'all',
                 onClick: () => setSelectedSub('ALL'),
-                className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-zinc-200 shadow-sm dark:bg-zinc-800 dark:text-sky-200 dark:ring-zinc-700' : 'hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`,
+                className: `w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${selectedSub === 'ALL' ? 'bg-white text-zinc-900 ring-1 ring-zinc-200 shadow-sm dark:bg-zinc-800 dark:text-amber-200 dark:ring-zinc-700' : 'hover:bg-white dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`,
               },
                 h('div', { className: 'flex items-center justify-between' },
                   h('span', null, 'All'),
@@ -84,16 +84,16 @@
                 },
                   h('button', {
                     onClick: () => setSelectedSub(sub),
-                    className: 'w-full px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                    className: 'w-full px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                   },
                     h('div', { className: 'flex items-center justify-between' },
-                      h('span', { className: `text-sm font-medium ${isSelected ? 'text-zinc-950 dark:text-sky-200' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
+                      h('span', { className: `text-sm font-medium ${isSelected ? 'text-zinc-950 dark:text-amber-200' : 'text-zinc-700 dark:text-zinc-300'}` }, `r/${sub}`),
                       h('div', { className: 'flex items-center gap-2' },
                         h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, postCount),
                         h('button', {
                           onClick: (event) => { event.stopPropagation(); handleRemoveSub(sub); },
                           'aria-label': `Remove r/${sub}`,
-                          className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                          className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                           title: `Remove r/${sub}`,
                         }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                           h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })

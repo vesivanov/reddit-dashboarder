@@ -58,7 +58,7 @@
         h('div', { className: 'border-b border-zinc-200 px-5 py-4 dark:border-zinc-700' },
           h('div', { className: 'flex items-start justify-between gap-4' },
             h('div', null,
-              h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#0284C7] dark:text-sky-300' }, 'Quick Setup'),
+              h('p', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.18em] text-[#D97706] dark:text-amber-300' }, 'Quick Setup'),
               h('h2', { className: 'mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-white' }, onboardingCurrentStep.title),
               h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, onboardingCurrentStep.description)
             ),
@@ -74,9 +74,9 @@
                 key: step.id,
                 type: 'button',
                 onClick: () => setOnboardingStep(index),
-                className: `rounded-xl border px-3 py-2 text-left transition-colors ${index === onboardingStep ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+                className: `rounded-xl border px-3 py-2 text-left transition-colors ${index === onboardingStep ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
               },
-                h('p', { className: `text-[11px] font-mono uppercase tracking-wide ${index === onboardingStep ? 'text-[#0284C7] dark:text-sky-300' : 'text-zinc-400 dark:text-zinc-500'}` }, `Step ${index + 1}`),
+                h('p', { className: `text-[11px] font-mono uppercase tracking-wide ${index === onboardingStep ? 'text-[#D97706] dark:text-amber-300' : 'text-zinc-400 dark:text-zinc-500'}` }, `Step ${index + 1}`),
                 h('p', { className: `mt-1 text-sm font-medium ${index === onboardingStep ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'}` }, step.title)
               )
             )
@@ -94,7 +94,7 @@
                         key: sub,
                         type: 'button',
                         onClick: () => handleRemoveSub(sub),
-                        className: 'inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-[#0284C7]',
+                        className: 'inline-flex items-center gap-1.5 rounded-full bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-[#D97706]',
                       }, `r/${sub}`, renderGlyph('M6 18L18 6M6 6l12 12', 'w-3 h-3'))
                     )
                   : h('p', { className: 'text-sm text-zinc-400 dark:text-zinc-500' }, 'No subreddits selected yet.')
@@ -108,7 +108,7 @@
                   onChange: (event) => setOnboardingSubInput(event.target.value),
                   placeholder: 'programming, webdev, javascript',
                   rows: 4,
-                  className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0284C7] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white',
+                  className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#D97706] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white',
                 }),
                 h('div', { className: 'mt-3 flex items-center justify-between gap-3' },
                   h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate names with commas or new lines.'),
@@ -116,7 +116,7 @@
                     type: 'button',
                     onClick: handleOnboardingAddSubs,
                     disabled: !onboardingSubInput.trim(),
-                    className: 'rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]',
+                    className: 'rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#D97706] dark:hover:bg-[#B45309]',
                   }, 'Add list')
                 )
               ),
@@ -164,7 +164,7 @@
                     key: preset.id,
                     type: 'button',
                     onClick: () => applyPreset(preset),
-                    className: `rounded-xl border p-4 text-left transition-colors ${aiPresetId === preset.id ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+                    className: `rounded-xl border p-4 text-left transition-colors ${aiPresetId === preset.id ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
                   },
                     h('div', { className: 'flex items-center gap-2' },
                       renderPresetIcon(preset.id, aiPresetId === preset.id),
@@ -184,7 +184,7 @@
                 aiPresetSuggestion && aiPresetSuggestion.id !== aiPresetId && h('button', {
                   type: 'button',
                   onClick: () => applyPreset(aiPresetSuggestion),
-                  className: 'rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-[#0369A1] transition-colors hover:bg-sky-100 dark:border-[#0284C7]/30 dark:bg-[#0284C7]/15 dark:text-sky-300',
+                  className: 'rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-[#B45309] transition-colors hover:bg-amber-100 dark:border-[#D97706]/30 dark:bg-[#D97706]/15 dark:text-amber-300',
                 }, `Use suggested: ${aiPresetSuggestion.label}`)
               ),
               h('textarea', {
@@ -192,7 +192,7 @@
                 onChange: (event) => setOpportunityBrief(event.target.value),
                 rows: 4,
                 placeholder: 'I want to find high-intent posts from people actively asking for help.',
-                className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#0284C7] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white',
+                className: 'mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#D97706] dark:border-zinc-600 dark:bg-zinc-700 dark:text-white',
               })
             )
           ),
@@ -200,7 +200,7 @@
             h('button', {
               type: 'button',
               onClick: () => setOpportunityEngineEnabled(false),
-              className: `rounded-xl border p-5 text-left transition-colors ${!opportunityEngineEnabled ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+              className: `rounded-xl border p-5 text-left transition-colors ${!opportunityEngineEnabled ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
             },
               h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, 'Manual scan'),
               h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, 'Browse Reddit posts with filters only. Best if you want a lightweight setup first.')
@@ -208,7 +208,7 @@
             h('button', {
               type: 'button',
               onClick: () => setOpportunityEngineEnabled(true),
-              className: `rounded-xl border p-5 text-left transition-colors ${opportunityEngineEnabled ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+              className: `rounded-xl border p-5 text-left transition-colors ${opportunityEngineEnabled ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
             },
               h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, 'Opportunity engine'),
               h('p', { className: 'mt-2 text-sm text-zinc-500 dark:text-zinc-400' }, 'Rank the feed against your business profile so the strongest opportunities rise to the top.')
@@ -230,7 +230,7 @@
                       key: model.id,
                       type: 'button',
                       onClick: () => setOpenRouterModel(model.id),
-                      className: `rounded-xl border p-3 text-left transition-colors ${openRouterModel === model.id ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+                      className: `rounded-xl border p-3 text-left transition-colors ${openRouterModel === model.id ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
                     },
                       h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, model.name),
                       h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, model.hint || model.id)
@@ -248,7 +248,7 @@
                     key: String(value),
                     type: 'button',
                     onClick: () => setMaxPages(value),
-                    className: `rounded-xl border px-3 py-3 text-left transition-colors ${maxPages === value ? 'border-[#0284C7] bg-sky-50 dark:border-[#0284C7] dark:bg-[#0284C7]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+                    className: `rounded-xl border px-3 py-3 text-left transition-colors ${maxPages === value ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
                   },
                     h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, value === 0 ? 'All pages' : `${value} page${value === 1 ? '' : 's'}`),
                     h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, value <= 1 ? 'Fastest' : value === 0 ? 'Deepest scan' : 'Balanced coverage')
@@ -261,7 +261,7 @@
                   h('select', {
                     value: mode,
                     onChange: (event) => setMode(event.target.value),
-                    className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                    className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                   },
                     h('option', { value: 'new' }, 'Latest posts'),
                     h('option', { value: 'top' }, 'Top posts')
@@ -280,7 +280,7 @@
                         setAutoRefreshInterval(nextValue);
                       }
                     },
-                    className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                    className: 'mt-2 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                   },
                     h('option', { value: 0 }, 'Off'),
                     AUTO_REFRESH_OPTIONS.map((opt) => h('option', { key: opt, value: opt }, `Every ${opt} min`))
@@ -317,13 +317,13 @@
                   type: 'button',
                   onClick: () => setOnboardingStep((step) => Math.min(onboardingSteps.length - 1, step + 1)),
                   disabled: !onboardingCanContinue,
-                  className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]',
+                  className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#D97706] dark:hover:bg-[#B45309]',
                 }, 'Continue')
               : h('button', {
                   type: 'button',
                   onClick: completeOnboarding,
                   disabled: !onboardingCanContinue || subs.length === 0 || loading,
-                  className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#0284C7] dark:hover:bg-[#0369A1]',
+                  className: 'rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#D97706] dark:hover:bg-[#B45309]',
                 }, loading ? 'Loading…' : 'Finish and fetch')
           )
         )

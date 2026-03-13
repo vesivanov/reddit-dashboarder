@@ -119,13 +119,13 @@
                 value: autoRefreshInterval,
                 onChange: (event) => setAutoRefreshInterval(Number(event.target.value)),
                 disabled: !autoRefreshEnabled,
-                className: 'px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                className: 'px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
               },
                 AUTO_REFRESH_OPTIONS.map((opt) => h('option', { key: opt, value: opt }, `${opt} min`))
               ),
               h('button', {
                 onClick: () => setAutoRefreshEnabled(!autoRefreshEnabled),
-                className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${autoRefreshEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
+                className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${autoRefreshEnabled ? 'bg-[#D97706]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
               },
                 h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${autoRefreshEnabled ? 'translate-x-5' : ''}` })
               )
@@ -137,7 +137,7 @@
               h('select', {
                 value: mode,
                 onChange: (event) => setMode(event.target.value),
-                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
               },
                 h('option', { value: 'new' }, 'Latest posts'),
                 h('option', { value: 'top' }, 'Top posts')
@@ -149,7 +149,7 @@
                 value: time,
                 onChange: (event) => setTime(event.target.value),
                 disabled: mode !== 'top',
-                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
               },
                 h('option', { value: 'hour' }, 'Hour'),
                 h('option', { value: 'day' }, 'Day'),
@@ -162,7 +162,7 @@
               h('select', {
                 value: days,
                 onChange: (event) => setDays(Number(event.target.value)),
-                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
               },
                 h('option', { value: 1 }, 'Day'),
                 h('option', { value: 3 }, '3 Days'),
@@ -174,7 +174,7 @@
               h('select', {
                 value: maxPages,
                 onChange: (event) => setMaxPages(Number(event.target.value)),
-                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
               },
                 [
                   h('option', { key: 'all', value: 0 }, 'All pages'),
@@ -194,12 +194,12 @@
                 h('div', { className: 'flex items-center gap-2' },
                   Notification.permission !== 'granted' && h('button', {
                     onClick: requestNotificationPermission,
-                    className: 'px-2.5 py-1 text-xs font-medium rounded-full bg-sky-50 text-[#0369A1] dark:bg-[#0284C7]/15 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                    className: 'px-2.5 py-1 text-xs font-medium rounded-full bg-amber-50 text-[#B45309] dark:bg-[#D97706]/15 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-[#D97706]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                   }, 'Allow notifications'),
                   h('button', {
                     onClick: () => setNotificationsEnabled(!notificationsEnabled),
                     disabled: Notification.permission !== 'granted',
-                    className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notificationsEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
+                    className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notificationsEnabled ? 'bg-[#D97706]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
                   },
                     h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notificationsEnabled ? 'translate-x-5' : ''}` })
                   )
@@ -213,7 +213,7 @@
                   value: upvoteThreshold,
                   onChange: (event) => setUpvoteThreshold(Number(event.target.value) || 100),
                   disabled: !notificationsEnabled,
-                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                 })
               ),
               h('label', { className: 'block' },
@@ -225,7 +225,7 @@
                   onChange: (event) => setAlertKeywords(event.target.value),
                   placeholder: 'breaking, launch, announcement...',
                   disabled: Notification.permission !== 'granted',
-                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                 })
               ),
               h('div', { className: 'flex items-center justify-between' },
@@ -236,7 +236,7 @@
                 h('button', {
                   onClick: () => setNotifyStrongOpportunities(!notifyStrongOpportunities),
                   disabled: !opportunityEngineEnabled || !hasOpportunityGoals,
-                  className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyStrongOpportunities ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
+                  className: `relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${notifyStrongOpportunities ? 'bg-[#D97706]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
                 },
                   h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifyStrongOpportunities ? 'translate-x-5' : ''}` })
                 )
@@ -248,7 +248,7 @@
                   value: priorityNotificationThreshold,
                   onChange: (event) => setPriorityNotificationThreshold(Number(event.target.value) || 4),
                   disabled: !notifyStrongOpportunities || !opportunityEngineEnabled,
-                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                 },
                   h('option', { value: 4 }, '4+'),
                   h('option', { value: 5 }, '5+')
@@ -262,7 +262,7 @@
               h('button', {
                 onClick: () => setOpportunityEngineEnabled(!opportunityEngineEnabled),
                 title: opportunityEngineEnabled ? 'Disable opportunity engine' : 'Enable opportunity engine',
-                className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${opportunityEngineEnabled ? 'bg-[#0284C7]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
+                className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${opportunityEngineEnabled ? 'bg-[#D97706]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
               },
                 h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${opportunityEngineEnabled ? 'translate-x-5' : ''}` })
               )
@@ -275,7 +275,7 @@
                     type: 'button',
                     onClick: () => applyPreset(preset),
                     disabled: !opportunityEngineEnabled,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#0284C7] text-white border-[#0284C7]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!opportunityEngineEnabled ? 'opacity-50 cursor-not-allowed' : ''}`,
+                    className: `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${aiPresetId === preset.id ? 'bg-[#D97706] text-white border-[#D97706]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'} ${!opportunityEngineEnabled ? 'opacity-50 cursor-not-allowed' : ''}`,
                   },
                     h('span', { className: 'inline-flex items-center gap-1.5' },
                       renderPresetIcon(preset.id, aiPresetId === preset.id),
@@ -292,7 +292,7 @@
                       onChange: (event) => setBusinessOffering(event.target.value),
                       placeholder: 'SEO consulting for B2B SaaS teams',
                       disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     })
                   ),
                   h('label', { className: 'block' },
@@ -303,7 +303,7 @@
                       onChange: (event) => setIdealCustomer(event.target.value),
                       placeholder: 'Founders and marketing leads at SMBs',
                       disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     })
                   ),
                   h('label', { className: 'block' },
@@ -312,7 +312,7 @@
                       value: preferredEngagement,
                       onChange: (event) => setPreferredEngagement(event.target.value),
                       disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     },
                       h('option', { value: 'reply' }, 'Public reply'),
                       h('option', { value: 'dm' }, 'DM / outreach'),
@@ -328,7 +328,7 @@
                       placeholder: 'Traffic drops, poor search visibility, weak conversion pages',
                       disabled: !opportunityEngineEnabled,
                       rows: 2,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     })
                   ),
                   h('label', { className: 'block' },
@@ -337,7 +337,7 @@
                       value: strategyPreset,
                       onChange: (event) => setStrategyPreset(event.target.value),
                       disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     },
                       h('option', { value: 'balanced' }, 'Balanced'),
                       h('option', { value: 'sales' }, 'Sales'),
@@ -351,7 +351,7 @@
                       value: opportunityStrictness,
                       onChange: (event) => setOpportunityStrictness(event.target.value),
                       disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     },
                       h('option', { value: 'strict' }, 'Strict'),
                       h('option', { value: 'balanced' }, 'Balanced'),
@@ -366,7 +366,7 @@
                       onChange: (event) => setOpportunityFocus(event.target.value),
                       placeholder: 'lead, pain_point, tool_search',
                       disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     })
                   )
                 ),
@@ -376,7 +376,7 @@
                   placeholder: 'Optional: extra instructions or nuanced opportunities to prioritize',
                   disabled: !opportunityEngineEnabled,
                   rows: 3,
-                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none',
+                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none',
                 })
               ),
               h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden' },
@@ -401,7 +401,7 @@
                       onChange: (event) => setAiAvoid(event.target.value),
                       placeholder: 'job postings, memes, generic questions without intent',
                       disabled: !opportunityEngineEnabled,
-                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     })
                   ),
                   h('div', null,
@@ -415,18 +415,18 @@
                           rows: 2,
                           disabled: !opportunityEngineEnabled,
                           placeholder: 'Traffic dropped 50%, need SEO help, budget ready',
-                          className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none',
+                          className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] resize-none',
                         })
                       ),
                       h('label', { className: 'flex items-start gap-2' },
-                        h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-sky-600 dark:text-sky-400 pt-2' }, 'STRONG'),
+                        h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-amber-600 dark:text-amber-400 pt-2' }, 'STRONG'),
                         h('textarea', {
                           value: aiExampleStrong,
                           onChange: (event) => setAiExampleStrong(event.target.value),
                           rows: 2,
                           disabled: !opportunityEngineEnabled,
                           placeholder: 'How can we improve our local rankings?',
-                          className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none',
+                          className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] resize-none',
                         })
                       ),
                       h('label', { className: 'flex items-start gap-2' },
@@ -437,7 +437,7 @@
                           rows: 2,
                           disabled: !opportunityEngineEnabled,
                           placeholder: 'Hiring SEO specialist, $20/hr',
-                          className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] resize-none',
+                          className: 'flex-1 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] resize-none',
                         })
                       )
                     )
@@ -464,7 +464,7 @@
                     h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1' }, 'OpenRouter API Key'),
                     h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-2' },
                       'Get a free key at ',
-                      h('a', { href: 'https://openrouter.ai/keys', target: '_blank', rel: 'noopener noreferrer', className: 'text-[#0284C7] dark:text-sky-400 hover:underline' }, 'openrouter.ai/keys')
+                      h('a', { href: 'https://openrouter.ai/keys', target: '_blank', rel: 'noopener noreferrer', className: 'text-[#D97706] dark:text-amber-400 hover:underline' }, 'openrouter.ai/keys')
                     ),
                     secureKeyStatus.hasKey
                       ? h('div', { className: 'flex items-center gap-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800' },
@@ -490,7 +490,7 @@
                             onChange: (event) => setOpenRouterApiKey(event.target.value),
                             placeholder: 'sk-or-v1-...',
                             disabled: !opportunityEngineEnabled,
-                            className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono',
+                            className: 'flex-1 px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent font-mono',
                           }),
                           openRouterApiKey.trim() && h('button', {
                             onClick: saveSecureApiKey,
@@ -505,8 +505,8 @@
                   ),
                   h('div', null,
                     h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2' }, 'Model'),
-                    modelGroups.recommended.length > 0 && h('div', { className: 'mb-3 p-2.5 rounded-lg border border-sky-200 dark:border-[#0369A1]/55 bg-sky-50 dark:bg-[#0284C7]/10' },
-                      h('p', { className: 'text-[10px] font-semibold text-[#0369A1] dark:text-sky-300 uppercase tracking-[0.12em] mb-1.5' }, 'Recommended'),
+                    modelGroups.recommended.length > 0 && h('div', { className: 'mb-3 p-2.5 rounded-lg border border-amber-200 dark:border-[#B45309]/55 bg-amber-50 dark:bg-[#D97706]/10' },
+                      h('p', { className: 'text-[10px] font-semibold text-[#B45309] dark:text-amber-300 uppercase tracking-[0.12em] mb-1.5' }, 'Recommended'),
                       renderModelCard(modelGroups.recommended[0], { emphasize: true })
                     ),
                     h('div', { className: 'grid gap-2 sm:grid-cols-2' },
@@ -519,7 +519,7 @@
                         value: openRouterModel,
                         onChange: (event) => setOpenRouterModel(event.target.value),
                         disabled: !opportunityEngineEnabled,
-                        className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                        className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                       },
                         modelGroups.all.map((model) =>
                           h('option', { key: `all-${model.id}`, value: model.id }, `${model.name} — ${model.hint}`)
@@ -532,7 +532,7 @@
                         type: 'button',
                         onClick: () => setShowAllModels(!showAllModels),
                         disabled: !opportunityEngineEnabled,
-                        className: 'text-xs text-[#0284C7] dark:text-sky-400 hover:underline disabled:opacity-50 whitespace-nowrap shrink-0',
+                        className: 'text-xs text-[#D97706] dark:text-amber-400 hover:underline disabled:opacity-50 whitespace-nowrap shrink-0',
                       }, showAllModels ? 'Fewer' : 'All models')
                     ),
                     modelsLoading && h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mt-1' }, 'Loading models...'),
@@ -569,7 +569,7 @@
                 h('span', null, opportunityScanError),
                 h('button', { onClick: () => setOpportunityScanError(null), className: 'text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 font-medium' }, '×')
               ),
-              aiActivity?.detail && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-sky-200 dark:border-sky-800/60 bg-sky-50/70 dark:bg-sky-900/20 text-xs text-sky-800 dark:text-sky-200' },
+              aiActivity?.detail && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-900/20 text-xs text-amber-800 dark:text-amber-200' },
                 `${aiActivity.status}: ${aiActivity.detail}`
               ),
               aiScoresStale && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
@@ -580,7 +580,7 @@
                   type: 'button',
                   onClick: rerankNow,
                   disabled: !opportunityEngineEnabled || !hasOpportunityGoals || opportunityScanLoading || loading || dataLength === 0,
-                  className: 'flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
+                  className: 'flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
                 }, opportunityScanLoading ? 'Analyzing…' : 'Run opportunity scan'),
                 opportunityScanLoading && h('div', { className: 'flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 shrink-0' },
                   h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' })
@@ -592,7 +592,7 @@
         h('div', { className: 'p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end sticky bottom-0 bg-white dark:bg-zinc-800' },
           h('button', {
             onClick: () => setSettingsOpen(false),
-            className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#0284C7] text-white hover:bg-zinc-800 dark:hover:bg-[#0369A1] transition-colors',
+            className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 dark:bg-[#D97706] text-white hover:bg-zinc-800 dark:hover:bg-[#B45309] transition-colors',
           }, 'Done')
         )
       )
