@@ -190,7 +190,7 @@ describe('/api/reddit aggregation', () => {
       .get('/r/programming/about.json')
       .reply(200, { data: { subscribers: 100, title: 'programming' } })
       .get('/r/programming/new.json')
-      .query((query) => query.limit === '100' && !query.after)
+      .query((query) => query.limit === '25' && !query.after)
       .reply(200, {
         data: {
           children: [buildPost('programming', 'p1', withinWindow)],
@@ -198,7 +198,7 @@ describe('/api/reddit aggregation', () => {
         },
       })
       .get('/r/programming/new.json')
-      .query((query) => query.limit === '100' && query.after === 'page-2')
+      .query((query) => query.limit === '25' && query.after === 'page-2')
       .reply(200, {
         data: {
           children: [
@@ -229,7 +229,7 @@ describe('/api/reddit aggregation', () => {
       .get(`/r/${sub}/about.json`)
       .reply(200, { data: { subscribers: 100, title: sub } })
       .get(`/r/${sub}/new.json`)
-      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
+      .query((query) => query.limit === '25' && query.raw_json === '1' && !query.after)
       .reply(200, {
         data: {
           children: [buildPost(sub, 'direct-new-1')],
@@ -248,6 +248,11 @@ describe('/api/reddit aggregation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.results[0].posts.map((post) => post.id)).toEqual(['direct-new-1']);
+    expect(res.body.results[0].coverage_state).toMatchObject({
+      subreddit: sub,
+      status: 'complete',
+      complete_1d: true,
+    });
     expect(oauth.isDone()).toBe(true);
   });
 

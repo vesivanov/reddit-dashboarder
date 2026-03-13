@@ -7,6 +7,16 @@ jest.mock('../../../lib/storage', () => ({
   set: jest.fn(async (key, value) => {
     mockStore.set(key, value);
   }),
+  compareAndSwap: jest.fn(async (key, expectedValue, nextValue) => {
+    const current = mockStore.get(key) ?? null;
+    const expectedSerialized = expectedValue === undefined ? undefined : JSON.stringify(expectedValue);
+    const currentSerialized = current === null ? JSON.stringify(null) : JSON.stringify(current);
+    if (expectedSerialized !== undefined && expectedSerialized !== currentSerialized) {
+      return { ok: false, current };
+    }
+    mockStore.set(key, nextValue);
+    return { ok: true, current };
+  }),
   delete: jest.fn(async (key) => {
     mockStore.delete(key);
   }),
@@ -111,8 +121,8 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
     });
     expect(advanceRes.body.result.posts).toHaveLength(2);
     expect(advanceRes.body.summary.complete1dCount).toBe(1);
-    expect(advanceRes.body.summary.complete3dCount).toBe(0);
-    expect(advanceRes.body.summary.complete5dCount).toBe(0);
+    expect(advanceRes.body.summary.complete3dCount).toBe(1);
+    expect(advanceRes.body.summary.complete5dCount).toBe(1);
 
     const coverageRes = await runHandler(coverageHandler, {
       method: 'GET',
@@ -342,13 +352,183 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
     expect(advanceRes.body.summary).toMatchObject({
       complete1dCount: 1,
       complete3dCount: 1,
-      complete5dCount: 0,
+      complete5dCount: 1,
     });
     expect(advanceRes.body.result.state).toMatchObject({
       complete_1d: true,
       complete_3d: true,
+      complete_5d: true,
+    });
+  });
+
+  test('marks 1 day coverage complete when a page crosses the cutoff even if older posts are filtered out', async () => {
+    const sub = 'sparsefresh';
+    const now = Math.floor(Date.now() / 1000);
+
+    nock('https://www.reddit.com')
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, active_user_count: 10, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [
+            buildPost(sub, 'recent-post', now - 60),
+            buildPost(sub, 'older-post', now - (2 * 86400)),
+          ],
+          after: 'page-2-that-should-not-be-needed',
+        },
+      });
+
+    const advanceRes = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'new',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(advanceRes.status).toBe(200);
+    expect(advanceRes.body.result.posts).toHaveLength(1);
+    expect(advanceRes.body.result.state).toMatchObject({
+      status: 'complete',
+      complete_1d: true,
+      complete_3d: false,
       complete_5d: false,
     });
+    expect(advanceRes.body.summary).toMatchObject({
+      complete1dCount: 1,
+      complete3dCount: 0,
+      complete5dCount: 0,
+    });
+  });
+
+  test('marks the requested window complete when the listing is exhausted without in-window posts', async () => {
+    const sub = 'quietsub';
+    const now = Math.floor(Date.now() / 1000);
+
+    nock('https://www.reddit.com')
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, active_user_count: 10, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [
+            buildPost(sub, 'older-post', now - (2 * 86400)),
+          ],
+          after: null,
+        },
+      });
+
+    const advanceRes = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'new',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(advanceRes.status).toBe(200);
+    expect(advanceRes.body.result.posts).toEqual([]);
+    expect(advanceRes.body.result.state).toMatchObject({
+      status: 'complete',
+      complete_1d: true,
+      complete_3d: false,
+      complete_5d: false,
+      post_count: 0,
+    });
+    expect(advanceRes.body.summary.complete1dCount).toBe(1);
+  });
+
+  test('advances top-mode coverage across pages and keeps all returned posts', async () => {
+    const sub = 'toprunner';
+    const now = Math.floor(Date.now() / 1000);
+
+    nock('https://www.reddit.com')
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, active_user_count: 10, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/top\\.json`))
+      .query((query) => String(query.limit) === '15' && String(query.t) === 'week' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'top-post-1', now - 60)],
+          after: 'page-2',
+        },
+      })
+      .get(new RegExp(`^/r/${sub}/top\\.json`))
+      .query((query) => String(query.limit) === '15' && String(query.t) === 'week' && query.after === 'page-2')
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'top-post-2', now - (10 * 86400))],
+          after: null,
+        },
+      });
+
+    const firstAdvance = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'top',
+        time: 'week',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(firstAdvance.status).toBe(200);
+    expect(firstAdvance.body.advanced).toBe(true);
+    expect(firstAdvance.body.result.state).toMatchObject({
+      status: 'active',
+      next_after: 'page-2',
+      post_count: 1,
+    });
+    expect(firstAdvance.body.result.posts).toEqual([
+      expect.objectContaining({ id: 'top-post-1' }),
+    ]);
+
+    const secondAdvance = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'top',
+        time: 'week',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(secondAdvance.status).toBe(200);
+    expect(secondAdvance.body.advanced).toBe(true);
+    expect(secondAdvance.body.result.state).toMatchObject({
+      status: 'complete',
+      next_after: '',
+      post_count: 2,
+    });
+    expect(secondAdvance.body.result.posts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'top-post-1' }),
+      expect.objectContaining({ id: 'top-post-2' }),
+    ]));
   });
 
   test('enforces the subreddit cap on coverage endpoints', async () => {
@@ -431,5 +611,71 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
     expect(coverageRes.status).toBe(200);
     expect(coverageRes.body.results).toEqual([]);
     expect(coverageRes.body.summary.totalPosts).toBe(0);
+  });
+
+  test('merges concurrent advances for the same scope without dropping one subreddit', async () => {
+    const subs = ['alphaengineers', 'betabuilders'];
+    const now = Math.floor(Date.now() / 1000);
+
+    nock('https://www.reddit.com')
+      .get(`/r/${subs[0]}/about.json`)
+      .reply(200, { data: { subscribers: 100, active_user_count: 10, title: subs[0], icon_img: null, public_description: '' } })
+      .get(`/r/${subs[1]}/about.json`)
+      .reply(200, { data: { subscribers: 120, active_user_count: 12, title: subs[1], icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${subs[0]}/new\\.json`))
+      .query(true)
+      .delay(20)
+      .reply(200, {
+        data: {
+          children: [buildPost(subs[0], `${subs[0]}-1`, now - 60)],
+          after: null,
+        },
+      })
+      .get(new RegExp(`^/r/${subs[1]}/new\\.json`))
+      .query(true)
+      .delay(5)
+      .reply(200, {
+        data: {
+          children: [buildPost(subs[1], `${subs[1]}-1`, now - 120)],
+          after: null,
+        },
+      });
+
+    const [firstAdvance, secondAdvance] = await Promise.all(subs.map((sub) => runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs,
+        sub,
+        mode: 'new',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    })));
+
+    expect(firstAdvance.status).toBe(200);
+    expect(secondAdvance.status).toBe(200);
+
+    const scopeId = buildCoverageScopeId({
+      subreddits: subs,
+      mode: 'new',
+      time: 'day',
+      days: 1,
+      targetWindowDays: 1,
+    });
+    const storedBundle = mockStore.get(buildCoverageKey(scopeId));
+
+    expect(storedBundle.postsBySubreddit[subs[0]]).toHaveLength(1);
+    expect(storedBundle.postsBySubreddit[subs[1]]).toHaveLength(1);
+    expect(storedBundle.subreddits.find((entry) => entry.subreddit === subs[0])).toMatchObject({
+      post_count: 1,
+      status: 'complete',
+    });
+    expect(storedBundle.subreddits.find((entry) => entry.subreddit === subs[1])).toMatchObject({
+      post_count: 1,
+      status: 'complete',
+    });
   });
 });

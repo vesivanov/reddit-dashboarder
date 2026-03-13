@@ -133,6 +133,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       });
       const [keyword, setKeyword] = useState('');
       const [fetchMethod, setFetchMethod] = useState('server');
+      const [storageStatus, setStorageStatus] = useState(null);
       const [authenticated, setAuthenticated] = useState(false);
       const [authChecking, setAuthChecking] = useState(true);
       const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1745,7 +1746,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           effectiveMaxPages = Math.min(effectiveMaxPages, 4);
         }
         const wantsDeepFetch = maxPages === 0 || maxPages > 4;
-        const shouldUseCheckpointedCoverage = (subsCount > 14) || (wantsDeepFetch && subsCount > 7);
+        const shouldUseCheckpointedCoverage = true;
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1914,6 +1915,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               throw new Error(`HTTP ${coverageResponse.status}`);
             }
             const initialCoverage = await coverageResponse.json();
+            if (initialCoverage?.storage) {
+              setStorageStatus(initialCoverage.storage);
+            }
             const coverageScopeId = initialCoverage?.scopeId || null;
             applyCoverage(initialCoverage?.summary, initialCoverage?.results);
             syncVisibleCoverageState({
@@ -2029,6 +2033,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   }
 
                   const advancePayload = await advanceResponse.json();
+                  if (advancePayload?.storage) {
+                    setStorageStatus(advancePayload.storage);
+                  }
                   if (advancePayload?.rate_limited) {
                     pagedRetryAfterSeconds = Number(advancePayload?.retryAfter) || pagedRetryAfterSeconds || 15;
                     globalCooldownUntil = Date.now() + pagedRetryAfterSeconds * 1000;
@@ -2179,6 +2186,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 setNextRefreshAt(pausedNext || plan.nextRefreshAt);
                 if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
               } finally {
+                setLoading(false);
                 if (coverageAbortRef.current === controller) {
                   coverageAbortRef.current = null;
                 }
@@ -2333,6 +2341,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
             sawRateLimitedHeader = sawRateLimitedHeader || response.headers.get('X-Rate-Limited') === '1';
             const chunkPayload = await response.json();
+            if (chunkPayload?.storage) {
+              setStorageStatus(chunkPayload.storage);
+            }
             const chunkRetryAfter = Number(chunkPayload?.retry_after_seconds) || Number(response.headers.get('Retry-After')) || 0;
             mergedPayload.results.push(...(Array.isArray(chunkPayload.results) ? chunkPayload.results : []));
             mergedPayload.rate_limited = mergedPayload.rate_limited || Boolean(chunkPayload.rate_limited);
@@ -2490,7 +2501,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           if (!keepCoverageController && coverageAbortRef.current === controller) {
             coverageAbortRef.current = null;
           }
-          setLoading(false);
+          if (!keepCoverageController) {
+            setLoading(false);
+          }
           const plan = getAutoRefreshPlan({
             autoRefreshEnabled,
             subsLength: subs.length,
@@ -2975,7 +2988,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         return h('span', {
           className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`
         },
-          h('span', { className: 'uppercase tracking-wide opacity-70' }, label),
+          h('span', { className: 'uppercase tracking-[0.08em] opacity-60' }, label),
           h('span', null, value)
         );
       }
@@ -3080,8 +3093,13 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       },
         // Header
         h('header', { className: 'bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0 shadow-sm' },
-            h('div', { className: 'flex items-center gap-3' },
-            h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder'),
+            h('div', { className: 'flex items-center gap-2.5' },
+              h('svg', { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', className: 'shrink-0', 'aria-hidden': 'true' },
+                h('rect', { x: 1.5, y: 2.5, width: 17, height: 11, rx: 2, stroke: '#0284C7', strokeWidth: 1.5 }),
+                h('path', { d: 'M7 19h6M10 13.5V19', stroke: '#0284C7', strokeWidth: 1.5, strokeLinecap: 'round' }),
+                h('path', { d: 'M5 9.5l2-2.5 2.5 2.5 2-2 3 3', stroke: '#38BDF8', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })
+              ),
+              h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder')
             ),
             h('div', { className: 'flex items-center gap-2' },
               // Dark mode toggle
@@ -3146,6 +3164,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       data.length > 0 && !loading && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral'),
                       data.length > 0 && !loading && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral'),
                       data.length > 0 && !loading && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral'),
+                      storageStatus && !loading && !storageStatus.persistent && renderStatusChip('Storage', 'Memory', 'warning'),
                       snapshotInfo?.cached && !loading && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
                       staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
                       rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
@@ -3172,11 +3191,6 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               ),
               'Refresh'
             ),
-            h('button', {
-              onClick: () => refresh({ force: true }),
-              disabled: loading,
-              className: 'px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-            }, 'Force refresh')
           )
         ),
         fetchSummary && !loading && !error && h('div', {
@@ -3197,7 +3211,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           // Left sidebar - Subreddits
           h('aside', { className: `w-52 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex-col shrink-0 ${mobileView === 'subs' ? 'flex' : 'hidden lg:flex'}` },
             h('div', { className: 'p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between' },
-              h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Subreddits'),
+              h('span', { className: 'font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
                 className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
@@ -3209,9 +3223,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-2 space-y-1' },
               subs.length === 0
                 ? h('div', { className: 'p-3 text-center' },
-                    h('div', { className: 'w-10 h-10 mx-auto mb-3 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
-                      h('svg', { className: 'w-5 h-5 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' })
+                    h('div', { className: 'w-10 h-10 mx-auto mb-3 rounded-xl bg-[#0284C7]/8 dark:bg-[#0284C7]/12 border border-[#0284C7]/20 dark:border-[#0284C7]/25 flex items-center justify-center' },
+                      h('svg', { className: 'w-5 h-5 text-[#0284C7] dark:text-sky-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4v16m8-8H4' })
                       )
                     ),
                     h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white mb-1' }, 'Add subreddits'),
@@ -3364,7 +3378,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 })
               ),
               h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Upvotes'),
+                h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Upvotes'),
                 UPVOTE_PRESETS.map(preset =>
                   h('button', {
                     key: `upvote-${preset.value}`,
@@ -3374,7 +3388,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 )
               ),
               h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Comments'),
+                h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Comments'),
                 COMMENT_PRESETS.map(preset =>
                   h('button', {
                     key: `comment-${preset.value}`,
@@ -3385,7 +3399,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               ),
               // Opportunity priority filter (legacy AI score thresholds still apply as fallback)
               opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-1.5' },
-                h('span', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 mr-1' }, 'Priority'),
+                h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Priority'),
                 OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
                   h('button', {
                     key: `ai-${preset.value}`,
@@ -3463,33 +3477,33 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             // Post list
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin relative' },
               visiblePosts.length === 0
-                ? h('div', { className: 'flex flex-col items-center justify-center h-full p-10' },
-                    subs.length === 0 
+                ? h('div', { className: 'flex flex-col items-center justify-center h-full p-10 text-center' },
+                    subs.length === 0
                       ? [
-                          h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
-                            h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })
+                          h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-[#0284C7]/8 dark:bg-[#0284C7]/12 border border-[#0284C7]/20 dark:border-[#0284C7]/25 flex items-center justify-center' },
+                            h('svg', { className: 'w-6 h-6 text-[#0284C7] dark:text-sky-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                              h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M12 4v16m8-8H4' })
                             )
                           ),
-                          h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No subreddits yet'),
-                          h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm' }, 'Click "Add custom subreddits" in the left sidebar or choose a starter pack to build your feed.')
+                          h('h3', { key: 'title', className: 'text-base font-semibold text-zinc-900 dark:text-white mb-1' }, 'No subreddits yet'),
+                          h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 max-w-xs' }, 'Pick a starter pack from the sidebar or add your own subreddits to get started.')
                         ]
-                      : loading 
+                      : loading
                         ? h('span', { className: 'text-zinc-500 dark:text-zinc-400 text-sm' }, 'Loading…')
                         : filtersActive || showingFilteredResults
                         ? [
-                            h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
-                              h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
+                            h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 flex items-center justify-center' },
+                              h('svg', { className: 'w-6 h-6 text-amber-500 dark:text-amber-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
                               )
                             ),
-                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, 'No posts match your current filters'),
-                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm mb-4' }, 'Clear one or more filters to bring posts back into view.'),
+                            h('h3', { key: 'title', className: 'text-base font-semibold text-zinc-900 dark:text-white mb-1' }, 'No posts match these filters'),
+                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mb-4' }, 'Clear one or more filters to bring posts back into view.'),
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
                               h('button', {
                                 onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
-                              }, 'Clear filters'),
+                              }, 'Clear all filters'),
                               minPriorityFilter && h('button', {
                                 onClick: () => setMinPriorityFilter(''),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
@@ -3497,18 +3511,18 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                             )
                           ]
                         : [
-                            h('div', { key: 'icon', className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center' },
-                              h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
+                            h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center' },
+                              h('svg', { className: 'w-6 h-6 text-zinc-400 dark:text-zinc-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
                               )
                             ),
-                            h('h3', { key: 'title', className: 'text-lg font-semibold text-zinc-900 dark:text-white mb-2' }, opportunityEngineEnabled && hasOpportunityGoals ? 'No strong opportunities yet' : 'No posts found'),
-                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-xs mb-4' }, opportunityEngineEnabled && hasOpportunityGoals
+                            h('h3', { key: 'title', className: 'text-base font-semibold text-zinc-900 dark:text-white mb-1' }, opportunityEngineEnabled && hasOpportunityGoals ? 'No strong opportunities yet' : 'No posts found'),
+                            h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mb-4' }, opportunityEngineEnabled && hasOpportunityGoals
                               ? 'Try broadening your opportunity settings, lowering the priority filter, or fetching more posts.'
                               : 'Try a different fetch mode or add more subreddits.'
                             ),
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
-                              h('button', { 
+                              h('button', {
                                 onClick: () => refresh({ force: true }),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#0284C7] dark:hover:bg-[#0369A1] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                               }, 'Refresh posts'),
@@ -3544,10 +3558,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                         const isSpiking = velocityMeta.spiking.has(String(post.id));
                         const upvotesPerHour = velocity?.upvotesPerHour || 0;
                         const commentsPerHour = velocity?.commentsPerHour || 0;
-                        const borderClass = isSelected 
-                          ? 'border-l-2 border-[#0284C7]' 
-                          : isHighlyRelevant 
-                            ? 'border-l-4 border-emerald-500' 
+                        const borderClass = isSelected
+                          ? 'border-l-4 border-[#0284C7]'
+                          : isHighlyRelevant
+                            ? 'border-l-4 border-emerald-500'
                             : '';
                         const bgClass = isSelected 
                           ? 'bg-white dark:bg-zinc-800'
@@ -3699,7 +3713,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
                 )),
-                h('span', { className: 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Post Detail')
+                h('span', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400' }, 'Post Detail')
               ),
               h('button', {
                 onClick: () => setDetailCollapsed(true),
@@ -3711,14 +3725,16 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             ),
             h('div', { className: 'flex-1 overflow-auto scrollbar-thin p-4' },
             !selectedPost
-                ? h('div', { className: 'flex flex-col items-center justify-center h-full' },
-                    h('div', { className: 'w-16 h-16 mb-4 rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center' },
-                      h('svg', { className: 'w-8 h-8 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' }),
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' })
+                ? h('div', { className: 'flex flex-col items-center justify-center h-full gap-3 text-center px-6' },
+                    h('div', { className: 'w-14 h-14 rounded-2xl bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 flex items-center justify-center' },
+                      h('svg', { className: 'w-6 h-6 text-zinc-400 dark:text-zinc-500', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
                       )
                     ),
-                    h('p', { className: 'text-zinc-400 dark:text-zinc-500 text-sm' }, 'Select a post to view')
+                    h('div', null,
+                      h('p', { className: 'text-sm font-medium text-zinc-600 dark:text-zinc-300' }, 'No post selected'),
+                      h('p', { className: 'text-xs text-zinc-400 dark:text-zinc-500 mt-1' }, 'Click any post from the list to see details here.')
+                    )
                   )
                 : h('article', { className: 'space-y-4' },
                     h('div', { className: 'flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 flex-wrap' },
@@ -3826,8 +3842,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       )
                     ),
                     h('div', { className: 'flex items-center gap-3 text-sm' },
-                      h('span', { className: 'text-emerald-700 dark:text-emerald-400 font-medium' }, `▲ ${selectedPost.score}`),
-                      h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, `💬 ${selectedPost.num_comments}`),
+                      h('span', { className: 'inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium' },
+                        renderGlyph('M7 14l5-5 5 5', 'w-3.5 h-3.5'), selectedPost.score),
+                      h('span', { className: 'inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium' },
+                        renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3.5 h-3.5'), selectedPost.num_comments),
                       h('span', { className: 'text-zinc-500 dark:text-zinc-400' }, `u/${selectedPost.author}`)
                     ),
                     h('a', {
@@ -3980,7 +3998,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   )
                 ),
                 h('div', null,
-                  h('p', { className: 'text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400' }, 'Popular'),
+                  h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Popular'),
                   h('div', { className: 'mt-2 flex flex-wrap gap-2' },
                     POPULAR_SUBREDDITS.slice(0, 12).map(sub =>
                       h('button', {
@@ -4198,7 +4216,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, 'Separate with commas or new lines')
               ),
               h('div', null,
-                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2' }, 'Popular'),
+                h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-2' }, 'Popular'),
                 h('div', { className: 'flex flex-wrap gap-1.5' },
                   POPULAR_SUBREDDITS.slice(0, 10).map(sub =>
                     h('button', {
@@ -4317,7 +4335,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               ),
               // Notifications section
               h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
-                h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3' }, 'Notifications'),
+                h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-3' }, 'Notifications'),
                 h('div', { className: 'space-y-4' },
                   h('div', { className: 'flex items-center justify-between' },
                     h('div', null,
@@ -4393,7 +4411,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
                 // Header: label + enable toggle
                 h('div', { className: 'flex items-center justify-between mb-4' },
-                  h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide' }, 'Opportunity Engine'),
+                  h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Opportunity Engine'),
                   h('button', {
                     onClick: () => setOpportunityEngineEnabled(!opportunityEngineEnabled),
                     title: opportunityEngineEnabled ? 'Disable opportunity engine' : 'Enable opportunity engine',
@@ -4544,7 +4562,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                         })
                       ),
                       h('div', null,
-                        h('p', { className: 'text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2' }, 'Few-shot examples'),
+                        h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mb-2' }, 'Few-shot examples'),
                         h('div', { className: 'space-y-2' },
                           h('label', { className: 'flex items-start gap-2' },
                             h('span', { className: 'w-14 shrink-0 text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 pt-2' }, 'PERFECT'),
@@ -4649,7 +4667,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       h('div', null,
                         h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2' }, 'Model'),
                         modelGroups.recommended.length > 0 && h('div', { className: 'mb-3 p-2.5 rounded-lg border border-sky-200 dark:border-[#0369A1]/55 bg-sky-50 dark:bg-[#0284C7]/10' },
-                          h('p', { className: 'text-[10px] font-semibold text-[#0369A1] dark:text-sky-300 uppercase tracking-wide mb-1.5' }, 'Recommended'),
+                          h('p', { className: 'text-[10px] font-semibold text-[#0369A1] dark:text-sky-300 uppercase tracking-[0.12em] mb-1.5' }, 'Recommended'),
                           renderModelCard(modelGroups.recommended[0], { emphasize: true })
                         ),
                         h('div', { className: 'grid gap-2 sm:grid-cols-2' },

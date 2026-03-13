@@ -74,6 +74,7 @@ describe('Resilience: Error Handling', () => {
     const refreshToken = 'refresh_token_123';
     const refreshCookie = makeSignedCookie('refresh', refreshToken);
     const refreshCookieValue = refreshCookie.split(';')[0].split('=')[1];
+    applyQuery({ subs: 'tokrefreshsuite', mode: 'new', fresh: '1' });
     
     mockReq.headers.cookie = `rdd_refresh=${refreshCookieValue}`;
 

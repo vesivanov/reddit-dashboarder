@@ -5,6 +5,16 @@ jest.mock('../../../lib/storage', () => ({
   set: jest.fn(async (key, value) => {
     mockStore.set(key, value);
   }),
+  compareAndSwap: jest.fn(async (key, expectedValue, nextValue) => {
+    const current = mockStore.get(key) ?? null;
+    const expectedSerialized = expectedValue === undefined ? undefined : JSON.stringify(expectedValue);
+    const currentSerialized = current === null ? JSON.stringify(null) : JSON.stringify(current);
+    if (expectedSerialized !== undefined && expectedSerialized !== currentSerialized) {
+      return { ok: false, current };
+    }
+    mockStore.set(key, nextValue);
+    return { ok: true, current };
+  }),
   delete: jest.fn(async (key) => {
     mockStore.delete(key);
   }),
@@ -14,6 +24,7 @@ const {
   buildCoverageScopeId,
   createCoverageBundle,
   saveCoverageBundle,
+  updateCoverageBundle,
   getCoverageBundle,
   recordCoveragePage,
   summarizeCoverageBundle,
@@ -102,5 +113,60 @@ describe('reddit coverage repo', () => {
       complete_3d: true,
       complete_5d: true,
     });
+  });
+
+  test('updateCoverageBundle retries on CAS conflicts and preserves both mutations', async () => {
+    const scopeId = buildCoverageScopeId({
+      subreddits: ['smallbusiness'],
+      mode: 'new',
+      time: 'day',
+      days: 1,
+      targetWindowDays: 1,
+    });
+
+    const initial = createCoverageBundle({
+      scopeId,
+      subreddits: ['smallbusiness'],
+      mode: 'new',
+      time: 'day',
+      days: 1,
+      targetWindowDays: 1,
+    });
+    mockStore.set(`reddit-coverage:${scopeId}`, initial);
+
+    let conflictInjected = false;
+    const storage = require('../../../lib/storage');
+    storage.compareAndSwap.mockImplementationOnce(async (key, expectedValue, nextValue) => {
+      if (!conflictInjected) {
+        conflictInjected = true;
+        const external = {
+          ...expectedValue,
+          postsBySubreddit: {
+            smallbusiness: [{ id: 'external', subreddit: 'smallbusiness', created_utc: 100 }],
+          },
+        };
+        mockStore.set(key, external);
+        return { ok: false, current: external };
+      }
+      mockStore.set(key, nextValue);
+      return { ok: true, current: mockStore.get(key) };
+    });
+
+    await updateCoverageBundle(scopeId, (bundle) => ({
+      ...bundle,
+      postsBySubreddit: {
+        ...(bundle.postsBySubreddit || {}),
+        smallbusiness: [
+          ...((bundle.postsBySubreddit && bundle.postsBySubreddit.smallbusiness) || []),
+          { id: 'local', subreddit: 'smallbusiness', created_utc: 200 },
+        ],
+      },
+    }));
+
+    const saved = mockStore.get(`reddit-coverage:${scopeId}`);
+    expect(saved.postsBySubreddit.smallbusiness).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'external' }),
+      expect.objectContaining({ id: 'local' }),
+    ]));
   });
 });
