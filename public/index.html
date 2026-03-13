@@ -20,6 +20,8 @@
 
     /* ── Typography ── */
     body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
+    /* Soften dark-mode body text — zinc-100 (#f4f4f5) is too glaring on dark bg */
+    html.dark body { color: #C2C2CC; }
     .font-display { font-family: 'Syne', 'Plus Jakarta Sans', sans-serif; }
     .font-mono, code, [class*="mono"] { font-family: 'JetBrains Mono', monospace; }
 
@@ -90,15 +92,15 @@
        so document-order wins on equal specificity.
        ════════════════════════════════════════════════════════ */
 
-    /* ── Light mode surfaces ── */
-    .bg-zinc-100 { background-color: #F5F4F0 !important; }
-    .bg-zinc-50  { background-color: #EFEDE8 !important; }
+    /* ── Light mode surfaces (warm paper, not clinical white) ── */
+    .bg-zinc-100 { background-color: #F0EEE9 !important; }
+    .bg-zinc-50  { background-color: #F8F6F1 !important; }
 
-    /* ── Dark mode surfaces ── */
-    html.dark .dark\:bg-zinc-900     { background-color: #0C0C12 !important; }
-    html.dark .dark\:bg-zinc-800     { background-color: #14141C !important; }
-    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(20,20,28,0.5) !important; }
-    html.dark .dark\:bg-zinc-700     { background-color: #1E1E28 !important; }
+    /* ── Dark mode surfaces (softer, warmer — less eye fatigue) ── */
+    html.dark .dark\:bg-zinc-900     { background-color: #16161E !important; }
+    html.dark .dark\:bg-zinc-800     { background-color: #1C1C26 !important; }
+    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(28,28,38,0.5) !important; }
+    html.dark .dark\:bg-zinc-700     { background-color: #24242F !important; }
 
     /* ── Dark mode borders ── */
     html.dark .dark\:border-zinc-700 { border-color: rgba(255,255,255,0.06) !important; }
