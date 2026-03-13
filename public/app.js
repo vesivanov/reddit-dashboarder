@@ -159,8 +159,15 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
       const [minCommentFilter, setMinCommentFilter] = useState('');
       const [minPriorityFilter, setMinPriorityFilter] = useState('');
+      const [filterPresets, setFilterPresets] = useState(() => {
+        try {
+          const saved = localStorage.getItem('dashboard_filter_presets');
+          return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+      });
       const [sortBy, setSortBy] = useState('date');
       const [sortOrder, setSortOrder] = useState('desc');
+      const [postPageLimit, setPostPageLimit] = useState(150);
       const [nextRefreshAt, setNextRefreshAt] = useState(null);
       const [lastAutoRefreshAt, setLastAutoRefreshAt] = useState(null);
       const [rateLimitPauseUntil, setRateLimitPauseUntil] = useState(null);
@@ -356,6 +363,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       useEffect(() => {
         try { localStorage.setItem('dashboard_auto_refresh_interval', String(autoRefreshInterval)); } catch {}
       }, [autoRefreshInterval]);
+
+      useEffect(() => {
+        try { localStorage.setItem('dashboard_filter_presets', JSON.stringify(filterPresets)); } catch {}
+      }, [filterPresets]);
 
       useEffect(() => {
         try {
@@ -1080,6 +1091,11 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         buildSyncSettings,
         normalizeSubredditName,
       ]);
+
+      // Reset page limit when filters/sort/sub changes
+      useEffect(() => {
+        setPostPageLimit(150);
+      }, [selectedSub, keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, sortBy, sortOrder]);
 
       const filteredBySub = useMemo(() => {
         if (selectedSub === 'ALL') return allPosts;
@@ -2290,7 +2306,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               if (fetchError?.name === 'AbortError') {
                 return;
               }
-              setError(fetchError.message || 'Failed to fetch');
+              setError(fetchError.message || 'Fetch failed — check your connection and try again');
             });
             return;
           }
@@ -2593,7 +2609,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           if (fetchError?.name === 'AbortError') {
             setError(`Request timed out. Reddit may be slow. Try again.`);
           } else {
-            setError(fetchError.message || 'Failed to fetch');
+            setError(fetchError.message || 'Fetch failed — check your connection and try again');
           }
         } finally {
           clearTimeout(timeoutId);
@@ -2767,6 +2783,15 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         return () => {
           if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
+          }
+        };
+      }, []);
+
+      // Cleanup hide-undo timeout on unmount
+      useEffect(() => {
+        return () => {
+          if (hideUndoTimeoutRef.current) {
+            clearTimeout(hideUndoTimeoutRef.current);
           }
         };
       }, []);
@@ -3486,7 +3511,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   aiScoreStats.high > 0 && h('span', { className: 'font-mono text-xs text-emerald-600 dark:text-emerald-400' },
                     `${aiScoreStats.high} strong`
                   ),
-                  aiScoresStale && h('span', { className: 'font-mono text-[10px] text-amber-500 dark:text-amber-400' }, '~stale')
+                  aiScoresStale && h('span', { className: 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60', title: 'Goals or model changed since last scan — re-run to refresh scores' }, 'Stale')
                 ),
 
                 // Actions
@@ -3510,7 +3535,8 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             // Filter toolbar
             h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center gap-3 shrink-0 flex-wrap' },
               h('div', { className: 'relative flex-1 min-w-[120px] max-w-[180px]' },
-                h('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                h('label', { htmlFor: 'search-input', className: 'sr-only' }, 'Search posts'),
+                h('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
                 ),
                 h('input', {
@@ -3522,42 +3548,45 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   className: 'w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0284C7] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
                 })
               ),
-              h('div', { className: 'hidden sm:flex items-center gap-1.5' },
+              h('div', { className: 'flex items-center gap-1.5' },
                 h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Upvotes'),
                 UPVOTE_PRESETS.map(preset =>
                   h('button', {
                     key: `upvote-${preset.value}`,
                     onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
+                    'aria-pressed': minUpvoteFilter === preset.value,
                     className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minUpvoteFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
-              h('div', { className: 'hidden sm:flex items-center gap-1.5' },
+              h('div', { className: 'flex items-center gap-1.5' },
                 h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Comments'),
                 COMMENT_PRESETS.map(preset =>
                   h('button', {
                     key: `comment-${preset.value}`,
                     onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
+                    'aria-pressed': minCommentFilter === preset.value,
                     className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minCommentFilter === preset.value ? 'bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
               // Opportunity priority filter (legacy AI score thresholds still apply as fallback)
-              opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-1.5' },
+              opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'flex items-center gap-1.5' },
                 h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Priority'),
                 OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
                   h('button', {
                     key: `ai-${preset.value}`,
                     onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
+                    'aria-pressed': minPriorityFilter === preset.value,
                     className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
                   }, preset.label)
                 )
               ),
               (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
                 onClick: () => setSettingsOpen(true),
-                className: 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
+                className: 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 dark:bg-[#0284C7]/15 text-[#0369A1] dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-[#0284C7]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Alerts settings'
-              }, h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              }, h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
               ), 'Alerts'),
               h('select', {
@@ -3599,7 +3628,43 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 filtersActive && h('button', {
                 onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
                 className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-              }, 'Clear all')
+              }, 'Clear all'),
+              filtersActive && filterPresets.length < 5 && h('button', {
+                onClick: () => {
+                  const label = [
+                    minUpvoteFilter && `▲${minUpvoteFilter}+`,
+                    minCommentFilter && `💬${minCommentFilter}+`,
+                    minPriorityFilter && `P${minPriorityFilter}+`,
+                    keyword && `"${truncateText(keyword, 12)}"`,
+                  ].filter(Boolean).join(' ');
+                  setFilterPresets(prev => [...prev, {
+                    id: Date.now(),
+                    label: label || `Preset ${prev.length + 1}`,
+                    upvote: minUpvoteFilter,
+                    comment: minCommentFilter,
+                    priority: minPriorityFilter,
+                    keyword,
+                  }]);
+                },
+                title: 'Save current filters as a reusable preset',
+                className: 'text-xs text-[#0284C7] dark:text-sky-400 hover:text-[#0369A1] dark:hover:text-sky-300 font-medium shrink-0'
+              }, '+ Save filters'),
+              filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1.5 flex-wrap' },
+                filterPresets.map(preset =>
+                  h('span', { key: preset.id, className: 'inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50 text-[11px] font-medium text-violet-700 dark:text-violet-300' },
+                    h('button', {
+                      onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setKeyword(preset.keyword); },
+                      title: `Apply: ${preset.label}`,
+                      className: 'pl-2.5 pr-1 py-1 hover:text-violet-900 dark:hover:text-violet-100 transition-colors'
+                    }, preset.label),
+                    h('button', {
+                      onClick: () => setFilterPresets(prev => prev.filter(p => p.id !== preset.id)),
+                      'aria-label': `Remove preset "${preset.label}"`,
+                      className: 'pr-2 py-1 text-violet-400 hover:text-violet-700 dark:hover:text-violet-200 transition-colors'
+                    }, '×')
+                  )
+                )
+              )
             ),
             activeFilterPills.length > 0 && h('div', { className: 'bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 flex-wrap' },
               h('div', { className: 'flex items-center gap-2 flex-wrap' },
@@ -3634,7 +3699,19 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 max-w-xs' }, 'Pick a starter pack from the sidebar or add your own subreddits to get started.')
                         ]
                       : loading
-                        ? h('span', { className: 'text-zinc-500 dark:text-zinc-400 text-sm' }, 'Loading…')
+                        ? h('div', { className: 'w-full' },
+                            [0,1,2,3,4,5].map(i => h('div', { key: i, className: 'px-4 py-3.5 border-b border-zinc-200 dark:border-zinc-700 animate-pulse' },
+                              h('div', { className: 'flex gap-3' },
+                                h('div', { className: 'w-16 h-16 rounded-lg bg-zinc-200 dark:bg-zinc-700 shrink-0' }),
+                                h('div', { className: 'flex-1 space-y-2 py-1' },
+                                  h('div', { className: 'h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded w-1/4' }),
+                                  h('div', { className: 'h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-4/5' }),
+                                  h('div', { className: 'h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-3/5' }),
+                                  h('div', { className: 'h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded w-1/3 mt-1' })
+                                )
+                              )
+                            ))
+                          )
                         : filtersActive || showingFilteredResults
                         ? [
                             h('div', { key: 'icon', className: 'w-14 h-14 mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 flex items-center justify-center' },
@@ -3678,8 +3755,8 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                             )
                           ]
                   )
-                : h('div', { className: 'divide-y divide-zinc-200 dark:divide-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
-                    visiblePosts.map(post => {
+                : h('ul', { role: 'list', className: 'list-none divide-y divide-zinc-200 dark:divide-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
+                    visiblePosts.slice(0, postPageLimit).map(post => {
                         const isSelected = selectedPost?.id === post.id;
                         const score = Number(post.score) || 0;
                         const comments = Number(post.num_comments) || 0;
@@ -3713,7 +3790,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           : isVeryHighRelevant
                             ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
                             : 'bg-zinc-50 dark:bg-zinc-900';
-                        return h('div', {
+                        return h('li', {
                           key: post.id,
                           className: `group relative w-full text-left px-4 py-3.5 hover:bg-white dark:hover:bg-zinc-800 transition-colors ${bgClass} ${borderClass}`,
                           onMouseEnter: () => handlePostHoverStart(post),
@@ -3737,7 +3814,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                                 style: { backgroundColor: flairBg, color: flairTextColor }
                               }, flair),
                               h('span', null, '•'),
-                              h('span', null, timeAgo(post.created_utc)),
+                              h('span', { title: absoluteDate(post.created_utc) }, timeAgo(post.created_utc)),
                               opportunityType && h('span', {
                                 className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 capitalize'
                               }, opportunityType),
@@ -3753,7 +3830,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                               ),
                               priorityScore !== null && h('span', {
                                 className: 'px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
-                                title: opportunity?.explanation?.summary || `Opportunity priority ${(priorityScore * 100).toFixed(0)}/100`
+                                title: opportunity?.explanation?.summary
+                                  ? `Priority ${Math.round(priorityScore * 100)}/100 — ${opportunity.explanation.summary}`
+                                  : `Opportunity priority: ${Math.round(priorityScore * 100)}/100 (higher = better match for your goals)`
                               }, `P${Math.round(priorityScore * 100)}`),
                               !hasPriority && relevanceScore !== undefined && relevanceScore !== null && h('span', {
                                 className: `px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${aiScoresStale ? 'opacity-50' : ''} ${
@@ -3762,7 +3841,11 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                                   relevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                                   'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                                 }`,
-                                title: aiScoresStale ? 'Cached score proxy (may be stale) — re-run ranking for fresh results' : relevanceMeta ? `Legacy score proxy: ${relevanceScore}/5 • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}` : `Legacy score proxy: ${relevanceScore}/5`
+                                title: aiScoresStale
+                                  ? `AI score ${relevanceScore}/5 (cached, may be stale — re-run ranking for fresh scores). ${relevanceMeta?.reason || ''}`
+                                  : relevanceMeta
+                                    ? `AI relevance: ${relevanceScore}/5 (0=reject, 5=perfect match) • ${relevanceMeta.confidence} confidence • ${relevanceMeta.reason}`
+                                    : `AI relevance: ${relevanceScore}/5 (0=reject, 5=perfect match)`
                               }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(relevanceScore)} (${relevanceScore}/5)`)
                             ),
                             h('h3', { className: 'text-sm font-semibold text-zinc-900 dark:text-white leading-snug line-clamp-2' }, post.title),
@@ -3828,8 +3911,14 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           ),
                           'Hide post'))
                         ));
-                      })
-                    ),
+                      }),
+                    visiblePosts.length > postPageLimit && h('li', { className: 'flex items-center justify-center py-6 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900' },
+                      h('button', {
+                        onClick: () => setPostPageLimit(prev => prev + 150),
+                        className: 'px-5 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
+                      }, `Load ${Math.min(150, visiblePosts.length - postPageLimit)} more posts  (${postPageLimit} of ${visiblePosts.length} shown)`)
+                    )
+                  ),
               // Hover preview tooltip
               hoverPost && h('div', { 
                 className: 'fixed z-50 max-w-sm bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 p-4 pointer-events-none animate-fadeIn',
@@ -3853,18 +3942,20 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               h('div', { className: 'flex items-center gap-2' },
                 h('button', {
                   onClick: () => setMobileView('posts'),
+                  'aria-label': 'Back to posts',
                   className: 'lg:hidden p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
                   title: 'Back to posts'
-                }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
                 )),
                 h('span', { className: 'text-[11px] font-mono font-medium uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400' }, 'Post Detail')
               ),
               h('button', {
                 onClick: () => setDetailCollapsed(true),
+                'aria-label': 'Collapse detail pane',
                 className: 'hidden lg:block p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors',
-                title: 'Collapse'
-              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                title: 'Collapse detail pane'
+              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M13 5l7 7-7 7M5 5l7 7-7 7' })
               ))
             ),
@@ -3900,7 +3991,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                         className: 'px-1.5 py-0.5 rounded-full text-[10px] font-medium',
                         style: { backgroundColor: selectedPost.link_flair_background_color || '#e4e4e7', color: selectedPost.link_flair_text_color === 'light' ? '#fff' : '#18181b' }
                       }, selectedPost.link_flair_text),
-                      h('span', null, timeAgo(selectedPost.created_utc))
+                      h('span', { title: absoluteDate(selectedPost.created_utc) }, timeAgo(selectedPost.created_utc))
                     ),
                     h('h2', { className: 'text-lg font-bold text-zinc-900 dark:text-white leading-snug' }, selectedPost.title),
                     (() => {
@@ -3914,15 +4005,21 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                           title: detailOpportunity?.explanation?.summary || (detailRelevanceMeta ? `${detailRelevanceMeta.confidence} confidence • ${detailRelevanceMeta.reason}` : (detailPriority !== null ? `Opportunity priority ${Math.round(detailPriority * 100)}/100` : `Opportunity score: ${detailRelevanceScore}/5`))
                         },
                           detailPriority !== null && h('span', {
-                            className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950'
-                          }, `Priority ${Math.round(detailPriority * 100)}`),
+                            className: 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-zinc-900 text-white dark:bg-sky-500 dark:text-zinc-950',
+                            title: detailOpportunity?.explanation?.summary
+                              ? `Priority ${Math.round(detailPriority * 100)}/100 — ${detailOpportunity.explanation.summary}`
+                              : `Opportunity priority: ${Math.round(detailPriority * 100)}/100 — how well this post matches your goals (0=no match, 100=perfect)`
+                          }, `Priority ${Math.round(detailPriority * 100)}/100`),
                           detailPriority === null && h('span', {
                             className: `px-2 py-0.5 rounded text-xs font-bold font-mono shadow-sm ${aiScoresStale ? 'opacity-50' : ''} ${
                               detailRelevanceScore >= 5 ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-400/30' :
                               detailRelevanceScore >= 4 ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200' :
                               detailRelevanceScore >= 3 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200' :
                               'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-                            }`
+                            }`,
+                            title: aiScoresStale
+                              ? `AI relevance ${detailRelevanceScore}/5 — cached scores (may be outdated). Re-run ranking for fresh results.`
+                              : `AI relevance: ${detailRelevanceScore}/5 (0=reject, 5=perfect match for your goals)`
                           }, `${aiScoresStale ? '~' : ''}${aiScoreLabel(detailRelevanceScore)} (${detailRelevanceScore}/5)`),
                           detailPriority === null && h('div', { 
                             className: 'w-16 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden'
@@ -4386,6 +4483,24 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               }, 'Add')
             )
           )
+        ),
+
+        // Hide undo toast
+        lastHiddenPost && h('div', {
+          className: 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-zinc-900 dark:bg-zinc-700 text-white shadow-xl text-sm',
+          role: 'status',
+          'aria-live': 'polite',
+        },
+          h('span', null, lastHiddenPost.title ? `Post hidden: "${truncateText(lastHiddenPost.title, 40)}"` : 'Post hidden'),
+          h('button', {
+            onClick: () => handleUnhidePost(lastHiddenPost.id),
+            className: 'font-semibold text-sky-300 hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded'
+          }, 'Undo'),
+          h('button', {
+            onClick: () => setLastHiddenPost(null),
+            'aria-label': 'Dismiss',
+            className: 'text-zinc-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded ml-1'
+          }, '×')
         ),
 
         // Settings modal

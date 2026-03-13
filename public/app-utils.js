@@ -28,6 +28,13 @@
       return 'now';
     }
 
+    function absoluteDate(utcSeconds) {
+      if (!utcSeconds) return '';
+      const d = new Date(utcSeconds * 1000);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
     function formatSubs(value) {
       if (!value && value !== 0) return '';
       if (value < 1000) return String(value);
@@ -291,6 +298,7 @@
     formatTimeUntil,
     normalizeSubredditName,
     timeAgo,
+    absoluteDate,
     formatSubs,
     formatNumber,
     truncateText,
