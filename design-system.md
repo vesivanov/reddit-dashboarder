@@ -13,7 +13,7 @@ The implementation is Tailwind-first, dark-mode aware, and optimized for dense d
 - Numbers / data / code / labels: `JetBrains Mono` — scores, counts, metrics, timestamps, mono labels
 - No serif font is loaded. No italic anywhere.
 
-Both fonts are loaded via Google Fonts in `index.html`, `landing.html`, `pricing.html`, and all docs pages.
+Both fonts are loaded via Google Fonts in `index.html` and `landing.html`.
 
 **Color**
 Primary accent is sky blue (`#0284C7`) — sharp, data-intelligence feel, high-contrast against zinc surfaces. Replaces generic indigo throughout.
@@ -243,7 +243,7 @@ This design system covers both the dashboard UI and all marketing/static pages.
 **Shared across every surface:**
 - Font stack: DM Sans + JetBrains Mono only. No serif, no italic.
 - Accent: `#0284C7` / `#0369A1` / `#075985`
-- No light-mode on marketing pages — landing, pricing, and docs are dark-only.
+- No light-mode on marketing pages — the landing page is dark-only.
 
 **Dashboard-specific:** light/dark toggle, density modes, three-pane layout.
 

@@ -656,6 +656,13 @@ const {
             const result = loadWorkspaceOpportunityConfig
               ? await loadWorkspaceOpportunityConfig({ snapshotInfo, syncToken })
               : { ok: false, status: 500, payload: null };
+            if (result.workspaceId) {
+              setSnapshotInfo(prev => ({
+                ...(prev || {}),
+                syncToken,
+                workspaceId: prev?.workspaceId || result.workspaceId,
+              }));
+            }
             if (result.status === 404) {
               hydratedOpportunityConfigRef.current = configIdentity;
               return;
@@ -890,6 +897,7 @@ const {
         try {
           const result = postWorkspaceSnapshot
             ? await postWorkspaceSnapshot({
+                snapshotInfo,
                 syncToken,
                 posts,
                 settings: payload.settings,

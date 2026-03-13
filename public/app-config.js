@@ -3,7 +3,6 @@
 
     const DEFAULT_API_URL = "/api/reddit/snapshot";
     const DEFAULT_SUBS = [];
-    fetch('/api/root-info').catch(function() {});
     const STARTER_PACKS = [
       {
         id: 'tech-news',

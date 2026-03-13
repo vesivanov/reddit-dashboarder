@@ -38,7 +38,7 @@ describe('app startup', () => {
     expect(res.headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=()');
   });
 
-  test('agent snapshot OPTIONS is routed to the handler for CORS preflight', async () => {
+  test('workspace snapshot OPTIONS is routed to the handler for CORS preflight', async () => {
     let app;
     jest.isolateModules(() => {
       delete process.env.REDIS_URL;
@@ -51,19 +51,20 @@ describe('app startup', () => {
 
     const res = await runHandler(app, {
       method: 'OPTIONS',
-      url: '/api/v1/snapshot',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
       headers: {
         origin: 'http://localhost:3000',
-        'access-control-request-method': 'GET',
+        'access-control-request-method': 'PUT',
       },
     });
 
     expect(res.status).toBe(204);
-    expect(res.headers['access-control-allow-methods']).toBe('GET, OPTIONS');
+    expect(res.headers['access-control-allow-methods']).toBe('GET, PUT, OPTIONS');
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:3000');
   });
 
-  test('pricing route serves the pricing page instead of the SPA shell', async () => {
+  test('workspace routes are registered as the primary public API surface', () => {
     let app;
     jest.isolateModules(() => {
       delete process.env.REDIS_URL;
@@ -75,11 +76,16 @@ describe('app startup', () => {
     });
 
     const routeLayers = app._router.stack.filter((layer) => layer.route);
-    const pricingLayerIndex = routeLayers.findIndex((layer) => layer.route.path === '/pricing');
-    const catchAllLayerIndex = routeLayers.findIndex((layer) => layer.route.path === '*');
+    const routePaths = new Set(routeLayers.map((layer) => layer.route.path));
 
-    expect(pricingLayerIndex).toBeGreaterThanOrEqual(0);
-    expect(catchAllLayerIndex).toBeGreaterThanOrEqual(0);
-    expect(pricingLayerIndex).toBeLessThan(catchAllLayerIndex);
+    expect(routePaths.has('/api/workspaces')).toBe(true);
+    expect(routePaths.has('/api/workspaces/:workspaceId/snapshot')).toBe(true);
+    expect(routePaths.has('/api/workspaces/:workspaceId/config')).toBe(true);
+    expect(routePaths.has('/api/workspaces/:workspaceId/analyze')).toBe(true);
+    expect(routePaths.has('/api/workspaces/:workspaceId/jobs/:jobId')).toBe(true);
+    expect(routePaths.has('/api/v1/snapshot')).toBe(false);
+    expect(routePaths.has('/api/v1/config')).toBe(false);
+    expect(routePaths.has('/api/v1/analyze')).toBe(false);
+    expect(routePaths.has('/api/v1/jobs/:jobId')).toBe(false);
   });
 });

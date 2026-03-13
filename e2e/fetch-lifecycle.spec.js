@@ -44,8 +44,25 @@ test.describe('Checkpointed fetch lifecycle', () => {
     await page.route('**/api/auth/status', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: true }) });
     });
-    await page.route('**/api/settings/opportunity-config?*', async (route) => {
-      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not found' }) });
+    await page.route('**/api/workspaces', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, workspaceId: 'ws_lifecycle', token: 'sync_lifecycle' }),
+      });
+    });
+    await page.route('**/api/workspaces/*/config', async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          schemaVersion: '1.0.0',
+          requestId: 'req_test',
+          timings: { totalMs: 0 },
+          data: null,
+          error: { code: 'NOT_FOUND', message: 'No configuration found' },
+        }),
+      });
     });
     await page.route('**/api/settings/openrouter-key', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hasKey: false, source: 'none' }) });
@@ -53,8 +70,12 @@ test.describe('Checkpointed fetch lifecycle', () => {
     await page.route('**/api/openrouter/models', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [] }) });
     });
-    await page.route('**/api/sync', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    await page.route('**/api/workspaces/*/snapshot', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, workspaceId: 'ws_lifecycle' }),
+      });
     });
     await page.route('**/api/reddit/coverage?*', async (route) => {
       if (route.request().method() === 'DELETE') {
@@ -124,7 +145,7 @@ test.describe('Checkpointed fetch lifecycle', () => {
 
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
-    const refreshButton = page.getByRole('button', { name: 'Refresh', exact: true });
+    const refreshButton = page.getByLabel('Refresh posts');
     await refreshButton.click();
 
     await expect(refreshButton).toBeDisabled();

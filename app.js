@@ -2,13 +2,9 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
-const { aiRankLimiter, redditLimiter, generalLimiter, waitlistLimiter } = require('./lib/middleware/rate-limit');
+const { aiRankLimiter, redditLimiter, generalLimiter } = require('./lib/middleware/rate-limit');
 const { securityHeaders } = require('./lib/middleware/security-headers');
-const { registerApiRoutes } = require('./lib/routes/api');
-const { registerAuthRoutes } = require('./lib/routes/auth');
-const { registerSettingsRoutes } = require('./lib/routes/settings');
-const { registerAgentApiRoutes } = require('./lib/routes/agent-api');
-const { registerAutomationRoutes } = require('./lib/routes/automation');
+const { registerRoutes } = require('./lib/routes/register');
 const { ensureJobQueueWorker } = require('./lib/services/analysis-job-queue');
 
 function optionalHandler(relativePath) {
@@ -40,24 +36,17 @@ function createApp() {
   app.use(express.static(path.join(__dirname, 'public')));
   ensureJobQueueWorker();
 
-  const limiters = { aiRankLimiter, redditLimiter, generalLimiter, waitlistLimiter };
-  registerApiRoutes(app, limiters, { redditTestHandler });
-  registerAuthRoutes(app, limiters, {
+  const limiters = { aiRankLimiter, redditLimiter, generalLimiter };
+  registerRoutes(app, limiters, {
+    redditTestHandler,
     authDebugRedirectHandler,
     authTestOAuthUrlHandler,
     authVerifyRedditSettingsHandler,
   });
-  registerSettingsRoutes(app, limiters);
-  registerAgentApiRoutes(app, limiters);
-  registerAutomationRoutes(app, limiters);
 
   // Landing page at root
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));
-  });
-  // Pricing page at /pricing
-  app.get('/pricing', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'pricing.html'));
   });
   // Dashboard at /app (and SPA sub-routes)
   app.get('*', (req, res) => {

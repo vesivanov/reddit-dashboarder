@@ -20,6 +20,7 @@ jest.mock('../../../lib/storage', () => ({
   }),
 }));
 
+const { makeSignedCookie } = require('../../../lib/cookies');
 const { runHandler } = require('../../helpers/run-handler');
 const configHandler = require('../../../lib/api-v1/handlers/config');
 
@@ -27,6 +28,7 @@ describe('/api/v1/config', () => {
   beforeEach(() => {
     process.env.AGENT_API_KEY = 'agent-test-key';
     process.env.DIGEST_SYNC_TOKEN = 'sync-token';
+    process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
     mockStore.clear();
   });
 
@@ -67,6 +69,7 @@ describe('/api/v1/config', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.config).toEqual({
+      workspaceId: expect.any(String),
       subreddits: ['programming', 'javascript'],
       filters: { minScore: 10 },
       goals: 'Find React discussions',
@@ -167,9 +170,6 @@ describe('/api/v1/config', () => {
       model: 'openai/gpt-4o-mini',
       version: 2,
     });
-    expect(mockStore.get('poller-active-workspace')).toMatchObject({
-      workspaceId: 'scope_sync-token',
-    });
     expect(res.body.data.auditLog).toMatchObject({
       action: 'CONFIG_UPDATE',
       changedFields: ['goals', 'aiContext', 'opportunityConfig', 'scoringConfig', 'threshold', 'model'],
@@ -260,5 +260,104 @@ describe('/api/v1/config', () => {
     expect(res.body.error.details).toEqual([
       { field: 'version', message: 'Current stored version is 5' },
     ]);
+  });
+
+  test('GET supports workspace-scoped config reads', async () => {
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('agent-config:ws_demo', {
+      scopeId: 'ws_demo',
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      subreddits: ['programming'],
+      filters: {},
+      goals: 'Watch programming',
+      aiPrompt: '',
+      threshold: 3,
+      model: 'openai/gpt-4o-mini',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+      version: 2,
+    });
+
+    const res = await runHandler(configHandler, {
+      method: 'GET',
+      url: '/api/workspaces/ws_demo/config',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.config).toMatchObject({
+      subreddits: ['programming'],
+      version: 2,
+    });
+    expect(res.headers.etag).toBe('2');
+  });
+
+  test('workspace routes accept authenticated browser sessions', async () => {
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('agent-config:ws_demo', {
+      scopeId: 'ws_demo',
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      subreddits: ['seo'],
+      filters: { minScore: 5 },
+      goals: 'Find leads',
+      aiContext: '',
+      aiPrompt: '',
+      threshold: 3,
+      model: 'openai/gpt-4o-mini',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+      version: 1,
+    });
+
+    const getRes = await runHandler(configHandler, {
+      method: 'GET',
+      url: '/api/workspaces/ws_demo/config',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.config).toMatchObject({
+      workspaceId: 'ws_demo',
+      subreddits: ['seo'],
+    });
+
+    const patchRes = await runHandler(configHandler, {
+      method: 'PATCH',
+      url: '/api/workspaces/ws_demo/config',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+        'if-match': '1',
+      },
+      body: {
+        goals: 'Find urgent SEO leads',
+      },
+    });
+
+    expect(patchRes.status).toBe(200);
+    expect(mockStore.get('agent-config:ws_demo')).toMatchObject({
+      goals: 'Find urgent SEO leads',
+      version: 2,
+    });
   });
 });

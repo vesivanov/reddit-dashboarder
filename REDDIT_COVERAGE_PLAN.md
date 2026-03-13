@@ -19,7 +19,7 @@ That causes:
 - Reddit OAuth `429` even when authenticated
 - long waits for large runs
 - partial completion on one blocked subreddit
-- unstable sidecar behavior (`/api/sync`, config sync) coupled to fetch completion
+- unstable workspace-sidecar behavior coupled to fetch completion
 
 The root issue is not only pacing. The root issue is missing persistent crawl state.
 

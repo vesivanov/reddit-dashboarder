@@ -24,7 +24,7 @@ function parseQuery(url) {
   return { query, pathname: parsed.pathname + parsed.search };
 }
 
-function createMockRequest({ method = 'GET', url = '/', headers = {}, body, query, cookies = '', secure = false } = {}) {
+function createMockRequest({ method = 'GET', url = '/', headers = {}, body, query, params, cookies = '', secure = false } = {}) {
   const normalizedHeaders = normalizeHeaders(headers);
   if (cookies && !normalizedHeaders.cookie) {
     normalizedHeaders.cookie = cookies;
@@ -42,6 +42,7 @@ function createMockRequest({ method = 'GET', url = '/', headers = {}, body, quer
     headers: normalizedHeaders,
     body,
     query: query || parsedQuery,
+    params: params || {},
     connection: { encrypted: secure },
     socket: { encrypted: secure },
     secure,

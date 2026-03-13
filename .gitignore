@@ -111,7 +111,9 @@ Thumbs.db
 
 # Cloudflare Worker specific
 .wrangler/
+*/.wrangler/
 wrangler.toml.bak
+worker/
 
 # Build outputs
 dist/

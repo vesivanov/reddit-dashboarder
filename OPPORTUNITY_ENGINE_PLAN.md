@@ -37,7 +37,7 @@ Examples in the current code:
 - client-side heuristic prefiltering and score calibration
 - server-side LLM scoring with a generic `0-5` relevance scale
 - separate hot-lead thresholds and action logic in another service
-- different ranking semantics between dashboard and poller paths
+- lingering score-first semantics in parts of the dashboard UI
 
 ## New Conceptual Model
 
@@ -225,7 +225,7 @@ Initial dimensions:
 
 Bridge requirement:
 
-- preserve compatibility with legacy `aiRelevance` until the frontend and poller fully migrate
+- preserve compatibility with legacy `aiRelevance` until the frontend fully migrates
 
 ## Deterministic Rankers
 

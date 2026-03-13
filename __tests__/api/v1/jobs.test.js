@@ -24,7 +24,7 @@ const aiRanking = require('../../../lib/services/ai-ranking');
 const { runHandler } = require('../../helpers/run-handler');
 const jobsHandler = require('../../../lib/api-v1/handlers/jobs');
 
-describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
+describe('/api/workspaces/:workspaceId/analyze and /api/workspaces/:workspaceId/jobs/:jobId', () => {
   beforeEach(() => {
     mockStore.clear();
     jest.clearAllMocks();
@@ -33,6 +33,12 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
   });
 
   test('POST queues a job pinned to snapshot/config and GET completes it', async () => {
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
     mockStore.set('sync-token', {
       token: 'sync-token',
       posts: [
@@ -53,7 +59,8 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
 
     const postRes = await runHandler(jobsHandler, {
       method: 'POST',
-      url: '/api/v1/analyze?token=sync-token',
+      url: '/api/workspaces/ws_demo/analyze',
+      params: { workspaceId: 'ws_demo' },
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -69,7 +76,8 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
 
     const queuedRes = await runHandler(jobsHandler, {
       method: 'GET',
-      url: `/api/v1/jobs/${jobId}`,
+      url: `/api/workspaces/ws_demo/jobs/${jobId}`,
+      params: { workspaceId: 'ws_demo', jobId },
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -93,7 +101,8 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
 
     const getRes = await runHandler(jobsHandler, {
       method: 'GET',
-      url: `/api/v1/jobs/${jobId}`,
+      url: `/api/workspaces/ws_demo/jobs/${jobId}`,
+      params: { workspaceId: 'ws_demo', jobId },
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -181,7 +190,8 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
 
     const beforeDrain = await runHandler(jobsHandler, {
       method: 'GET',
-      url: '/api/v1/jobs/job_stale',
+      url: '/api/workspaces/scope_sync-token/jobs/job_stale',
+      params: { workspaceId: 'scope_sync-token', jobId: 'job_stale' },
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -205,7 +215,8 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
 
     const res = await runHandler(jobsHandler, {
       method: 'GET',
-      url: '/api/v1/jobs/job_stale',
+      url: '/api/workspaces/scope_sync-token/jobs/job_stale',
+      params: { workspaceId: 'scope_sync-token', jobId: 'job_stale' },
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -220,7 +231,8 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
   test('GET returns 404 for unknown job', async () => {
     const res = await runHandler(jobsHandler, {
       method: 'GET',
-      url: '/api/v1/jobs/job_missing',
+      url: '/api/workspaces/ws_demo/jobs/job_missing',
+      params: { workspaceId: 'ws_demo', jobId: 'job_missing' },
       headers: {
         authorization: 'Bearer agent-test-key',
         origin: 'http://localhost:3000',
@@ -229,5 +241,42 @@ describe('/api/v1/analyze and /api/v1/jobs/:jobId', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  test('workspace-scoped job reads enforce workspace isolation', async () => {
+    mockStore.set('api-v1-job:job_scope_bound', {
+      id: 'job_scope_bound',
+      status: 'queued',
+      createdAt: Date.parse('2026-03-08T12:00:00.000Z'),
+      scopeId: 'ws_one',
+      workspaceId: 'ws_one',
+      snapshotId: 'snap_ws_one_1',
+      configVersion: 1,
+    });
+
+    const wrongWorkspace = await runHandler(jobsHandler, {
+      method: 'GET',
+      url: '/api/workspaces/ws_two/jobs/job_scope_bound',
+      params: { workspaceId: 'ws_two', jobId: 'job_scope_bound' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(wrongWorkspace.status).toBe(404);
+
+    const rightWorkspace = await runHandler(jobsHandler, {
+      method: 'GET',
+      url: '/api/workspaces/ws_one/jobs/job_scope_bound',
+      params: { workspaceId: 'ws_one', jobId: 'job_scope_bound' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(rightWorkspace.status).toBe(200);
+    expect(rightWorkspace.body.data.job.id).toBe('job_scope_bound');
   });
 });

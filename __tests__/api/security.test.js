@@ -15,9 +15,8 @@ const { aiRankLimiter } = require('../../lib/middleware/rate-limit');
 const { incrementWindow } = require('../../lib/rate-limit-store');
 const { makeSignedCookie } = require('../../lib/cookies');
 const configHandler = require('../../lib/api-v1/handlers/config');
-const cronRefreshHandler = require('../../api/cron/refresh-opportunities');
-const notifyMeHandler = require('../../lib/api-handlers/notify-me');
-const syncHandler = require('../../lib/api-handlers/sync');
+const snapshotHandler = require('../../lib/api-v1/handlers/snapshot');
+const workspacesHandler = require('../../lib/api-handlers/workspaces');
 const storage = require('../../lib/storage');
 
 function flushPromises() {
@@ -110,23 +109,6 @@ describe('Authentication', () => {
     expect(res.body.error.message).toBe('Missing Authorization header');
   });
 
-  it('keeps the cron refresh endpoint disabled', async () => {
-    const res = await runHandler(cronRefreshHandler, {
-      method: 'GET',
-      url: '/api/cron/refresh-opportunities',
-      headers: {
-        origin: 'http://localhost:3000',
-        'x-cron-secret': 'wrong-secret',
-      },
-    });
-
-    expect(res.status).toBe(503);
-    expect(res.body).toEqual({
-      error: 'Poller disabled',
-      message: 'The Reddit opportunities poller is temporarily disabled.',
-    });
-  });
-
   it('accepts a valid bearer token and reaches the protected handler', async () => {
     storage.get.mockResolvedValue(null);
 
@@ -146,16 +128,15 @@ describe('Authentication', () => {
     expect(res.body.timings).toBeTruthy();
   });
 
-  it('rejects sync writes without an authenticated session or valid bearer token', async () => {
-    const res = await runHandler(syncHandler, {
+  it('rejects workspace bootstrap without an authenticated session or valid bearer token', async () => {
+    const res = await runHandler(workspacesHandler, {
       method: 'POST',
-      url: '/api/sync',
+      url: '/api/workspaces',
       headers: {
         origin: 'http://localhost:3000',
       },
       body: {
         token: 'sync-token',
-        posts: [],
       },
     });
 
@@ -163,25 +144,24 @@ describe('Authentication', () => {
     expect(storage.set).not.toHaveBeenCalled();
     expect(res.body).toEqual({
       error: 'Unauthorized',
-      message: 'Sync endpoints require an authenticated session or valid bearer token.',
+      message: 'Workspace bootstrap requires an authenticated session or valid bearer token.',
     });
   });
 
-  it('accepts sync writes with an authenticated session cookie', async () => {
+  it('accepts workspace bootstrap with an authenticated session cookie', async () => {
     storage.set.mockResolvedValue();
 
     const accessCookie = makeSignedCookie('access', 'access-token');
     const cookieValue = accessCookie.split(';')[0];
-    const res = await runHandler(syncHandler, {
+    const res = await runHandler(workspacesHandler, {
       method: 'POST',
-      url: '/api/sync',
+      url: '/api/workspaces',
       headers: {
         origin: 'http://localhost:3000',
       },
       cookies: cookieValue,
       body: {
         token: 'sync-token',
-        posts: [],
       },
     });
 
@@ -189,7 +169,7 @@ describe('Authentication', () => {
     expect(storage.set).toHaveBeenCalled();
   });
 
-  it('returns 413 when the sync payload is too large before storage write', async () => {
+  it('returns 413 when the workspace snapshot payload is too large before storage write', async () => {
     storage.set.mockResolvedValue();
 
     const accessCookie = makeSignedCookie('access', 'access-token');
@@ -199,170 +179,106 @@ describe('Authentication', () => {
       title: 'x'.repeat(210000),
       selftext: '',
     };
-    const res = await runHandler(syncHandler, {
-      method: 'POST',
-      url: '/api/sync',
+    const res = await runHandler(snapshotHandler, {
+      method: 'PUT',
+      url: '/api/workspaces/ws_demo/snapshot',
       headers: {
         origin: 'http://localhost:3000',
       },
       cookies: cookieValue,
+      params: { workspaceId: 'ws_demo' },
       body: {
         token: 'sync-token',
         posts: [hugePost],
+        settings: {},
+        filters: {},
       },
     });
 
     expect(res.status).toBe(413);
     expect(storage.set).not.toHaveBeenCalled();
-    expect(res.body.error).toBe('Payload too large');
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('returns 413 when the storage backend rejects the sync payload as too large', async () => {
+  it('returns 413 when the storage backend rejects the workspace snapshot payload as too large', async () => {
     storage.set.mockRejectedValueOnce(new Error('payload too large for backend'));
 
     const accessCookie = makeSignedCookie('access', 'access-token');
     const cookieValue = accessCookie.split(';')[0];
-    const res = await runHandler(syncHandler, {
-      method: 'POST',
-      url: '/api/sync',
+    const res = await runHandler(snapshotHandler, {
+      method: 'PUT',
+      url: '/api/workspaces/ws_demo/snapshot',
       headers: {
         origin: 'http://localhost:3000',
       },
       cookies: cookieValue,
+      params: { workspaceId: 'ws_demo' },
       body: {
         token: 'sync-token',
         posts: [{ id: 'p1', title: 'small enough' }],
+        settings: {},
+        filters: {},
       },
     });
 
     expect(res.status).toBe(413);
-    expect(res.body.error).toBe('Payload too large');
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('returns 503 when sync storage is temporarily unavailable', async () => {
+  it('returns 503 when workspace snapshot storage is temporarily unavailable', async () => {
     storage.set.mockRejectedValueOnce(new Error('redis unavailable'));
 
     const accessCookie = makeSignedCookie('access', 'access-token');
     const cookieValue = accessCookie.split(';')[0];
-    const res = await runHandler(syncHandler, {
-      method: 'POST',
-      url: '/api/sync',
+    const res = await runHandler(snapshotHandler, {
+      method: 'PUT',
+      url: '/api/workspaces/ws_demo/snapshot',
       headers: {
         origin: 'http://localhost:3000',
       },
       cookies: cookieValue,
+      params: { workspaceId: 'ws_demo' },
       body: {
         token: 'sync-token',
         posts: [{ id: 'p1', title: 'small enough' }],
+        settings: {},
+        filters: {},
       },
     });
 
     expect(res.status).toBe(503);
-    expect(res.body).toMatchObject({
-      error: 'Sync unavailable',
-    });
-  });
-});
-
-describe('Input Validation', () => {
-  beforeEach(() => {
-    storage.get.mockReset();
-    storage.set.mockReset();
-    storage.delete.mockReset();
-  });
-
-  it('sanitizes email in waitlist submissions', async () => {
-    storage.get.mockResolvedValue([]);
-    storage.set.mockResolvedValue();
-
-    const res = await runHandler(notifyMeHandler, {
-      method: 'POST',
-      url: '/api/notify-me',
-      headers: {
-        origin: 'http://localhost:3000',
-      },
-      body: {
-        email: '  <founder@example.com>  ',
-        tier: 'enterprise',
-      },
-    });
-
-    expect(res.status).toBe(200);
-    expect(storage.set).toHaveBeenCalledTimes(1);
-    expect(storage.set.mock.calls[0][0]).toBe('pro-waitlist');
-    expect(storage.set.mock.calls[0][1][0]).toMatchObject({
-      email: 'founder@example.com',
-      tier: 'enterprise',
-    });
-  });
-
-  it('normalizes invalid tier values to pro', async () => {
-    storage.get.mockResolvedValue([]);
-    storage.set.mockResolvedValue();
-
-    const res = await runHandler(notifyMeHandler, {
-      method: 'POST',
-      url: '/api/notify-me',
-      body: {
-        email: 'founder@example.com',
-        tier: 'vip',
-      },
-    });
-
-    expect(res.status).toBe(200);
-    expect(storage.set.mock.calls[0][1][0]).toMatchObject({
-      email: 'founder@example.com',
-      tier: 'pro',
-    });
-  });
-
-  it('limits waitlist size', async () => {
-    storage.get.mockResolvedValue(new Array(10000).fill({ email: 'taken@example.com' }));
-
-    const res = await runHandler(notifyMeHandler, {
-      method: 'POST',
-      url: '/api/notify-me',
-      body: {
-        email: 'new@example.com',
-        tier: 'pro',
-      },
-    });
-
-    expect(res.status).toBe(503);
-    expect(storage.set).not.toHaveBeenCalled();
-    expect(res.body).toEqual({
-      error: 'Waitlist full',
-      message: 'Our waitlist is currently full. Please try again later.',
-    });
+    expect(res.body.error.code).toBe('INTERNAL_ERROR');
   });
 });
 
 describe('CORS', () => {
   it('allows requests from allowed origins', async () => {
-    const res = await runHandler(notifyMeHandler, {
+    const res = await runHandler(snapshotHandler, {
       method: 'OPTIONS',
-      url: '/api/notify-me',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
       headers: {
         origin: 'http://localhost:3000',
+        'access-control-request-method': 'PUT',
       },
     });
 
     expect(res.status).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:3000');
-    expect(res.headers['access-control-allow-methods']).toBe('POST, OPTIONS');
   });
 
   it('blocks requests from unknown origins', async () => {
-    const res = await runHandler(notifyMeHandler, {
+    const res = await runHandler(snapshotHandler, {
       method: 'OPTIONS',
-      url: '/api/notify-me',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
       headers: {
         origin: 'https://evil.example.com',
+        'access-control-request-method': 'PUT',
       },
     });
 
     expect(res.status).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
-    expect(res.headers['access-control-allow-methods']).toBe('POST, OPTIONS');
   });
 });

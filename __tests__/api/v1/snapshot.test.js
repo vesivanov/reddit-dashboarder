@@ -13,12 +13,14 @@ jest.mock('../../../lib/storage', () => ({
 }));
 
 const { runHandler } = require('../../helpers/run-handler');
+const { makeSignedCookie } = require('../../../lib/cookies');
 const snapshotHandler = require('../../../lib/api-v1/handlers/snapshot');
 
 describe('/api/v1/snapshot', () => {
   beforeEach(() => {
     process.env.AGENT_API_KEY = 'agent-test-key';
     process.env.DIGEST_SYNC_TOKEN = 'sync-token';
+    process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
     mockStore.clear();
   });
 
@@ -175,5 +177,83 @@ describe('/api/v1/snapshot', () => {
       opportunityCount: 1,
       modelUsed: 'openai/gpt-4o-mini',
     });
+  });
+
+  test('supports workspace-scoped snapshot reads', async () => {
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('agent-snapshot-latest:ws_demo', {
+      snapshotId: 'snap_ws_demo_1',
+      scopeId: 'ws_demo',
+      sourceSyncedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('agent-snapshot:snap_ws_demo_1', {
+      snapshotId: 'snap_ws_demo_1',
+      scopeId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      sourceSyncedAt: '2026-03-08T10:00:00.000Z',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      expiresAt: Date.parse('2026-03-09T10:00:00.000Z'),
+      posts: [{ id: 'p1', title: 'Post', subreddit: 'programming' }],
+      filters: {},
+    });
+
+    const res = await runHandler(snapshotHandler, {
+      method: 'GET',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.snapshot).toMatchObject({
+      id: 'snap_ws_demo_1',
+      workspaceId: 'ws_demo',
+    });
+  });
+
+  test('supports workspace-scoped snapshot writes for authenticated browser sessions', async () => {
+    const accessCookie = makeSignedCookie('access', 'access-token');
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+
+    const res = await runHandler(snapshotHandler, {
+      method: 'PUT',
+      url: '/api/workspaces/ws_demo/snapshot',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        cookie: accessCookie.split(';')[0],
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        token: 'sync-token',
+        posts: [{ id: 'p2', title: 'Need help now', subreddit: 'seo' }],
+        settings: {
+          subreddits: ['seo'],
+          aiGoals: 'Find urgent SEO leads',
+        },
+        filters: { minScore: 5 },
+        timestamp: '2026-03-08T10:10:00.000Z',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.workspaceId).toBe('ws_demo');
+    expect(mockStore.get('sync-token')).toMatchObject({
+      token: 'sync-token',
+      settings: { subreddits: ['seo'], aiGoals: 'Find urgent SEO leads' },
+    });
+    expect(mockStore.get('agent-snapshot-latest:ws_demo')).toBeTruthy();
   });
 });
