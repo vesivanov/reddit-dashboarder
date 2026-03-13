@@ -54,6 +54,7 @@ const {
   formatCostHint,
   parseNumberFilter,
   renderBody,
+  absoluteDate,
 } = window.RDDAppUtils || {};
 const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
     function App() {
@@ -184,7 +185,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       });
       const [activePostMenu, setActivePostMenu] = useState(null);
       const [hoverPost, setHoverPost] = useState(null);
+      const [lastHiddenPost, setLastHiddenPost] = useState(null);
       const hoverTimeoutRef = useRef(null);
+      const hideUndoTimeoutRef = useRef(null);
       const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
         try { return localStorage.getItem('dashboard_notifications') === '1'; } catch { return false; }
       });
@@ -319,6 +322,8 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         }
       });
       const [fetchSummary, setFetchSummary] = useState(null);
+      const [fetchActivity, setFetchActivity] = useState(null);
+      const [aiActivity, setAiActivity] = useState(null);
       const [syncPauseUntil, setSyncPauseUntil] = useState(null);
       const [configSyncPauseUntil, setConfigSyncPauseUntil] = useState(null);
       const [sidecarSyncSuppressedUntil, setSidecarSyncSuppressedUntil] = useState(null);
@@ -1344,6 +1349,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           setPostScoreMetadata(new Map());
           setPostOpportunities(new Map());
           setScoresVersion(v => v + 1);
+          setAiActivity({
+            status: 'Off',
+            detail: 'Opportunity engine is disabled, so no ranking is running.',
+          });
           return;
         }
 
@@ -1355,6 +1364,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           effectiveLlmLimit = Math.min(effectiveLlmLimit, 60);
         }
         if (aiRateLimitPauseUntil && aiRateLimitPauseUntil > Date.now()) {
+          setAiActivity({
+            status: 'Paused',
+            detail: `Opportunity ranking is cooling down for ${formatTimeUntil(aiRateLimitPauseUntil)}.`,
+          });
           if (triggeredByAuto) {
             setOpportunityScanError(`Opportunity ranking cooling down for ${formatTimeUntil(aiRateLimitPauseUntil)}.`);
           }
@@ -1424,6 +1437,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
 
           // Get all posts
           const allNewPosts = groups.flatMap(g => g.posts || []);
+          setAiActivity({
+            status: 'Preparing',
+            detail: `Checking cached scores for ${allNewPosts.length} post${allNewPosts.length === 1 ? '' : 's'}.`,
+          });
           // Filter out posts that already have cached scores
           const uncachedPosts = allNewPosts.filter(post => !cachedScores.has(String(post.id)));
 
@@ -1431,6 +1448,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             const thisRequestId = ++opportunityScanRequestIdRef.current;
             setOpportunityScanError(null);
             setOpportunityScanLoading(true);
+            setAiActivity({
+              status: 'Heuristic pass',
+              detail: `Scoring ${uncachedPosts.length} uncached post${uncachedPosts.length === 1 ? '' : 's'} before the AI rerank.`,
+            });
             
             // Two-stage ranking: heuristic prefilter + LLM rerank
             const keywords = extractGoalKeywords(effectiveGoalText.trim());
@@ -1452,6 +1473,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             postsWithHeuristic.sort((a, b) => b.heuristicScore - a.heuristicScore);
             const topPosts = postsWithHeuristic.slice(0, MAX_LLM_POSTS).map(x => x.post);
             const remainingPosts = postsWithHeuristic.slice(MAX_LLM_POSTS);
+            setAiActivity({
+              status: 'LLM rerank',
+              detail: `Sending ${topPosts.length} high-priority post${topPosts.length === 1 ? '' : 's'} to ${openRouterModel.trim()} and keeping ${remainingPosts.length} as heuristic-only.`,
+            });
             const heuristicDetailsById = new Map(
               postsWithHeuristic.map(entry => [String(entry.post.id), entry.heuristicDetails])
             );
@@ -1640,6 +1665,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               setPostOpportunities(allOpportunities);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
               setAiScoresStale(false);
+              setAiActivity({
+                status: 'Complete',
+                detail: `Ranked ${topPosts.length} post${topPosts.length === 1 ? '' : 's'} with AI and ${remainingPosts.length} heuristically.`,
+              });
               scoresForHighRelevance = allScores;
             } catch (aiError) {
               console.error('Error in AI ranking batch processing:', aiError);
@@ -1648,6 +1677,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               setPostScoreMetadata(cachedMetadata);
               setPostOpportunities(cachedOpportunities);
               setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
+              setAiActivity({
+                status: 'Fallback',
+                detail: `AI ranking failed, so the app kept ${cachedScores.size} cached score${cachedScores.size === 1 ? '' : 's'}.`,
+              });
               scoresForHighRelevance = cachedScores;
             } finally {
               setOpportunityScanLoading(false);
@@ -1686,6 +1719,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             setPostOpportunities(cachedOpportunities);
             setScoresVersion(v => v + 1); // Increment version to trigger useMemo recalculation
             setAiScoresStale(false);
+            setAiActivity({
+              status: 'Cached',
+              detail: `Used ${cachedScores.size} cached score${cachedScores.size === 1 ? '' : 's'} without rerunning the model.`,
+            });
             // High-relevance notifications (use freshly computed scores)
             if (triggeredByAuto && notificationsEnabled && Notification.permission === 'granted' && notifyStrongOpportunities && cachedScores && cachedScores.size > 0) {
               const threshold = Number(priorityNotificationThreshold) || 4;
@@ -1716,6 +1753,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         } catch (aiError) {
           console.error('Error in AI ranking integration:', aiError);
           setOpportunityScanLoading(false);
+          setAiActivity({
+            status: 'Failed',
+            detail: aiError.message || 'Opportunity ranking failed before results could be updated.',
+          });
           if (triggeredByAuto) {
             setOpportunityScanError('Opportunity ranking failed during auto-refresh — scores may be stale.');
           }
@@ -1732,6 +1773,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           setFetchedAt(null);
           setSnapshotInfo(null);
           setFetchSummary(null);
+          setFetchActivity(null);
           setNextRefreshAt(null);
           return;
         }
@@ -1751,6 +1793,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         let localPauseUntil = rateLimitPauseUntil;
 
         setLoading(true);
+        setFetchActivity({
+          status: 'Preparing',
+          detail: `Preparing a ${mode} fetch across ${subsCount} subreddit${subsCount === 1 ? '' : 's'}.`,
+        });
         setError('');
         setNeedsAuth(false);
         if (coverageAbortRef.current) {
@@ -1927,6 +1973,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               completedSubs: computeProgress().completedSubs,
               attemptedSubs: subsCount,
             });
+            setFetchActivity({
+              status: 'Loaded checkpoints',
+              detail: `Loaded saved coverage for ${subsCount} subreddit${subsCount === 1 ? '' : 's'}. Resuming missing pages now.`,
+            });
             const continueCoverageInBackground = async () => {
               try {
                 while (true) {
@@ -1958,6 +2008,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       completedSubs,
                       attemptedSubs: subsCount,
                     });
+                    setFetchActivity({
+                      status: 'Waiting on Reddit',
+                      detail: `Checkpointed coverage is paused for about ${Math.ceil(waitMs / 1000)}s before the next Reddit request.`,
+                    });
                     syncVisibleCoverageState();
                     await new Promise((resolve) => setTimeout(resolve, waitMs));
                     continue;
@@ -1977,6 +2031,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     detail: `Checkpointing coverage for r/${sub}. ${completedSubs}/${subsCount} subreddits are already covered or capped. ${totalPosts} posts stored so far.`,
                     completedSubs,
                     attemptedSubs: subsCount,
+                  });
+                  setFetchActivity({
+                    status: `Fetching r/${sub}`,
+                    detail: `${completedSubs}/${subsCount} subreddits complete or capped. ${totalPosts} post${totalPosts === 1 ? '' : 's'} stored so far.`,
                   });
 
                   const advanceResponse = await fetch('/api/reddit/advance', {
@@ -2025,6 +2083,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       completedSubs,
                       attemptedSubs: subsCount,
                     });
+                    setFetchActivity({
+                      status: 'Rate limited',
+                      detail: `Reddit paused coverage for r/${sub}. Retrying in about ${pagedRetryAfterSeconds}s.`,
+                    });
                     break;
                   }
 
@@ -2052,6 +2114,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       completedSubs,
                       attemptedSubs: subsCount,
                     });
+                    setFetchActivity({
+                      status: 'Cooldown saved',
+                      detail: `Saved progress for r/${sub}. Coverage will resume in about ${pagedRetryAfterSeconds}s.`,
+                    });
                     break;
                   }
                   if (advancePayload?.advanced === false && Number(advancePayload?.cooldown_until || 0) > Date.now()) {
@@ -2067,6 +2133,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                       detail: `Saved progress for r/${sub}. Waiting for Reddit's cooldown window to expire before retrying.`,
                       completedSubs,
                       attemptedSubs: subsCount,
+                    });
+                    setFetchActivity({
+                      status: 'Waiting on cooldown',
+                      detail: `Saved progress for r/${sub} and waiting for Reddit's cooldown window to expire.`,
                     });
                     break;
                   }
@@ -2092,6 +2162,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                     detail: `Checkpointing coverage for r/${sub}. ${progressAfterAdvance.completedSubs}/${subsCount} subreddits are already covered or capped. ${progressAfterAdvance.totalPosts} posts stored so far.`,
                     completedSubs: progressAfterAdvance.completedSubs,
                     attemptedSubs: subsCount,
+                  });
+                  setFetchActivity({
+                    status: `Stored r/${sub}`,
+                    detail: `${progressAfterAdvance.completedSubs}/${subsCount} subreddits complete or capped. ${progressAfterAdvance.totalPosts} post${progressAfterAdvance.totalPosts === 1 ? '' : 's'} stored so far.`,
                   });
 
                   await new Promise((resolve) => setTimeout(resolve, authMode === 'oauth' ? 2200 : 3200));
@@ -2169,6 +2243,11 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   effectiveMaxPages: maxPages,
                   subsCount,
                 }));
+                const totalFetchedPosts = perSub.reduce((sum, group) => sum + ((group?.posts || []).length), 0);
+                setFetchActivity({
+                  status: 'Fetch complete',
+                  detail: `Fetched ${totalFetchedPosts} post${totalFetchedPosts === 1 ? '' : 's'}. Starting opportunity ranking next.`,
+                });
 
                 if ((payload?.auth_mode ? payload.auth_mode !== 'public' : authenticated) && !skipSyncForLargeBatch) {
                   await syncDashboardSnapshot(perSub);
@@ -2187,6 +2266,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
               } finally {
                 setLoading(false);
+                setFetchActivity(null);
                 if (coverageAbortRef.current === controller) {
                   coverageAbortRef.current = null;
                 }
@@ -2203,6 +2283,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               setNeedsAuth(false);
               setSnapshotInfo(null);
               setFetchSummary(null);
+              setFetchActivity({
+                status: 'Failed',
+                detail: fetchError?.message || 'Fetch failed before the checkpointed run completed.',
+              });
               if (fetchError?.name === 'AbortError') {
                 return;
               }
@@ -2281,6 +2365,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           for (let chunkIdx = 0; chunkIdx < subChunks.length; chunkIdx++) {
             const chunkSubs = subChunks[chunkIdx];
             const { chunkLimit, chunkMaxPages, chunkWasCapped } = shapeForChunk(chunkSubs.length);
+            setFetchActivity({
+              status: `Fetching batch ${chunkIdx + 1}/${subChunks.length}`,
+              detail: `Requesting ${chunkSubs.length} subreddit${chunkSubs.length === 1 ? '' : 's'} through the snapshot API.`,
+            });
             const params = new URLSearchParams({
               subs: chunkSubs.join(','),
               mode,
@@ -2447,6 +2535,11 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             effectiveMaxPages: payload?.request_capped ? effectiveMaxPages : maxPages,
             subsCount,
           }));
+          const totalFetchedPosts = perSub.reduce((sum, group) => sum + ((group?.posts || []).length), 0);
+          setFetchActivity({
+            status: 'Fetch complete',
+            detail: `Fetched ${totalFetchedPosts} post${totalFetchedPosts === 1 ? '' : 's'}. Starting opportunity ranking next.`,
+          });
 
           if (payload?.auth_mode !== 'public') {
             await syncDashboardSnapshot(perSub);
@@ -2491,6 +2584,12 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           setNeedsAuth(false);
           setSnapshotInfo(null);
           setFetchSummary(null);
+          setFetchActivity({
+            status: 'Failed',
+            detail: fetchError?.name === 'AbortError'
+              ? 'The fetch timed out before it completed.'
+              : (fetchError.message || 'Fetch failed.'),
+          });
           if (fetchError?.name === 'AbortError') {
             setError(`Request timed out. Reddit may be slow. Try again.`);
           } else {
@@ -2503,6 +2602,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
           }
           if (!keepCoverageController) {
             setLoading(false);
+            setFetchActivity(null);
           }
           const plan = getAutoRefreshPlan({
             autoRefreshEnabled,
@@ -2627,10 +2727,27 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       }, []);
 
       const handleHidePost = useCallback((postId) => {
+        const post = allPosts.find(p => p.id === postId);
         setHiddenPosts(prev => new Set([...prev, postId]));
         setActivePostMenu(null);
         if (selectedPost?.id === postId) setSelectedPost(null);
-      }, [selectedPost]);
+        setLastHiddenPost(post ? { id: postId, title: post.title } : { id: postId, title: null });
+        if (hideUndoTimeoutRef.current) clearTimeout(hideUndoTimeoutRef.current);
+        hideUndoTimeoutRef.current = setTimeout(() => setLastHiddenPost(null), 5000);
+      }, [selectedPost, allPosts]);
+
+      const handleUnhidePost = useCallback((postId) => {
+        setHiddenPosts(prev => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
+        setLastHiddenPost(null);
+        if (hideUndoTimeoutRef.current) {
+          clearTimeout(hideUndoTimeoutRef.current);
+          hideUndoTimeoutRef.current = null;
+        }
+      }, []);
 
       const handlePostHoverStart = useCallback((post) => {
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -2976,7 +3093,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
         };
       }
 
-      function renderStatusChip(label, value, tone = 'neutral') {
+      function renderStatusChip(label, value, tone = 'neutral', title = undefined) {
         const toneClass =
           tone === 'success'
             ? 'bg-emerald-100/90 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-800/60'
@@ -2986,7 +3103,8 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 ? 'bg-sky-100/90 text-sky-900 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-800/60'
                 : 'bg-white text-zinc-700 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700';
         return h('span', {
-          className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`
+          className: `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${toneClass}`,
+          title: title || undefined,
         },
           h('span', { className: 'uppercase tracking-[0.08em] opacity-60' }, label),
           h('span', null, value)
@@ -3000,7 +3118,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
       }
 
       function renderCoveragePill(label, active) {
+        const depthTitles = { '1d': 'Posts from the last 1 day fetched', '3d': 'Posts from the last 3 days fetched', '5d': 'Posts from the last 5 days fetched' };
         return h('span', {
+          title: active ? depthTitles[label] || label : `${depthTitles[label] || label} — not yet complete`,
           className: `inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active
             ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-800/60'
             : 'bg-white text-zinc-500 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:text-zinc-500 dark:ring-zinc-700'}`
@@ -3105,6 +3225,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               // Dark mode toggle
               h('button', {
                 onClick: () => setDarkMode(!darkMode),
+                'aria-label': darkMode ? 'Switch to light mode' : 'Switch to dark mode',
                 className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: darkMode ? 'Light mode' : 'Dark mode'
               }, darkMode 
@@ -3125,6 +3246,7 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               ),
               h('button', {
                 onClick: () => setSettingsOpen(true),
+                'aria-label': 'Open settings',
               className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
               title: 'Settings'
             }, h('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -3154,26 +3276,33 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   'Fetching…'
                 )
               : error
-                ? h('span', { className: 'text-rose-600 dark:text-rose-400 font-medium' }, error)
+                ? h('span', { className: 'flex items-center gap-2 flex-wrap' },
+                    h('span', { className: 'text-rose-600 dark:text-rose-400 font-medium' }, error),
+                    h('button', {
+                      onClick: () => refresh({ force: true }),
+                      className: 'text-xs font-semibold text-rose-700 dark:text-rose-400 underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded'
+                    }, 'Retry')
+                  )
                 : needsAuth
                   ? h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, 'Sign in required')
                   : [
-                      renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0),
-                      fetchedAt && !loading && renderStatusChip('Updated', timeAgo(fetchedAt / 1000)),
+                      renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0, 'neutral', 'Total visible posts after filters'),
+                      fetchedAt && !loading && renderStatusChip('Updated', timeAgo(fetchedAt / 1000), 'neutral', `Last fetched: ${absoluteDate(fetchedAt / 1000)}`),
                       fetchSummary && !loading && renderStatusChip('Scope', fetchSummary.status, fetchSummary.tone),
-                      data.length > 0 && !loading && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral'),
-                      data.length > 0 && !loading && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral'),
-                      data.length > 0 && !loading && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral'),
-                      storageStatus && !loading && !storageStatus.persistent && renderStatusChip('Storage', 'Memory', 'warning'),
+                      data.length > 0 && !loading && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral', `1-day depth: ${coverageCounts.complete1d} of ${data.length} subreddits have posts from the last 24h`),
+                      data.length > 0 && !loading && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral', `3-day depth: ${coverageCounts.complete3d} of ${data.length} subreddits have posts from the last 3 days`),
+                      data.length > 0 && !loading && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral', `5-day depth: ${coverageCounts.complete5d} of ${data.length} subreddits have posts from the last 5 days`),
+                      storageStatus && !loading && !storageStatus.persistent && renderStatusChip('Storage', 'Memory', 'warning', 'Posts stored in memory only — data will be lost on page reload'),
                       snapshotInfo?.cached && !loading && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
-                      staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
-                      rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
-                      autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt)),
+                      staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning', `${staleSubCount} subreddit${staleSubCount === 1 ? ' has' : 's have'} cached data from a previous session`),
+                      rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning', 'Reddit rate limit — fetching paused temporarily'),
+                      autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt), 'neutral', 'Scheduled auto-refresh time'),
                       BUILD_INFO?.commit && !loading && renderStatusChip('Build', BUILD_INFO.commit),
-                      opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success'),
-                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success'),
-                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
-                      !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Engine', 'Off'),
+                      opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success', 'AI opportunity scan in progress'),
+                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success', 'Opportunity engine is active and scoring posts'),
+                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success', `${aiScoreStats.llm} posts scored by AI out of ${aiScoreStats.total} total`),
+                      !opportunityScanLoading && aiScoresStale && renderStatusChip('AI Scores', 'Stale', 'warning', 'Cached AI scores — goals or model changed since last scan. Re-run to get fresh scores.'),
+                      !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Engine', 'Off', 'neutral', 'Opportunity engine is off — configure it in Settings'),
                     ],
             (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
@@ -3184,13 +3313,22 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
             h('button', {
               onClick: () => refresh({ force: true }),
               disabled: loading,
+              'aria-label': 'Refresh posts',
               className: 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-[#0284C7] text-white text-sm font-medium hover:bg-zinc-800 dark:hover:bg-[#0369A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
             },
-              h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              h('svg', { className: `w-4 h-4 ${loading ? 'animate-spin' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
               ),
               'Refresh'
             ),
+          )
+        ),
+        loading && fetchActivity && h('div', {
+          className: 'border-b border-sky-200 bg-sky-50/80 px-4 py-2 text-xs text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/20 dark:text-sky-200'
+        },
+          h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
+            h('span', { className: 'font-medium' }, `${fetchActivity.status}: ${fetchActivity.detail}`),
+            fetchMethod && h('span', { className: 'opacity-70 uppercase tracking-[0.08em]' }, fetchMethod)
           )
         ),
         fetchSummary && !loading && !error && h('div', {
@@ -3214,9 +3352,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
               h('span', { className: 'font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Subreddits'),
                 h('button', {
                 onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
+                'aria-label': 'Add subreddit',
                 className: 'p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
                 title: 'Add subreddit'
-              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+              }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
               ))
             ),
@@ -3282,9 +3421,10 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                               h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, postCount),
                           h('button', {
                                 onClick: (e) => { e.stopPropagation(); handleRemoveSub(sub); },
+                                'aria-label': `Remove r/${sub}`,
                                 className: 'opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0284C7] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
-                            title: 'Remove'
-                              }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            title: `Remove r/${sub}`
+                              }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
                               h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
                               ))
                             )
@@ -3317,19 +3457,24 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                 }` }),
 
                 // Status label + goal summary
-                h('div', { className: 'flex items-center gap-2 min-w-0 flex-1' },
-                  h('span', { className: 'text-xs font-medium shrink-0 ' + (
-                    opportunityScanLoading ? 'text-amber-600 dark:text-amber-400' :
-                    opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
-                    'text-zinc-500 dark:text-zinc-400'
-                  )},
-                    opportunityScanLoading ? 'Ranking…' :
-                    opportunityEngineEnabled && hasOpportunityGoals ? 'Opportunity engine on' :
-                    'Opportunity engine off'
+                h('div', { className: 'min-w-0 flex-1' },
+                  h('div', { className: 'flex items-center gap-2 min-w-0' },
+                    h('span', { className: 'text-xs font-medium shrink-0 ' + (
+                      opportunityScanLoading ? 'text-amber-600 dark:text-amber-400' :
+                      opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
+                      'text-zinc-500 dark:text-zinc-400'
+                    )},
+                      opportunityScanLoading ? 'Ranking…' :
+                      opportunityEngineEnabled && hasOpportunityGoals ? 'Opportunity engine on' :
+                      'Opportunity engine off'
+                    ),
+                    opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
+                    opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' },
+                      aiGoalSummary || effectiveGoalText.trim()
+                    )
                   ),
-                  opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
-                  opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' },
-                    aiGoalSummary || effectiveGoalText.trim()
+                  aiActivity?.detail && h('div', { className: 'mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400 truncate' },
+                    `${aiActivity.status}: ${aiActivity.detail}`
                   )
                 ),
 
@@ -4724,6 +4869,9 @@ const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
                   opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/20 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2' },
                     h('span', null, opportunityScanError),
                     h('button', { onClick: () => setOpportunityScanError(null), className: 'text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 shrink-0 font-medium' }, '\u00d7')
+                  ),
+                  aiActivity?.detail && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-sky-200 dark:border-sky-800/60 bg-sky-50/70 dark:bg-sky-900/20 text-xs text-sky-800 dark:text-sky-200' },
+                    `${aiActivity.status}: ${aiActivity.detail}`
                   ),
                   aiScoresStale && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
                     'Scores are cached \u2014 badges show ~ prefix. Re-run for fresh results.'
