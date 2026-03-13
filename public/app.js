@@ -1942,12 +1942,12 @@ const {
         onTouchEnd: handleTouchEnd
       },
         // Header
-        h('header', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between gap-4 shrink-0' },
+        h('header', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.05] px-4 py-2.5 flex items-center justify-between gap-4 shrink-0' },
             h('div', { className: 'flex items-center gap-2.5' },
               h('svg', { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', className: 'shrink-0', 'aria-hidden': 'true' },
                 h('rect', { x: 1.5, y: 2.5, width: 17, height: 11, rx: 2, stroke: '#D97706', strokeWidth: 1.5 }),
                 h('path', { d: 'M7 19h6M10 13.5V19', stroke: '#D97706', strokeWidth: 1.5, strokeLinecap: 'round' }),
-                h('path', { d: 'M5 9.5l2-2.5 2.5 2.5 2-2 3 3', stroke: '#38BDF8', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })
+                h('path', { d: 'M5 9.5l2-2.5 2.5 2.5 2-2 3 3', stroke: '#FCD34D', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })
               ),
               h('h1', { className: 'text-lg font-bold text-zinc-900 dark:text-white' }, 'Reddit Dashboarder')
             ),
@@ -1998,7 +1998,7 @@ const {
         ),
 
         // Status bar
-        h('div', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-2 flex items-center justify-between gap-4 text-sm shrink-0' },
+        h('div', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.05] px-4 py-1.5 flex items-center justify-between gap-4 text-sm shrink-0' },
           h('div', { className: 'flex flex-wrap items-center gap-2' },
             loading
               ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
@@ -2075,7 +2075,7 @@ const {
         ),
 
         // Main content area
-        h('div', { className: 'flex-1 flex overflow-hidden' },
+        h('div', { className: 'flex-1 flex overflow-hidden min-h-0' },
           renderSidebar({
             h,
             mobileView,

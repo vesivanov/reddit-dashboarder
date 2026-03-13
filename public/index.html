@@ -8,7 +8,7 @@
   <title>Reddit Dashboarder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700&family=Lora:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/tailwind.css?v=20260311b" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -39,7 +39,9 @@
       font: inherit;
       letter-spacing: inherit;
     }
-    .post-body { font-size: 0.875rem; line-height: 1.6; }
+    .post-body { font-family: 'Lora', Georgia, serif; font-size: 1rem; line-height: 1.8; color: inherit; }
+    .post-body p, .post-body li { margin-bottom: 0.75em; }
+    .post-body a { color: #F59E0B; text-decoration: underline; text-underline-offset: 2px; }
 
     /* ── Scrollbars ── */
     :root { --scrollbar-thumb: #ccc7be; --scrollbar-thumb-hover: #aaa49b; }
@@ -92,16 +94,37 @@
     .bg-zinc-100 { background-color: #F2F0EB !important; }
     .bg-zinc-50  { background-color: #ECEAE3 !important; }
 
-    /* ── Dark mode surfaces (warm near-blacks, not cool zinc) ── */
-    html.dark .dark\:bg-zinc-900     { background-color: #0D0D10 !important; }
-    html.dark .dark\:bg-zinc-800     { background-color: #18181D !important; }
-    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(24,24,29,0.5) !important; }
-    html.dark .dark\:bg-zinc-700     { background-color: #242430 !important; }
+    /* ── Dark mode surfaces (OLED deep blacks) ── */
+    html.dark .dark\:bg-zinc-900     { background-color: #060608 !important; }
+    html.dark .dark\:bg-zinc-800     { background-color: #0F0F14 !important; }
+    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(15,15,20,0.5) !important; }
+    html.dark .dark\:bg-zinc-700     { background-color: #1A1A22 !important; }
 
     /* ── Dark mode borders (glass-like, not hard zinc lines) ── */
     html.dark .dark\:border-zinc-700 { border-color: rgba(255,255,255,0.07) !important; }
     html.dark .dark\:border-zinc-600 { border-color: rgba(255,255,255,0.11) !important; }
     html.dark .dark\:divide-zinc-700 > * + * { border-color: rgba(255,255,255,0.06) !important; }
+
+    /* ── Hero post cards (high-priority signal glow) ── */
+    .post-card-hero {
+      background: linear-gradient(90deg, rgba(245,158,11,0.07) 0%, transparent 55%) !important;
+    }
+    .post-card-hero:hover {
+      background: linear-gradient(90deg, rgba(245,158,11,0.12) 0%, transparent 55%) !important;
+    }
+    html.dark .post-card-hero {
+      background: linear-gradient(90deg, rgba(245,158,11,0.06) 0%, transparent 55%) !important;
+    }
+    html.dark .post-card-hero:hover {
+      background: linear-gradient(90deg, rgba(245,158,11,0.10) 0%, transparent 55%) !important;
+    }
+    /* ── Suppressed post cards (noise) ── */
+    .post-card-suppressed { opacity: 0.45; transition: opacity 0.15s; }
+    .post-card-suppressed:hover { opacity: 0.75; }
+
+    /* ── Sidebar icon rail ── */
+    .scrollbar-none::-webkit-scrollbar { display: none; }
+    .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
     /* ── Amber accent replacing sky blue (#0284C7) ── */
     /* Backgrounds */
