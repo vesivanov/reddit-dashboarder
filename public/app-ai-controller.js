@@ -28,6 +28,21 @@
   } = aiAuditClient;
   const { requestAiRank = null } = fetchClient;
   const MAX_POSTS_PER_AI_REQUEST = 250;
+  const FAST_FREE_MODEL = 'stepfun/step-3.5-flash:free';
+
+  function selectAiModelForRun({ requestedModel, totalPostCount, llmPostLimit }) {
+    const normalizedRequestedModel = String(requestedModel || '').trim();
+    if (!normalizedRequestedModel.endsWith(':free') && normalizedRequestedModel !== 'openrouter/free') {
+      return normalizedRequestedModel;
+    }
+    if (normalizedRequestedModel === FAST_FREE_MODEL) return normalizedRequestedModel;
+    const normalizedPostCount = Math.max(0, Math.floor(Number(totalPostCount) || 0));
+    const normalizedLlmLimit = Math.max(0, Math.floor(Number(llmPostLimit) || 0));
+    if (normalizedPostCount >= 120 || normalizedLlmLimit >= 50) {
+      return FAST_FREE_MODEL;
+    }
+    return normalizedRequestedModel;
+  }
 
   function splitIntoChunks(items, chunkSize) {
     const normalizedChunkSize = Math.max(1, Math.floor(Number(chunkSize) || 1));
@@ -265,12 +280,20 @@
           reject: aiExampleReject,
         },
         promptVersion: aiPromptVersion,
-        model: openRouterModel,
+        model: selectAiModelForRun({
+          requestedModel: openRouterModel,
+          totalPostCount: allNewPosts.length,
+          llmPostLimit: effectiveLlmLimit,
+        }),
         llmLimit: effectiveLlmLimit,
         hashGoals,
       });
       let latestPromptVersion = aiPromptVersion;
-      let latestModel = openRouterModel;
+      let latestModel = selectAiModelForRun({
+        requestedModel: openRouterModel,
+        totalPostCount: allNewPosts.length,
+        llmPostLimit: effectiveLlmLimit,
+      });
       ensureAiCacheVersion(currentCacheVersion, { clearOnMismatch: true });
       const cacheState = loadAiScoreCache({
         posts: allNewPosts,
@@ -330,6 +353,11 @@
       try {
         const requestChunks = buildAiRequestChunks(allNewPosts, effectiveLlmLimit);
         const clientRunId = auditRunId;
+        const modelForRun = selectAiModelForRun({
+          requestedModel: openRouterModel,
+          totalPostCount: allNewPosts.length,
+          llmPostLimit: effectiveLlmLimit,
+        });
         auditRecord.chunkCount = requestChunks.length;
         auditRecord.events.push({
           time: Date.now(),
@@ -379,7 +407,7 @@
                 },
                 secureKeyAvailable,
                 openRouterApiKey,
-                openRouterModel,
+                openRouterModel: modelForRun,
                 llmPostLimit: requestChunk.llmPostLimit,
                 modelTemperature: aiFixedTemperature,
                 modelTopP: aiFixedTopP,
@@ -555,6 +583,7 @@
 
   globalScope.RDDAiController = {
     buildAiRequestChunks,
+    selectAiModelForRun,
     runAiRankingFlow,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

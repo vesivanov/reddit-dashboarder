@@ -34,4 +34,20 @@ describe('app AI controller', () => {
     expect(chunks.reduce((sum, chunk) => sum + chunk.llmPostLimit, 0)).toBe(40);
     expect(chunks.map((chunk) => chunk.llmPostLimit)).toEqual([15, 14, 11]);
   });
+
+  test('uses the fast free model for broad coverage runs', () => {
+    const controller = loadAiController();
+
+    expect(controller.selectAiModelForRun({
+      requestedModel: 'qwen/qwen3-next-80b-a3b-instruct:free',
+      totalPostCount: 997,
+      llmPostLimit: 188,
+    })).toBe('stepfun/step-3.5-flash:free');
+
+    expect(controller.selectAiModelForRun({
+      requestedModel: 'qwen/qwen3-next-80b-a3b-instruct:free',
+      totalPostCount: 20,
+      llmPostLimit: 10,
+    })).toBe('qwen/qwen3-next-80b-a3b-instruct:free');
+  });
 });

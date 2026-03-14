@@ -213,6 +213,69 @@ describe('AI rank handler', () => {
     expect(payload.fallbackUsed).toBe(true);
   });
 
+  test('forces the fast free model for broad free-model coverage runs', async () => {
+    const posts = Array.from({ length: 150 }, (_, index) => ({
+      id: `post${index + 1}`,
+      title: `Need help ${index + 1}`,
+      subreddit: 'smallbusiness',
+      score: 10,
+      num_comments: 2,
+      created_utc: Date.now() / 1000,
+    }));
+    const req = {
+      method: 'POST',
+      body: {
+        posts,
+        userGoals: 'Find commercial marketing opportunities',
+        openRouterModel: 'qwen/qwen3-next-80b-a3b-instruct:free',
+        openRouterApiKey: 'inline-key',
+        llmPostLimit: 80,
+      },
+      headers: { cookie: '' },
+    };
+
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        model: 'stepfun/step-3.5-flash:free',
+        choices: [{
+          message: {
+            content: JSON.stringify(posts.map((post) => ({
+              postId: post.id,
+              score: 3,
+              confidence: 'medium',
+              reason: 'Relevant',
+              opportunityType: 'lead',
+              recommendedAction: 'reply_now',
+              signals: {
+                commercialIntent: 0.6,
+                serviceFit: 0.6,
+                buyerSignal: 0.6,
+                urgency: 0.4,
+                replyability: 0.5,
+                researchValue: 0.2,
+                authorityFit: 0.5,
+                risk: 0.2,
+              },
+            }))),
+          },
+        }],
+      }),
+    });
+
+    await handler(req, res);
+
+    const [fetchUrl, fetchOptions] = global.fetch.mock.calls[0];
+    expect(fetchUrl).toContain('openrouter.ai');
+    const requestBody = JSON.parse(fetchOptions.body);
+    expect(requestBody.model).toBe('stepfun/step-3.5-flash:free');
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.requestedModel).toBe('qwen/qwen3-next-80b-a3b-instruct:free');
+    expect(payload.selectedModel).toBe('stepfun/step-3.5-flash:free');
+  });
+
   test('writes structured AI ranking events to the console log', async () => {
     const req = {
       method: 'POST',
