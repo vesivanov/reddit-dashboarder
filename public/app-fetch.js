@@ -110,12 +110,13 @@
       return {
         tone: 'warning',
         status: 'Incomplete',
-        detail: `Stopped early on ${timedOutSubs.length} subreddit${timedOutSubs.length === 1 ? '' : 's'} because the request timed out.${coverageDetail}`,
+        detail: `${timedOutSubs.length} of ${attemptedSubs} subreddits timed out before the selected ${targetWindowLabel} window could finish.`,
         completedSubs,
         attemptedSubs,
         targetCoverageCount,
         targetCoverageComplete,
         targetWindowLabel,
+        showTargetCoverage: false,
       };
     }
 
@@ -123,12 +124,13 @@
       return {
         tone: 'warning',
         status: 'Incomplete',
-        detail: `Stopped early on ${rateLimitedSubs.length} subreddit${rateLimitedSubs.length === 1 ? '' : 's'} because Reddit rate-limited the request.${coverageDetail}`,
+        detail: `Reddit rate-limited ${rateLimitedSubs.length} of ${attemptedSubs} subreddits before the selected ${targetWindowLabel} window could finish.`,
         completedSubs,
         attemptedSubs,
         targetCoverageCount,
         targetCoverageComplete,
         targetWindowLabel,
+        showTargetCoverage: false,
       };
     }
 
@@ -136,12 +138,13 @@
       return {
         tone: 'warning',
         status: 'Capped',
-        detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.${coverageDetail}`,
+        detail: `${partialSubs.length} of ${attemptedSubs} subreddits hit the current fetch-depth limit before reaching ${targetWindowLabel}.`,
         completedSubs,
         attemptedSubs,
         targetCoverageCount,
         targetCoverageComplete,
         targetWindowLabel,
+        showTargetCoverage: false,
       };
     }
 
@@ -149,12 +152,13 @@
       return {
         tone: 'warning',
         status: 'Incomplete',
-        detail: `${erroredSubs.length} subreddit fetch${erroredSubs.length === 1 ? '' : 'es'} returned an error.${coverageDetail}`,
+        detail: `${erroredSubs.length} of ${attemptedSubs} subreddits returned an error before reaching ${targetWindowLabel}.`,
         completedSubs,
         attemptedSubs,
         targetCoverageCount,
         targetCoverageComplete,
         targetWindowLabel,
+        showTargetCoverage: false,
       };
     }
 
@@ -168,19 +172,24 @@
         targetCoverageCount,
         targetCoverageComplete,
         targetWindowLabel,
+        showTargetCoverage: true,
       };
     }
 
     if (depthAutoCapped && Number.isFinite(effectiveMaxPages)) {
+      const completionDetail = targetCoverageComplete
+        ? ` All ${attemptedSubs}/${attemptedSubs} still reached ${targetWindowLabel}.`
+        : '';
       return {
         tone: 'warning',
         status: 'Capped',
-        detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.${coverageDetail}`,
+        detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.${completionDetail}${targetCoverageComplete ? coverageDetail : ''}`,
         completedSubs,
         attemptedSubs,
         targetCoverageCount,
         targetCoverageComplete,
         targetWindowLabel,
+        showTargetCoverage: true,
       };
     }
 
@@ -198,6 +207,7 @@
       targetCoverageCount,
       targetCoverageComplete,
       targetWindowLabel,
+      showTargetCoverage: true,
     };
   }
 

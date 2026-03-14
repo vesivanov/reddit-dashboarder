@@ -3,6 +3,8 @@ const {
   buildSystemPrompt,
   buildModelAttemptOrder,
   shouldRetryOpenRouterModel,
+  shouldRelaxOpenRouterRequest,
+  buildOpenRouterRequestStrategies,
 } = require('../../../lib/services/ai-ranking');
 
 describe('ai-ranking prompt', () => {
@@ -40,8 +42,25 @@ describe('ai-ranking prompt', () => {
   });
 
   test('retries free-model attempts only on transient upstream statuses', () => {
+    expect(shouldRetryOpenRouterModel({ status: 404 })).toBe(true);
     expect(shouldRetryOpenRouterModel({ status: 429 })).toBe(true);
     expect(shouldRetryOpenRouterModel({ status: 503 })).toBe(true);
     expect(shouldRetryOpenRouterModel({ status: 400 })).toBe(false);
+  });
+
+  test('relaxes request shape when OpenRouter rejects routing parameters', () => {
+    expect(shouldRelaxOpenRouterRequest({ status: 404 })).toBe(true);
+    expect(shouldRelaxOpenRouterRequest({ status: 400, responseText: 'unsupported response_format' })).toBe(true);
+    expect(shouldRelaxOpenRouterRequest({ status: 429, responseText: 'rate limited' })).toBe(false);
+  });
+
+  test('builds progressively simpler request strategies for routing fallback', () => {
+    const strategies = buildOpenRouterRequestStrategies('meta-llama/llama-3.3-70b-instruct:free');
+
+    expect(strategies.map((strategy) => strategy.id)).toEqual([
+      'strict_json_schema',
+      'relaxed_json_schema',
+      'plain_json',
+    ]);
   });
 });

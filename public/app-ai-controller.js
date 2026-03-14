@@ -309,6 +309,8 @@
           setPostScoreMetadata(cachedMetadata);
           setPostOpportunities(cachedOpportunities);
           setScoresVersion((version) => version + 1);
+          setAiScoresStale(cachedScores.size > 0);
+          setOpportunityScanError(aiError.message || 'Opportunity ranking failed.');
           setAiActivity({
             status: 'Fallback',
             detail: `AI ranking failed, so the app kept ${cachedScores.size} cached score${cachedScores.size === 1 ? '' : 's'}.`,
@@ -360,6 +362,8 @@
         status: 'Failed',
         detail: aiError.message || 'Opportunity ranking failed before results could be updated.',
       });
+      setAiScoresStale(true);
+      setOpportunityScanError(aiError.message || 'Opportunity ranking failed before results could be updated.');
       if (triggeredByAuto) {
         setOpportunityScanError('Opportunity ranking failed during auto-refresh - scores may be stale.');
       }

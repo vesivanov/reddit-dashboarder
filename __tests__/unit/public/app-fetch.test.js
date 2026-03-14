@@ -73,6 +73,42 @@ describe('app fetch helpers', () => {
     expect(summary.detail).toContain('Coverage: 0/2 at 1d, 0/2 at 3d, 0/2 at 5d.');
   });
 
+  test('hides target coverage callouts when fetch depth capped subreddits before the window finished', () => {
+    const fetchClient = loadFetchClient();
+
+    const summary = fetchClient.buildFetchSummary({
+      request_capped: true,
+      days: 1,
+    }, [
+      {
+        subreddit: 'alpha',
+        posts: [{ id: 'a1' }],
+        partial: false,
+        error: null,
+        coverage_state: { complete_1d: true, complete_3d: false, complete_5d: false },
+      },
+      {
+        subreddit: 'beta',
+        posts: [{ id: 'b1' }],
+        partial: true,
+        error: null,
+        coverage_state: { complete_1d: false, complete_3d: false, complete_5d: false },
+      },
+    ], {
+      requestedFetchAllPages: false,
+      depthAutoCapped: false,
+      effectiveMaxPages: 2,
+      subsCount: 2,
+      targetWindowDays: 1,
+    });
+
+    expect(summary.status).toBe('Capped');
+    expect(summary.showTargetCoverage).toBe(false);
+    expect(summary.completedSubs).toBe(1);
+    expect(summary.detail).toContain('1 of 2 subreddits hit the current fetch-depth limit before reaching 1d.');
+    expect(summary.detail).not.toContain('Coverage:');
+  });
+
   test('marks the selected target window complete when every subreddit reached it', () => {
     const fetchClient = loadFetchClient();
 

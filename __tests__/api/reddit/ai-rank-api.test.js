@@ -198,4 +198,49 @@ describe('/api/reddit/ai-rank', () => {
     expect(res.body.fallbackUsed).toBe(true);
     expect(res.body.scores).toMatchObject({ p1: 5, p2: 1 });
   });
+
+  test('relaxes routing parameters on 404 before switching away from the requested model', async () => {
+    const bodies = [];
+    nock('https://openrouter.ai')
+      .post('/api/v1/chat/completions', (body) => {
+        bodies.push(typeof body === 'string' ? JSON.parse(body) : body);
+        return true;
+      })
+      .reply(404, { error: { message: 'No endpoints found that can handle the requested parameters.' } })
+      .post('/api/v1/chat/completions', (body) => {
+        bodies.push(typeof body === 'string' ? JSON.parse(body) : body);
+        return true;
+      })
+      .reply(200, {
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
+        choices: [{
+          message: {
+            content: JSON.stringify([
+              { postId: 'p1', score: 4, confidence: 'high', reason: 'React' },
+              { postId: 'p2', score: 2, confidence: 'medium', reason: 'Some fit' }
+            ])
+          }
+        }]
+      });
+
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: { ...basePayload, openRouterApiKey: 'test-key' },
+      headers: { origin: 'http://localhost:3000' }
+    });
+
+    expect(res.status).toBe(200);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(bodies[0].provider).toMatchObject({ require_parameters: true, sort: 'throughput' });
+    expect(bodies[0].plugins).toEqual([{ id: 'response-healing' }]);
+    expect(bodies[1].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(bodies[1].provider).toMatchObject({ sort: 'throughput' });
+    expect(bodies[1].provider.require_parameters).toBeUndefined();
+    expect(bodies[1].plugins).toBeUndefined();
+    expect(res.body.model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(res.body.fallbackUsed).toBe(true);
+    expect(res.body.scores).toMatchObject({ p1: 4, p2: 2 });
+  });
 });

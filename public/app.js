@@ -2143,9 +2143,9 @@ function buildConfigSyncSignature({
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, fetchSummary.detail),
-            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.completedSubs}/${fetchSummary.attemptedSubs} subreddits processed`),
-            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.targetCoverageCount}/${fetchSummary.attemptedSubs} reached ${fetchSummary.targetWindowLabel}`),
-            fetchSummary.targetCoverageComplete && h('span', { className: 'font-medium opacity-90' }, `All subreddits reached ${fetchSummary.targetWindowLabel}`)
+            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.completedSubs}/${fetchSummary.attemptedSubs} subreddits finished this pass`),
+            fetchSummary.showTargetCoverage !== false && fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.targetCoverageCount}/${fetchSummary.attemptedSubs} reached ${fetchSummary.targetWindowLabel}`),
+            fetchSummary.showTargetCoverage !== false && fetchSummary.targetCoverageComplete && h('span', { className: 'font-medium opacity-90' }, `All subreddits reached ${fetchSummary.targetWindowLabel}`)
           )
         ),
 
@@ -2179,15 +2179,18 @@ function buildConfigSyncSignature({
               subs.length > 0 && h('div', { className: 'flex items-center gap-2 px-3 py-1.5 border-b border-zinc-200/60 dark:border-white/[0.04] min-w-0' },
                 h('div', { className: `w-1.5 h-1.5 rounded-full shrink-0 ${
                   opportunityScanLoading ? 'bg-amber-400 animate-pulse' :
+                  opportunityScanError ? 'bg-rose-500' :
                   opportunityEngineEnabled && hasOpportunityGoals ? 'bg-emerald-400' :
                   'bg-zinc-300 dark:bg-zinc-600'
                 }` }),
                 h('span', { className: 'text-[11px] font-medium shrink-0 ' + (
                   opportunityScanLoading ? 'text-amber-600 dark:text-amber-400' :
+                  opportunityScanError ? 'text-rose-600 dark:text-rose-400' :
                   opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
                   'text-zinc-400 dark:text-zinc-600'
                 )},
                   opportunityScanLoading ? 'Ranking…' :
+                  opportunityScanError ? 'AI failed' :
                   opportunityEngineEnabled && hasOpportunityGoals ? 'AI on' : 'AI off'
                 ),
                 opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500 truncate min-w-0' },
@@ -2200,8 +2203,10 @@ function buildConfigSyncSignature({
                   ` ${aiScoreStats.high} strong`
                 ),
                 aiScoresStale && h('span', { className: 'text-[10px] px-1 py-px rounded font-semibold bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 shrink-0' }, 'Stale'),
-                aiActivity?.detail && h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 truncate min-w-0' },
-                  `· ${aiActivity.detail}`
+                (opportunityScanError || aiActivity?.detail) && h('span', {
+                  className: `text-[11px] truncate min-w-0 ${opportunityScanError ? 'text-rose-500 dark:text-rose-400' : 'text-zinc-400 dark:text-zinc-600'}`
+                },
+                  `· ${opportunityScanError || aiActivity.detail}`
                 ),
                 h('div', { className: 'flex-1' }),
                 h('div', { className: 'flex items-center gap-1 shrink-0' },
