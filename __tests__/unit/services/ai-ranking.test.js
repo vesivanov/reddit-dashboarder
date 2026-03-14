@@ -2,6 +2,7 @@ const {
   PROMPT_VERSION,
   buildSystemPrompt,
   buildModelAttemptOrder,
+  shouldRetryOpenRouterModel,
 } = require('../../../lib/services/ai-ranking');
 
 describe('ai-ranking prompt', () => {
@@ -36,5 +37,11 @@ describe('ai-ranking prompt', () => {
       'qwen/qwen3-next-80b-a3b-instruct:free',
       'stepfun/step-3.5-flash:free',
     ]);
+  });
+
+  test('retries free-model attempts only on transient upstream statuses', () => {
+    expect(shouldRetryOpenRouterModel({ status: 429 })).toBe(true);
+    expect(shouldRetryOpenRouterModel({ status: 503 })).toBe(true);
+    expect(shouldRetryOpenRouterModel({ status: 400 })).toBe(false);
   });
 });

@@ -83,11 +83,8 @@ describe('/api/reddit/ai-rank', () => {
     const parsedBody = typeof capturedBody === 'string' ? JSON.parse(capturedBody) : capturedBody;
     expect(parsedBody.messages[0].content).toContain('Prefer practical tutorials');
     expect(parsedBody.messages[1].content).toContain('React news');
-    expect(parsedBody.models).toEqual([
-      'meta-llama/llama-3.3-70b-instruct:free',
-      'qwen/qwen3-next-80b-a3b-instruct:free',
-      'stepfun/step-3.5-flash:free',
-    ]);
+    expect(parsedBody.model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(parsedBody.models).toBeUndefined();
     expect(parsedBody.response_format?.type).toBe('json_schema');
     expect(parsedBody.provider).toMatchObject({ require_parameters: true, sort: 'throughput' });
     expect(res.body.scores).toMatchObject({ p1: 5, p2: null });
@@ -160,5 +157,45 @@ describe('/api/reddit/ai-rank', () => {
 
     expect(res.status).toBe(200);
     expect(Object.keys(res.body.scores)).toHaveLength(120);
+  });
+
+  test('retries free-model ranking on upstream 429 and succeeds with the next fallback', async () => {
+    const bodies = [];
+    nock('https://openrouter.ai')
+      .post('/api/v1/chat/completions', (body) => {
+        bodies.push(typeof body === 'string' ? JSON.parse(body) : body);
+        return true;
+      })
+      .reply(429, { error: { message: 'rate limited' } })
+      .post('/api/v1/chat/completions', (body) => {
+        bodies.push(typeof body === 'string' ? JSON.parse(body) : body);
+        return true;
+      })
+      .reply(200, {
+        model: 'qwen/qwen3-next-80b-a3b-instruct:free',
+        choices: [{
+          message: {
+            content: JSON.stringify([
+              { postId: 'p1', score: 5, confidence: 'high', reason: 'React' },
+              { postId: 'p2', score: 1, confidence: 'low', reason: 'Weak fit' }
+            ])
+          }
+        }]
+      });
+
+    const res = await runHandler(aiRankHandler, {
+      method: 'POST',
+      url: '/api/reddit/ai-rank',
+      body: { ...basePayload, openRouterApiKey: 'test-key' },
+      headers: { origin: 'http://localhost:3000' }
+    });
+
+    expect(res.status).toBe(200);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(bodies[1].model).toBe('qwen/qwen3-next-80b-a3b-instruct:free');
+    expect(res.body.modelsUsed).toEqual(['qwen/qwen3-next-80b-a3b-instruct:free']);
+    expect(res.body.fallbackUsed).toBe(true);
+    expect(res.body.scores).toMatchObject({ p1: 5, p2: 1 });
   });
 });
