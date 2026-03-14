@@ -13,13 +13,18 @@ function mockResponse({ status = 200, body = '{}', ok = true, statusText = 'OK' 
 }
 
 describe('createFetchJSON', () => {
+  let originalNodeEnv;
+
   beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
     global.fetch = jest.fn();
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.resetAllMocks();
     delete global.fetch;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   test('refreshes token on 401 once and succeeds', async () => {
@@ -66,5 +71,28 @@ describe('createFetchJSON', () => {
 
     const fetchJSON = createFetchJSON(tokenManager);
     await expect(fetchJSON('https://www.reddit.com/test.json')).rejects.toMatchObject({ code: 'NOT_AUTHENTICATED' });
+  });
+
+  test('suppresses transport debug logs in production', async () => {
+    process.env.NODE_ENV = 'production';
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const tokenManager = {
+      ensureToken: jest.fn().mockResolvedValue('token'),
+      refreshAccessToken: jest.fn(),
+      hasRefresh: () => false,
+    };
+
+    global.fetch.mockResolvedValue(mockResponse({ body: JSON.stringify({ data: 123 }) }));
+
+    const fetchJSON = createFetchJSON(tokenManager);
+    const result = await fetchJSON('https://www.reddit.com/test.json');
+
+    expect(result).toEqual({ data: 123 });
+    expect(consoleLogSpy).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 });

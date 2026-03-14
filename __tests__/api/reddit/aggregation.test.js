@@ -30,10 +30,16 @@ function buildPost(subreddit, id, createdUtc = Math.floor(Date.now() / 1000)) {
 }
 
 describe('/api/reddit aggregation', () => {
+  let originalNodeEnv;
+
   beforeAll(() => {
     process.env.SESSION_COOKIE_SECRET = process.env.SESSION_COOKIE_SECRET || 'test_secret_32_bytes_long_hex_string_123456';
     nock.disableNetConnect();
     nock.enableNetConnect('127.0.0.1');
+  });
+
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
   });
 
   afterAll(() => {
@@ -41,8 +47,10 @@ describe('/api/reddit aggregation', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     nock.cleanAll();
     delete process.env.REDDIT_ALLOW_PUBLIC_FALLBACK;
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   test('merges multiple subreddits and sets cache + metrics headers', async () => {
@@ -270,6 +278,57 @@ describe('/api/reddit aggregation', () => {
       title: sub,
     });
     expect(oauth.isDone()).toBe(true);
+  });
+
+  test('writes a structured production fetch summary with affected subreddit details', async () => {
+    process.env.NODE_ENV = 'production';
+    const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const sub = 'directnewalpha';
+    const oauth = nock('https://oauth.reddit.com');
+    oauth
+      .get(`/r/${sub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: sub } })
+      .get(`/r/${sub}/new.json`)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'direct-new-1')],
+          after: null,
+        },
+      });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${sub}&mode=new&days=1&limit=100&max_pages=1`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const summaryCall = consoleLogSpy.mock.calls.find((call) => call[0] === '[reddit-fetch-summary]');
+    expect(summaryCall).toBeDefined();
+    const summary = JSON.parse(summaryCall[1]);
+    expect(summary).toMatchObject({
+      status: 'partial',
+      scope: 'full',
+      mode: 'new',
+      days: 1,
+      subredditCount: 1,
+      successfulSubredditCount: 1,
+      finishedSubredditCount: 1,
+      partialCount: 1,
+      partialSubreddits: [sub],
+      subreddits: [sub],
+      requestedLimit: 100,
+      effectiveLimit: 100,
+      requestedMaxPages: 1,
+      effectiveMaxPages: 1,
+      requestCapped: false,
+    });
+    expect(summary.zeroPostCount).toBe(0);
+    expect(summary.erroredCount).toBe(0);
   });
 
   test('skips subreddit metadata fetches for large batches', async () => {
