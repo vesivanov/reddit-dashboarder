@@ -22,6 +22,61 @@
     appendNotifiedPostIds = (previousIds) => new Set(previousIds || []),
   } = aiClient;
   const { requestAiRank = null } = fetchClient;
+  const MAX_POSTS_PER_AI_REQUEST = 250;
+
+  function splitIntoChunks(items, chunkSize) {
+    const normalizedChunkSize = Math.max(1, Math.floor(Number(chunkSize) || 1));
+    const chunks = [];
+    for (let index = 0; index < items.length; index += normalizedChunkSize) {
+      chunks.push(items.slice(index, index + normalizedChunkSize));
+    }
+    return chunks;
+  }
+
+  function distributeLlmLimitAcrossChunks(chunkSizes, totalLimit) {
+    const normalizedSizes = Array.isArray(chunkSizes)
+      ? chunkSizes.map((size) => Math.max(0, Math.floor(Number(size) || 0)))
+      : [];
+    const totalPosts = normalizedSizes.reduce((sum, size) => sum + size, 0);
+    const normalizedLimit = Math.max(0, Math.min(totalPosts, Math.floor(Number(totalLimit) || 0)));
+    if (normalizedSizes.length === 0 || normalizedLimit === 0 || totalPosts === 0) {
+      return normalizedSizes.map(() => 0);
+    }
+
+    const allocated = normalizedSizes.map((size) => Math.min(size, Math.floor((normalizedLimit * size) / totalPosts)));
+    let remaining = normalizedLimit - allocated.reduce((sum, size) => sum + size, 0);
+    const rankedIndexes = normalizedSizes
+      .map((size, index) => ({ size, index }))
+      .sort((left, right) => right.size - left.size);
+
+    while (remaining > 0) {
+      let assignedThisPass = false;
+      for (const entry of rankedIndexes) {
+        if (remaining <= 0) break;
+        if (allocated[entry.index] >= normalizedSizes[entry.index]) continue;
+        allocated[entry.index] += 1;
+        remaining -= 1;
+        assignedThisPass = true;
+      }
+      if (!assignedThisPass) break;
+    }
+
+    return allocated;
+  }
+
+  function buildAiRequestChunks(posts, llmPostLimit, maxPostsPerRequest = MAX_POSTS_PER_AI_REQUEST) {
+    const chunks = splitIntoChunks(Array.isArray(posts) ? posts : [], maxPostsPerRequest);
+    const llmLimits = distributeLlmLimitAcrossChunks(
+      chunks.map((chunk) => chunk.length),
+      llmPostLimit
+    );
+    return chunks.map((chunkPosts, index) => ({
+      index,
+      posts: chunkPosts,
+      llmPostLimit: llmLimits[index] || 0,
+      totalChunks: chunks.length,
+    }));
+  }
 
   function maybeSendStrongOpportunityNotifications({
     triggeredByAuto,
@@ -185,45 +240,76 @@
       let opportunitiesForNotifications = cachedOpportunities;
 
       try {
-        const aiRankResult = requestAiRank
-          ? await requestAiRank(buildAiRankRequestPayload({
-              posts: allNewPosts,
-              goalText: effectiveGoalText,
-              contextText: effectiveContextText,
-              avoidText: effectiveAvoidText,
-              examples: {
-                perfect: aiExamplePerfect,
-                strong: aiExampleStrong,
-                reject: aiExampleReject,
-              },
-              secureKeyAvailable,
-              openRouterApiKey,
-              openRouterModel,
-              llmPostLimit: effectiveLlmLimit,
-              modelTemperature: aiFixedTemperature,
-              modelTopP: aiFixedTopP,
-            }))
-          : { ok: false, status: 500, body: null, retryAfterSeconds: 0 };
+        const requestChunks = buildAiRequestChunks(allNewPosts, effectiveLlmLimit);
+        let mergedAiState = {
+          items: new Map(),
+          scores: new Map(),
+          metadata: new Map(),
+          opportunities: new Map(),
+          cacheObject: {},
+        };
 
-        if (!aiRankResult.ok) {
-          const parsedError = aiRankResult.body;
-          const retryAfterSeconds = aiRankResult.retryAfterSeconds || 0;
-          if (aiRankResult.status === 429 && retryAfterSeconds > 0) {
-            const pauseUntil = Date.now() + retryAfterSeconds * 1000;
-            setAiRateLimitPauseUntil(pauseUntil);
-            setOpportunityScanError(`Opportunity ranking rate-limited. Cooling down ~${retryAfterSeconds}s.`);
+        for (const requestChunk of requestChunks) {
+          if (opportunityScanRequestIdRef.current !== thisRequestId) {
+            return;
           }
-          throw new Error(parsedError?.message || `AI ranking failed with HTTP ${aiRankResult.status}`);
-        }
 
-        setAiRateLimitPauseUntil(null);
-        const result = aiRankResult.body;
-        latestPromptVersion = result.promptVersion || aiPromptVersion;
-        latestModel = result.model || openRouterModel;
-        persistAiModelInfo({
-          model: result.model,
-          promptVersion: result.promptVersion,
-        });
+          setAiActivity({
+            status: 'Analyzing',
+            detail: requestChunk.totalChunks > 1
+              ? `Reviewing chunk ${requestChunk.index + 1}/${requestChunk.totalChunks} (${requestChunk.posts.length} posts).`
+              : `Reviewing ${allNewPosts.length} post${allNewPosts.length === 1 ? '' : 's'} for the best opportunities.`,
+          });
+
+          const aiRankResult = requestAiRank
+            ? await requestAiRank(buildAiRankRequestPayload({
+                posts: requestChunk.posts,
+                goalText: effectiveGoalText,
+                contextText: effectiveContextText,
+                avoidText: effectiveAvoidText,
+                examples: {
+                  perfect: aiExamplePerfect,
+                  strong: aiExampleStrong,
+                  reject: aiExampleReject,
+                },
+                secureKeyAvailable,
+                openRouterApiKey,
+                openRouterModel,
+                llmPostLimit: requestChunk.llmPostLimit,
+                modelTemperature: aiFixedTemperature,
+                modelTopP: aiFixedTopP,
+              }))
+            : { ok: false, status: 500, body: null, retryAfterSeconds: 0 };
+
+          if (!aiRankResult.ok) {
+            const parsedError = aiRankResult.body;
+            const retryAfterSeconds = aiRankResult.retryAfterSeconds || 0;
+            if (aiRankResult.status === 429 && retryAfterSeconds > 0) {
+              const pauseUntil = Date.now() + retryAfterSeconds * 1000;
+              setAiRateLimitPauseUntil(pauseUntil);
+              setOpportunityScanError(`Opportunity ranking rate-limited. Cooling down ~${retryAfterSeconds}s.`);
+            }
+            throw new Error(parsedError?.message || `AI ranking failed with HTTP ${aiRankResult.status}`);
+          }
+
+          setAiRateLimitPauseUntil(null);
+          const result = aiRankResult.body;
+          latestPromptVersion = result.promptVersion || latestPromptVersion;
+          latestModel = result.model || latestModel;
+          persistAiModelInfo({
+            model: result.model,
+            promptVersion: result.promptVersion,
+          });
+
+          mergedAiState = mergeAiRankResponse({
+            result,
+            items: mergedAiState.items,
+            scores: mergedAiState.scores,
+            metadata: mergedAiState.metadata,
+            opportunities: mergedAiState.opportunities,
+            cacheObject: mergedAiState.cacheObject,
+          });
+        }
 
         const updatedCacheVersion = buildAiCacheVersion({
           goalText: effectiveGoalText,
@@ -242,15 +328,6 @@
         if (updatedCacheVersion !== currentCacheVersion) {
           ensureAiCacheVersion(updatedCacheVersion, { clearOnMismatch: true });
         }
-
-        const mergedAiState = mergeAiRankResponse({
-          result,
-          items: new Map(),
-          scores: new Map(),
-          metadata: new Map(),
-          opportunities: new Map(),
-          cacheObject: {},
-        });
 
         aiClient.persistAiScoreCache(mergedAiState.cacheObject);
 
@@ -323,6 +400,7 @@
   }
 
   globalScope.RDDAiController = {
+    buildAiRequestChunks,
     runAiRankingFlow,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
