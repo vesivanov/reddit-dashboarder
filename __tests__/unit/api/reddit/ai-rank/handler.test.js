@@ -276,6 +276,20 @@ describe('AI rank handler', () => {
     expect(payload.selectedModel).toBe('stepfun/step-3.5-flash:free');
   });
 
+  test('caps broad free-model LLM coverage to half the request posts', () => {
+    expect(handler.selectLlmCoverageLimitForRun({
+      requestedModel: 'stepfun/step-3.5-flash:free',
+      requestedLimit: 188,
+      postCount: 250,
+    })).toBe(125);
+
+    expect(handler.selectLlmCoverageLimitForRun({
+      requestedModel: 'stepfun/step-3.5-flash:free',
+      requestedLimit: 20,
+      postCount: 40,
+    })).toBe(20);
+  });
+
   test('writes structured AI ranking events to the console log', async () => {
     const req = {
       method: 'POST',

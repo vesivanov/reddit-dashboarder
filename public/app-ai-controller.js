@@ -29,6 +29,7 @@
   const { requestAiRank = null } = fetchClient;
   const MAX_POSTS_PER_AI_REQUEST = 250;
   const FAST_FREE_MODEL = 'stepfun/step-3.5-flash:free';
+  const BROAD_FREE_MODEL_COVERAGE_RATIO = 0.5;
 
   function selectAiModelForRun({ requestedModel, totalPostCount, llmPostLimit }) {
     const normalizedRequestedModel = String(requestedModel || '').trim();
@@ -253,7 +254,7 @@
     if (!triggeredByAuto && allNewPosts.length > 0) {
       const desiredCoverage = allNewPosts.length <= 80
         ? allNewPosts.length
-        : Math.ceil(allNewPosts.length * 0.75);
+        : Math.ceil(allNewPosts.length * BROAD_FREE_MODEL_COVERAGE_RATIO);
       effectiveLlmLimit = Math.max(effectiveLlmLimit, Math.min(maxLlmPostLimit, desiredCoverage));
     }
 
