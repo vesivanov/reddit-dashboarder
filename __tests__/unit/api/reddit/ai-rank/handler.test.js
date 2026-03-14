@@ -21,6 +21,8 @@ describe('AI rank handler', () => {
     res = createMockRes();
     global.fetch = jest.fn();
     jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -254,7 +256,8 @@ describe('AI rank handler', () => {
 
     await handler(req, res);
 
-    const aiLogCalls = console.log.mock.calls
+    const aiLogCalls = console.warn.mock.calls
+      .concat(console.error.mock.calls)
       .filter((call) => call[0] === '[ai-ranking-event]')
       .map((call) => JSON.parse(call[1]));
 
