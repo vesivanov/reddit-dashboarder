@@ -44,6 +44,10 @@ function createApp() {
     authVerifyRedditSettingsHandler,
   });
 
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API route not found' });
+  });
+
   // Landing page at root
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'landing.html'));

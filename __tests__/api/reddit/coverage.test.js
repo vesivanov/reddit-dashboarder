@@ -61,6 +61,9 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
     nock.cleanAll();
     delete process.env.REDDIT_MAX_SUBREDDITS;
     delete process.env.REDDIT_COVERAGE_FRESHNESS_MS;
+    delete process.env.REDDIT_ADVANCE_ROUTE_BUDGET_MS;
+    delete process.env.REDDIT_ADVANCE_META_TIMEOUT_MS;
+    delete process.env.REDDIT_ADVANCE_TOKEN_TIMEOUT_MS;
   });
 
   test('returns an empty coverage summary when scope has not been created yet', async () => {
@@ -198,6 +201,87 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
       subreddit: sub,
       status: 'cooldown',
       last_error: 'RATE_LIMITED',
+    });
+  });
+
+  test('continues advancing when subreddit metadata times out', async () => {
+    const sub = 'slowmeta';
+    const now = Math.floor(Date.now() / 1000);
+    process.env.REDDIT_ADVANCE_META_TIMEOUT_MS = '1';
+
+    nock('https://www.reddit.com')
+      .get(`/r/${sub}/about.json`)
+      .delay(25)
+      .reply(200, { data: { subscribers: 100, active_user_count: 10, title: sub, icon_img: null, public_description: '' } })
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'post-1', now - 60)],
+          after: null,
+        },
+      });
+
+    const advanceRes = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: [sub],
+        sub,
+        mode: 'new',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(advanceRes.status).toBe(200);
+    expect(advanceRes.body.advanced).toBe(true);
+    expect(advanceRes.body.result.posts).toHaveLength(1);
+    expect(advanceRes.body.result.state.meta).toEqual(expect.objectContaining({
+      title: expect.any(String),
+    }));
+  });
+
+  test('returns a soft timeout response when advance work exceeds the route budget', async () => {
+    const subs = Array.from({ length: 12 }, (_, index) => `rushsub${index}`);
+    const sub = subs[0];
+    process.env.REDDIT_ADVANCE_ROUTE_BUDGET_MS = '2000';
+
+    nock('https://www.reddit.com')
+      .get(new RegExp(`^/r/${sub}/new\\.json`))
+      .query(true)
+      .delay(2500)
+      .reply(200, {
+        data: {
+          children: [buildPost(sub, 'post-1')],
+          after: null,
+        },
+      });
+
+    const advanceRes = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs,
+        sub,
+        mode: 'new',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(advanceRes.status).toBe(200);
+    expect(advanceRes.body.advanced).toBe(false);
+    expect(advanceRes.body.result).toMatchObject({
+      subreddit: sub,
+      timed_out: true,
+    });
+    expect(advanceRes.body.result.state).toMatchObject({
+      status: 'timeout',
     });
   });
 

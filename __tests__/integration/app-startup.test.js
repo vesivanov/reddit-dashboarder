@@ -1,5 +1,5 @@
 const { describe, test, expect } = require('@jest/globals');
-const { runHandler } = require('../helpers/run-handler');
+const { runHandler, createMockRequest, createMockResponse } = require('../helpers/run-handler');
 
 describe('app startup', () => {
   test('app module loads and creates an express app', () => {
@@ -88,5 +88,37 @@ describe('app startup', () => {
     expect(routePaths.has('/api/v1/analyze')).toBe(false);
     expect(routePaths.has('/api/v1/jobs/:jobId')).toBe(false);
     expect(routePaths.has('/api/v1/jobs/drain')).toBe(true);
+  });
+
+  test('GET /api/reddit/advance does not fall through to the SPA shell', async () => {
+    let app;
+    jest.isolateModules(() => {
+      delete process.env.REDIS_URL;
+      jest.doMock('../../lib/services/analysis-job-queue', () => ({
+        ensureJobQueueWorker: jest.fn(),
+      }));
+      const createApp = require('../../app');
+      app = createApp();
+    });
+
+    const req = createMockRequest({
+      method: 'GET',
+      url: '/api/reddit/advance',
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+    });
+    const { res } = createMockResponse();
+
+    await new Promise((resolve, reject) => {
+      app.handle(req, res, (error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+      setTimeout(resolve, 25);
+    });
+
+    expect(res.statusCode).toBe(405);
+    expect(res.body).toEqual({ error: 'Method not allowed' });
   });
 });
