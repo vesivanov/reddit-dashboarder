@@ -189,7 +189,7 @@
 
         // ── Score badge ───────────────────────────────────────────────
         const scoreDisplay = priorityScore !== null
-          ? `P${Math.round(priorityScore * 100)}`
+          ? `${Math.round(priorityScore * 100)}%`
           : (relevanceScore !== undefined && relevanceScore !== null
               ? `${aiScoresStale ? '~' : ''}${relevanceScore}/5`
               : null);
@@ -233,13 +233,13 @@
         },
           h('button', {
             onClick: () => onSelectPost(post),
-            className: 'w-full text-left px-3 py-1.5 pr-8',
+            className: 'w-full text-left px-3 py-2.5 pr-16',
           },
 
-            // ── Row 1: title + score badge ────────────────────────────
-            h('div', { className: 'flex items-baseline gap-2 mb-0.5' },
+            // ── Row 1: title + badges ─────────────────────────────────
+            h('div', { className: 'flex items-start gap-2 mb-1.5' },
               h('p', {
-                className: `flex-1 text-[13px] font-semibold leading-tight truncate ${
+                className: `flex-1 text-[13px] font-semibold leading-snug line-clamp-2 ${
                   isSelected
                     ? 'text-zinc-900 dark:text-white'
                     : isRead
@@ -251,27 +251,45 @@
               }, post.title),
               actionInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${actionInfo.cls}` }, actionInfo.label),
               typeInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${typeInfo.cls}` }, typeInfo.label),
-              reviewInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${reviewInfo.cls}` }, reviewInfo.label),
               scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay)
             ),
 
-            // ── Row 2: sub  time  upvotes  comments  [rationale] ──
-            h('div', { className: 'flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-400 tabular-nums' },
-              h('span', { className: 'font-semibold text-amber-600 dark:text-amber-400 shrink-0' }, `r/${post.subreddit}`),
-              isSpiking && h('span', { className: 'text-rose-500 shrink-0' }, '⚡'),
+            // ── Row 2: sub  time  upvotes  comments  author ───────────
+            h('div', { className: 'flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums' },
+              h('span', { className: 'font-medium text-zinc-500 dark:text-zinc-400 shrink-0' }, `r/${post.subreddit}`),
+              isSpiking
+                ? h('span', { className: 'inline-flex items-center gap-0.5 text-rose-500 shrink-0 font-medium' },
+                    '⚡', upvotesPerHour > 0 && `${formatVelocity(upvotesPerHour)}/h`)
+                : null,
               h('span', { title: absoluteDate(post.created_utc), className: `${timeClass} shrink-0` }, timeAgo(post.created_utc)),
-              h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-500 shrink-0' },
-                renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'), score),
+              h('span', { className: 'inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400 shrink-0' },
+                renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'),
+                score,
+                !isSpiking && upvotesPerHour > 2 && h('span', { className: 'text-amber-500 dark:text-amber-400 font-medium' }, `+${formatVelocity(upvotesPerHour)}/h`)
+              ),
               h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
                 renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments),
-              rationale && (showAiReasons || isHighlyRelevant) && h('span', {
-                className: 'flex-1 truncate text-zinc-400 dark:text-zinc-400 min-w-0',
-              }, rationale)
-            )
+              post.author && h('span', { className: 'shrink-0 text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
+            ),
+
+            // ── Row 3: rationale ──────────────────────────────────────
+            rationale && cardTier !== 'suppressed' && h('p', {
+              className: 'mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400 line-clamp-2',
+            }, rationale)
           ),
 
           // ── Context menu ──────────────────────────────────────────────
-          h('div', { className: 'absolute top-1 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity' },
+          h('div', { className: 'absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity' },
+            h('a', {
+              href: post.reddit_url || post.external_url,
+              target: '_blank',
+              rel: 'noreferrer',
+              onClick: (e) => e.stopPropagation(),
+              title: 'Open in Reddit',
+              className: 'p-1 rounded text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors',
+            },
+              renderGlyph('M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14', 'w-3.5 h-3.5')
+            ),
             h('button', {
               onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
               className: 'p-1 rounded text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors',
