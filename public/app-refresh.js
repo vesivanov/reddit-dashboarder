@@ -305,6 +305,7 @@
       depthAutoCapped: Boolean(payload?.request_capped),
       effectiveMaxPages: payload?.request_capped ? effectiveMaxPages : maxPages,
       subsCount,
+      targetWindowDays: days,
     }));
 
     const totalFetchedPosts = perSub.reduce((sum, group) => sum + ((group?.posts || []).length), 0);

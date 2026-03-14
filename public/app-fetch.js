@@ -11,7 +11,8 @@
   }
 
   function getEffectiveMaxPages(maxPages, subsCount) {
-    let effectiveMaxPages = maxPages;
+    const requestedFetchAllPages = Number(maxPages) === 0;
+    let effectiveMaxPages = requestedFetchAllPages ? 30 : maxPages;
     if (subsCount >= 20) {
       effectiveMaxPages = Math.min(effectiveMaxPages, 2);
     } else if (subsCount >= 12) {
@@ -19,7 +20,7 @@
     } else if (subsCount >= 8) {
       effectiveMaxPages = Math.min(effectiveMaxPages, 4);
     }
-    return effectiveMaxPages;
+    return requestedFetchAllPages && effectiveMaxPages >= 30 ? 0 : effectiveMaxPages;
   }
 
   function determineSnapshotChunkSize({ subsCount, wantsDeepFetch }) {
@@ -31,7 +32,9 @@
 
   function shapeSnapshotChunk({ chunkLength, limit, maxPages }) {
     let chunkLimit = limit;
-    let chunkMaxPages = maxPages;
+    const requestedFetchAllPages = Number(maxPages) === 0;
+    const requestedChunkMaxPages = requestedFetchAllPages ? 30 : maxPages;
+    let chunkMaxPages = requestedFetchAllPages ? 30 : maxPages;
     if (chunkLength >= 12) {
       chunkLimit = Math.min(25, chunkLimit);
     } else if (chunkLength >= 6) {
@@ -44,30 +47,54 @@
     } else if (chunkLength >= 8) {
       chunkMaxPages = Math.min(chunkMaxPages, 4);
     }
+    const normalizedChunkMaxPages = requestedFetchAllPages && chunkMaxPages >= 30 ? 0 : chunkMaxPages;
     return {
       chunkLimit,
-      chunkMaxPages,
-      chunkWasCapped: chunkLimit !== limit || chunkMaxPages !== maxPages,
+      chunkMaxPages: normalizedChunkMaxPages,
+      chunkWasCapped: chunkLimit !== limit || chunkMaxPages !== requestedChunkMaxPages,
     };
+  }
+
+  function deriveCoverageSummary(payload, perSub) {
+    if (payload?.coverage_summary && typeof payload.coverage_summary === 'object') {
+      return payload.coverage_summary;
+    }
+
+    const summary = { complete1dCount: 0, complete3dCount: 0, complete5dCount: 0 };
+    for (const group of Array.isArray(perSub) ? perSub : []) {
+      const state = group?.coverage_state || null;
+      if (state?.complete_1d) summary.complete1dCount += 1;
+      if (state?.complete_3d) summary.complete3dCount += 1;
+      if (state?.complete_5d) summary.complete5dCount += 1;
+    }
+    return summary;
   }
 
   function buildFetchSummary(payload, perSub, options = {}) {
     const requestedFetchAllPages = Boolean(options?.requestedFetchAllPages);
     const depthAutoCapped = Boolean(options?.depthAutoCapped);
     const effectiveMaxPages = Number(options?.effectiveMaxPages);
+    const targetWindowDays = Math.max(1, Number(options?.targetWindowDays) || Number(payload?.days) || 1);
     const subsCount = Number(options?.subsCount) || 0;
     const timedOutSubs = Array.isArray(payload?.timed_out_subreddits) ? payload.timed_out_subreddits : [];
     const rateLimitedSubs = Array.isArray(payload?.rate_limited_subreddits) ? payload.rate_limited_subreddits : [];
     const partialSubs = Array.isArray(perSub) ? perSub.filter(group => group?.partial).map(group => group.subreddit) : [];
+    const erroredSubs = Array.isArray(perSub) ? perSub.filter(group => group?.error).map(group => group.subreddit) : [];
     const attemptedSubs = Array.isArray(perSub) ? perSub.length : 0;
-    const coverageSummary = payload?.coverage_summary || {};
+    const coverageSummary = deriveCoverageSummary(payload, perSub);
     const coverageDetail = coverageSummary && attemptedSubs > 0
       ? ` Coverage: ${Number(coverageSummary.complete1dCount) || 0}/${attemptedSubs} at 1d, ${Number(coverageSummary.complete3dCount) || 0}/${attemptedSubs} at 3d, ${Number(coverageSummary.complete5dCount) || 0}/${attemptedSubs} at 5d.`
       : '';
+    const targetCoverageCount = targetWindowDays >= 5
+      ? Number(coverageSummary.complete5dCount) || 0
+      : targetWindowDays >= 3
+        ? Number(coverageSummary.complete3dCount) || 0
+        : Number(coverageSummary.complete1dCount) || 0;
     const incompleteSubs = Array.from(new Set([
       ...timedOutSubs,
       ...rateLimitedSubs,
       ...partialSubs,
+      ...erroredSubs,
     ].filter(Boolean)));
     const completedSubs = Math.max(0, attemptedSubs - incompleteSubs.length);
 
@@ -96,6 +123,27 @@
         tone: 'warning',
         status: 'Capped',
         detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.${coverageDetail}`,
+        completedSubs,
+        attemptedSubs,
+      };
+    }
+
+    if (erroredSubs.length > 0) {
+      return {
+        tone: 'warning',
+        status: 'Incomplete',
+        detail: `${erroredSubs.length} subreddit fetch${erroredSubs.length === 1 ? '' : 'es'} returned an error.${coverageDetail}`,
+        completedSubs,
+        attemptedSubs,
+      };
+    }
+
+    if (attemptedSubs > 0 && targetCoverageCount < attemptedSubs) {
+      const targetLabel = targetWindowDays >= 5 ? '5d' : targetWindowDays >= 3 ? '3d' : '1d';
+      return {
+        tone: 'warning',
+        status: 'Shallow',
+        detail: `Processed all ${attemptedSubs} subreddits, but only ${targetCoverageCount}/${attemptedSubs} reached ${targetLabel} coverage.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
       };
