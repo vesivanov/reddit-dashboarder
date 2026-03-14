@@ -282,12 +282,12 @@
               h('span', { title: absoluteDate(post.created_utc), className: `${timeClass} shrink-0` }, timeAgo(post.created_utc)),
               h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
                 renderGlyph('M7 14l5-5 5 5', 'w-3 h-3 text-amber-500 dark:text-amber-400'),
-                h('span', { className: 'text-[12px] font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums' }, score),
+                h('span', { className: 'font-mono text-[12px] font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums' }, score),
                 !isSpiking && upvotesPerHour > 2 && h('span', { className: 'text-[11px] text-amber-500 dark:text-amber-400 font-medium' }, `+${formatVelocity(upvotesPerHour)}/h`)
               ),
               h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
                 renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3 text-zinc-400 dark:text-zinc-500'),
-                h('span', { className: 'text-[12px] font-medium text-zinc-700 dark:text-zinc-200 tabular-nums' }, comments)
+                h('span', { className: 'font-mono text-[12px] font-medium text-zinc-700 dark:text-zinc-200 tabular-nums' }, comments)
               ),
               isControversial && h('span', { className: 'shrink-0 text-rose-500 dark:text-rose-400 font-medium', title: `${upvoteRatio}% upvoted` }, `${upvoteRatio}%↑`),
               post.author && h('span', { className: 'shrink-0 text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)

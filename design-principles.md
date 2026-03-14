@@ -18,7 +18,7 @@ Everything in the interface exists to make this loop faster and more confident. 
 
 ## The One Job of Each Region
 
-**Post list (center)** — fast scanning. The user should be able to determine "should I open this?" without clicking. Title + subreddit + score + one-line rationale is enough. Everything else is clutter at this stage.
+**Post list (center)** — fast scanning. The user should be able to determine "should I open this?" without clicking. The card must answer: what is it, how big is it, why does it matter, and who posted it — all without opening. Anything that doesn't help answer one of those four questions is clutter.
 
 **Detail pane (right)** — confident decision. Once a post is selected, the user needs: what is this about, why is it relevant, and what should I do? In that order. The AI output (opportunity type, recommended action, explanation) is the content — not supporting metadata.
 
@@ -39,11 +39,21 @@ Posts are tiered by the AI. The visual treatment must make tiers legible at a gl
 | Hero | Priority ≥ 85% or relevance 5/5 | Amber left border (3px, full) + warm tint |
 | Feature | Priority ≥ 65% or relevance ≥ 4/5 | Amber left border (50% opacity) |
 | Standard | Mid-range scores | No left border treatment |
-| Suppressed | Low/no relevance | Reduced opacity |
+| Suppressed | Low/no relevance | No special treatment — full opacity, no border |
 
 The score badge reinforces the tier — it is not the primary signal. The primary signal is the left border and background tint. If the user has to read the badge to know the tier, the visual treatment has failed.
 
-**The rationale line** (one-line AI summary below the title) is the most important text in a post card. It answers "why did this surface?" without requiring the user to open the post. Keep it. Protect it. Never truncate it before the title.
+Score badge format: `87%` for priority scores, `4/5` for relevance scores. Never raw decimals. Never `P87` — that requires the user to decode the prefix.
+
+**Card anatomy** — each post card has three rows:
+
+1. **Title row** — post title (up to 2 lines) + action badge (Reply now / DM / Save) + opportunity type badge + score badge. Title takes flex priority; badges are `shrink-0` and never push the title below one line.
+2. **Metadata row** — two clusters separated by a dot: (a) context cluster: `r/subreddit`, flair pill, domain or `text` label; (b) stats cluster: timestamp, upvote count, comment count, controversy signal, author. Context is muted (zinc-400/500). Stats are prominent (zinc-800/100, semibold, JetBrains Mono).
+3. **Rationale row** — AI explanation of why this post surfaced. Only shown when genuine AI text exists (opportunity summary or matched reason). Never the raw stats fallback — those are already in the metadata row.
+
+**The rationale row** is the most important text in a post card. It answers "why did this surface?" without requiring the user to open the post. Keep it. Protect it. Never truncate it before the title.
+
+**Internal pipeline signals do not belong on cards.** Review status (light review, model fallback, heuristic-only) is system health information — it tells the developer something, not the user. It belongs in the detail pane or debug tooling, not in a triage list where it competes for attention with decision-relevant signals.
 
 ---
 
@@ -81,9 +91,9 @@ When the system is doing work in the background, the interface should acknowledg
 
 Show less, mean more.
 
-- The post list shows: title, subreddit, score badge, rationale, timestamp, upvote/comment counts. Nothing else at rest.
+- The post list shows: title, action badge, score badge, flair, domain/type, timestamp, upvote count, comment count, controversy ratio (when < 70%), author, rationale. Nothing else at rest.
 - AI reasoning (per-post signal details) is off by default. Toggle-to-reveal for users who want to audit.
-- Scores appear as formatted badges, not raw decimals. `P87` not `0.873`.
+- Scores appear as formatted badges, not raw decimals. `87%` or `4/5`, not `0.873` or `P87`.
 - Settings are collapsed by default (advanced options, model selection, prompt preview). Users configure once; they shouldn't see it on every session.
 - Empty states should be informative: "No posts yet — hit Refresh to fetch" is better than silence. "AI hasn't ranked yet — run ranking to see scores" is better than missing columns.
 
@@ -124,13 +134,15 @@ Dark mode is the primary environment.
 
 **Semantic colors** (do not repurpose):
 
-- Emerald — success, confirmed action, high score
+- Emerald — success, confirmed action
 - Orange — warning, stale data, caution (distinct from amber on purpose)
-- Rose — error, danger, destructive action
+- Rose — error, danger, destructive action, controversy (upvote ratio < 70%)
 
 **Borders**: `white/7%` in dark mode. They suggest separation, they don't enforce it. A border that competes visually with content has failed.
 
-**Timestamps and velocity**: amber when very recent (< 15 min) or spiking. This is the only place amber appears on secondary metadata, and only because recency is a decision factor.
+**Timestamps and velocity**: amber when very recent (< 15 min) or spiking — recency is a decision factor. Velocity surfaces as a number, not just a signal: spiking posts show `⚡N/h` (rose, with the rate); rising posts (> 2 upvotes/h, not spiking) show `+N/h` in amber next to the score. The upvote icon is amber — it is a positive engagement signal and the accent color applies.
+
+**Amber appears on secondary metadata only for recency and velocity.** Do not add amber to other metadata fields.
 
 ---
 
@@ -201,6 +213,7 @@ If a design element doesn't help the user scan faster, triage more confidently, 
 
 - Decorative borders and dividers that don't indicate structure
 - Metadata that doesn't influence a decision (raw API fields, internal IDs)
+- Internal pipeline quality signals in the post list (AI review status, model fallback labels, heuristic-only flags) — these are system health, not user decisions; they belong in the detail pane or debug tooling
 - Animations on elements that repeat frequently
 - Settings visible in daily use that are only relevant during setup
 - Color used for visual interest rather than meaning
