@@ -271,9 +271,8 @@ describe('AI rank handler', () => {
     expect(aiLogCalls.map((entry) => entry.eventType)).toEqual(expect.arrayContaining([
       'request_started',
       'request_context',
-      'input_post',
       'batch_completed',
-      'ranked_post',
+      'post_scores_part',
       'request_completed',
     ]));
     expect(aiLogCalls.find((entry) => entry.eventType === 'request_context')).toMatchObject({
@@ -283,31 +282,23 @@ describe('AI rank handler', () => {
       totalFeedPosts: 696,
       userGoals: 'Find commercial marketing opportunities',
       userContext: 'We sell SEO services to small businesses.',
+      reviewPlan: expect.objectContaining({
+        keywords: expect.any(Array),
+        llmPlannedPostIds: ['post1'],
+      }),
     });
-    expect(aiLogCalls.find((entry) => entry.eventType === 'input_post')).toMatchObject({
+    expect(aiLogCalls.find((entry) => entry.eventType === 'post_scores_part')).toMatchObject({
       clientRunId: 'airun_test_1',
-      postId: 'post1',
-      post: expect.objectContaining({
-        id: 'post1',
+      postCount: 1,
+      posts: [expect.objectContaining({
+        postId: 'post1',
         title: 'Need help with SEO',
         subreddit: 'smallbusiness',
-      }),
-      reviewPlan: expect.objectContaining({
         plannedReview: 'llm',
-        heuristicDetails: expect.any(Object),
-      }),
-    });
-    expect(aiLogCalls.find((entry) => entry.eventType === 'ranked_post')).toMatchObject({
-      clientRunId: 'airun_test_1',
-      postId: 'post1',
-      item: expect.objectContaining({
-        postId: 'post1',
-        review: expect.objectContaining({ status: 'llm_reviewed' }),
-        opportunity: expect.objectContaining({
-          classification: expect.any(Object),
-          action: expect.any(Object),
-        }),
-      }),
+        reviewStatus: 'llm_reviewed',
+        opportunityType: 'lead',
+        recommendedAction: 'reply_now',
+      })],
     });
     expect(aiLogCalls.find((entry) => entry.eventType === 'request_completed')).toMatchObject({
       status: 'success',
