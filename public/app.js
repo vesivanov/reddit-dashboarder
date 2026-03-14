@@ -1023,6 +1023,57 @@ function buildConfigSyncSignature({
         snapshotInfo,
       ]);
 
+      const reconcileOpportunityConfigConflict = useCallback(async ({ configSignature }) => {
+        if (!loadWorkspaceOpportunityConfig || !syncToken) {
+          return { refreshed: false, alreadySynced: false };
+        }
+
+        try {
+          const latestResult = await loadWorkspaceOpportunityConfig({ snapshotInfo, syncToken });
+          if (latestResult.workspaceId) {
+            setSnapshotInfo(prev => ({
+              ...(prev || {}),
+              syncToken,
+              workspaceId: prev?.workspaceId || latestResult.workspaceId,
+            }));
+          }
+          if (!latestResult.ok) {
+            return { refreshed: false, alreadySynced: false };
+          }
+
+          const latestConfig = latestResult.payload?.config || {};
+          const latestVersion = Number(latestConfig.version);
+          if (Number.isInteger(latestVersion)) {
+            workspaceConfigVersionRef.current = latestVersion;
+          }
+
+          const latestSignature = buildConfigSyncSignature({
+            subreddits: latestConfig.subreddits || [],
+            goals: latestConfig.goals || '',
+            aiContext: latestConfig.aiContext || '',
+            aiPrompt: latestConfig.aiPrompt || '',
+            opportunityConfig: latestConfig.opportunityConfig || null,
+            scoringConfig: latestConfig.scoringConfig || null,
+            threshold: latestConfig.threshold ?? 4,
+            model: latestConfig.model || '',
+          });
+
+          if (latestSignature === configSignature) {
+            configSyncStateRef.current.lastCompletedSignature = configSignature;
+            setConfigSyncPauseUntil(null);
+            return { refreshed: true, alreadySynced: true };
+          }
+
+          return { refreshed: true, alreadySynced: false };
+        } catch {}
+
+        return { refreshed: false, alreadySynced: false };
+      }, [
+        loadWorkspaceOpportunityConfig,
+        snapshotInfo,
+        syncToken,
+      ]);
+
       const syncOpportunityConfig = useCallback(async () => {
         if (!authenticated || !syncToken) return;
         if (configSyncPauseUntil && configSyncPauseUntil > Date.now()) return;
@@ -1071,6 +1122,11 @@ function buildConfigSyncSignature({
             syncState.lastCompletedSignature = configSignature;
             const nextVersion = Number(result.payload?.config?.version);
             workspaceConfigVersionRef.current = Number.isInteger(nextVersion) ? nextVersion : workspaceConfigVersionRef.current;
+          } else if (result.status === 409 || result.status === 412) {
+            const conflictState = await reconcileOpportunityConfigConflict({ configSignature });
+            if (conflictState.refreshed && !conflictState.alreadySynced) {
+              syncState.pending = true;
+            }
           } else if (result.status === 400 || result.status === 413) {
             try {
               console.warn('Failed to sync opportunity config', result.status, result.payload);
@@ -1105,6 +1161,7 @@ function buildConfigSyncSignature({
         openRouterModel,
         buildSyncSettings,
         normalizeSubredditName,
+        reconcileOpportunityConfigConflict,
       ]);
 
       // Reset page limit when filters/sort/sub changes
@@ -1381,7 +1438,9 @@ function buildConfigSyncSignature({
         const subsCount = subs.length;
         let effectiveMaxPages = getEffectiveMaxPages(maxPages, subsCount);
         const wantsDeepFetch = maxPages === 0 || maxPages > 4;
-        const shouldUseCheckpointedCoverage = true;
+        // Keep fetching on the server-owned snapshot path so the browser is not
+        // responsible for sequencing coverage state, retries, and cooldowns.
+        const shouldUseServerOwnedSnapshot = true;
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1399,14 +1458,14 @@ function buildConfigSyncSignature({
         coverageAbortRef.current = controller;
         const refreshRunId = Date.now();
         coverageRunIdRef.current = refreshRunId;
-        const timeoutMs = shouldUseCheckpointedCoverage
-          ? 30 * 60 * 1000
-          : Math.min(65000, 10000 + subs.length * 3500);
+        const timeoutMs = shouldUseServerOwnedSnapshot
+          ? Math.min(65000, 10000 + subs.length * 3500)
+          : 30 * 60 * 1000;
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         let keepCoverageController = false;
 
         try {
-          if (shouldUseCheckpointedCoverage) {
+          if (!shouldUseServerOwnedSnapshot) {
             keepCoverageController = await startCoverageRefreshFlow({
               subs,
               subsCount,

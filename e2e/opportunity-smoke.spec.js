@@ -198,6 +198,89 @@ test.describe('Opportunity dashboard smoke', () => {
       });
     });
 
+    await page.route('**/api/reddit/snapshot?*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          auth_mode: 'oauth',
+          storage: { persistent: false, kind: 'memory' },
+          results: [
+            {
+              subreddit: 'seo',
+              meta: { subscribers: 100000, title: 'SEO' },
+              posts: [
+                {
+                  id: 'p1',
+                  title: 'Traffic dropped after redesign, need SEO help urgently',
+                  selftext: 'Founder here, looking for help fixing rankings this week.',
+                  subreddit: 'seo',
+                  author: 'founder1',
+                  score: 18,
+                  num_comments: 6,
+                  created_utc: Math.floor(Date.now() / 1000) - 3600,
+                  permalink: '/r/seo/comments/p1/traffic_drop',
+                  reddit_url: 'https://reddit.com/r/seo/comments/p1/traffic_drop',
+                  url: 'https://reddit.com/r/seo/comments/p1/traffic_drop',
+                  domain: 'self.seo',
+                  thumbnail: null,
+                  link_flair_text: 'Question',
+                },
+              ],
+              partial: false,
+              coverage_state: {
+                subreddit: 'seo',
+                status: 'complete',
+                next_after: null,
+                cooldown_until: null,
+                covered_through_utc: Math.floor(Date.now() / 1000) - 86400,
+                page_count: 1,
+                post_count: 1,
+                last_fetch_at: Date.now(),
+                last_error: null,
+                complete_1d: true,
+                complete_3d: false,
+                complete_5d: false,
+                inflight_until: null,
+                meta: { subscribers: 100000, title: 'SEO' },
+              },
+              error: null,
+            },
+          ],
+          fetched_at: Date.now(),
+          request_capped: false,
+          rate_limited: false,
+          rate_limited_subreddits: [],
+          timed_out: false,
+          timed_out_subreddits: [],
+          coverage_summary: {
+            complete1dCount: 1,
+            complete3dCount: 0,
+            complete5dCount: 0,
+          },
+          metrics: {
+            subredditCount: 1,
+            totalPosts: 1,
+            rateLimitedCount: 0,
+            durationMs: 50,
+            timedOutCount: 0,
+            retryAfterSeconds: 0,
+            redditRequestCount: 1,
+            sharedCooldownHit: false,
+            requestCapped: false,
+          },
+          snapshot: {
+            cached: false,
+            stale: false,
+            age_seconds: 0,
+            ttl_seconds: 120,
+            key: 'smoke',
+            cacheable: true,
+          },
+        }),
+      });
+    });
+
     await page.route('**/api/reddit/coverage?*', async (route) => {
       await route.fulfill({
         status: 200,
@@ -368,5 +451,171 @@ test.describe('Opportunity dashboard smoke', () => {
     await page.getByTitle('Settings').click();
     await expect(page.getByLabel('What do you sell?')).toHaveValue('SEO consulting for SaaS teams');
     await expect(page.getByLabel('Ideal customer')).toHaveValue('Founders and marketing leads');
+  });
+
+  test('reloads workspace config after a version conflict and retries with the latest ETag', async ({ page }) => {
+    const workspaceId = 'ws_conflict';
+    let configGetCount = 0;
+    /** @type {Array<{ ifMatch: string | null, body: any }>} */
+    const patchRequests = [];
+    let persistedConfig = {
+      workspaceId,
+      subreddits: ['seo'],
+      filters: {},
+      goals: 'Old goal',
+      aiContext: '',
+      aiPrompt: 'Old goal',
+      opportunityConfig: {
+        businessOffering: 'Old SEO offer',
+        idealCustomer: '',
+        problemsSolved: '',
+        preferredEngagement: 'reply',
+        strategyPreset: 'balanced',
+        opportunityTypes: ['lead', 'pain_point', 'tool_search'],
+        strictness: 'balanced',
+      },
+      scoringConfig: {
+        lookingFor: 'Old goal',
+        avoid: '',
+        examples: {
+          perfect: '',
+          strong: '',
+          reject: '',
+        },
+      },
+      threshold: 4,
+      model: 'openai/gpt-4o-mini',
+      version: 5,
+      updatedAt: '2026-03-14T14:00:00.000Z',
+    };
+
+    await page.addInitScript(() => {
+      localStorage.setItem('dashboard_onboarding_complete', '1');
+      localStorage.setItem('dashboard_subs', JSON.stringify(['seo']));
+      localStorage.setItem('dashboard_subs_backup', JSON.stringify(['seo']));
+      localStorage.setItem('dashboard_ai_enabled', '1');
+    });
+
+    await page.route('**/api/auth/status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ authenticated: true }),
+      });
+    });
+
+    await page.route('**/api/settings/openrouter-key', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ hasKey: false, keyPreview: null, source: 'none' }),
+      });
+    });
+
+    await page.route('**/api/openrouter/models', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ models: [] }),
+      });
+    });
+
+    await page.route('**/api/workspaces', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, workspaceId, token: 'sync-conflict-token' }),
+      });
+    });
+
+    await page.route('**/api/workspaces/*/config', async (route) => {
+      const request = route.request();
+      if (request.method() === 'GET') {
+        configGetCount += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            schemaVersion: '1.0.0',
+            requestId: `req_conflict_${configGetCount}`,
+            timings: { totalMs: 0 },
+            data: { config: persistedConfig },
+            error: null,
+          }),
+        });
+        return;
+      }
+
+      const body = JSON.parse(request.postData() || '{}');
+      patchRequests.push({
+        ifMatch: request.headers()['if-match'] || null,
+        body,
+      });
+
+      if (patchRequests.length === 1) {
+        persistedConfig = {
+          ...persistedConfig,
+          version: 6,
+          updatedAt: '2026-03-14T14:01:00.000Z',
+        };
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            schemaVersion: '1.0.0',
+            requestId: 'req_conflict_409',
+            timings: { totalMs: 0 },
+            data: null,
+            error: {
+              code: 'VERSION_CONFLICT',
+              message: 'Configuration version conflict',
+              details: [
+                { field: 'version', message: 'Expected 6 but received 5' },
+              ],
+            },
+          }),
+        });
+        return;
+      }
+
+      persistedConfig = {
+        ...persistedConfig,
+        subreddits: body.subreddits,
+        goals: body.goals,
+        aiContext: body.aiContext,
+        aiPrompt: body.aiPrompt,
+        opportunityConfig: body.opportunityConfig,
+        scoringConfig: body.scoringConfig,
+        threshold: body.threshold,
+        model: body.model,
+        version: 7,
+        updatedAt: '2026-03-14T14:02:00.000Z',
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          schemaVersion: '1.0.0',
+          requestId: 'req_conflict_200',
+          timings: { totalMs: 0 },
+          data: { config: persistedConfig },
+          error: null,
+        }),
+      });
+    });
+
+    await page.goto('/app');
+
+    await expect(page.getByRole('button', { name: 'Edit AI' })).toBeVisible();
+    await page.getByRole('button', { name: 'Edit AI' }).click();
+    await page.getByLabel('What do you sell?').fill('SEO consulting');
+
+    await expect.poll(() => patchRequests.length).toBe(2);
+    await expect.poll(() => configGetCount >= 2).toBe(true);
+    await expect.poll(() => persistedConfig.opportunityConfig.businessOffering).toBe('SEO consulting');
+    expect(patchRequests.map((entry) => entry.ifMatch)).toEqual(['5', '6']);
+
+    await page.waitForTimeout(3000);
+    expect(patchRequests).toHaveLength(2);
   });
 });
