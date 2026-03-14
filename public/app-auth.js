@@ -98,10 +98,18 @@
         const [authState, setAuthState] = useState({ loading: true, authenticated: false });
 
         useEffect(() => {
-          fetch('/api/auth/status')
+          fetch('/api/auth/status', { cache: 'no-store', credentials: 'include' })
             .then(res => res.json())
-            .then(data => {
-              setAuthState({ loading: false, authenticated: data.authenticated });
+            .then(async (data) => {
+              let authenticated = Boolean(data.authenticated);
+              if (authenticated && data.hasRefreshToken && !data.hasAccessToken) {
+                const refreshResponse = await fetch('/api/auth/refresh', {
+                  cache: 'no-store',
+                  credentials: 'include',
+                });
+                authenticated = refreshResponse.ok;
+              }
+              setAuthState({ loading: false, authenticated });
             })
             .catch(err => {
               console.error('Auth check failed:', err);

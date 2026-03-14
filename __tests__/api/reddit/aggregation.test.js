@@ -42,6 +42,7 @@ describe('/api/reddit aggregation', () => {
 
   afterEach(() => {
     nock.cleanAll();
+    delete process.env.REDDIT_ALLOW_PUBLIC_FALLBACK;
   });
 
   test('merges multiple subreddits and sets cache + metrics headers', async () => {
@@ -106,6 +107,21 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.auth_mode).toBe('public');
     expect(res.body.results[0].posts).toHaveLength(1);
     expect(reddit.isDone()).toBe(true);
+  });
+
+  test('returns 401 without authentication when public fallback is disabled', async () => {
+    process.env.REDDIT_ALLOW_PUBLIC_FALLBACK = 'false';
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: '/api/reddit?subs=programming&mode=top&limit=25&max_pages=1',
+      headers: {
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Not authenticated' });
   });
 
   test('flags rate-limited subreddit while returning other results', async () => {

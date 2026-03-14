@@ -64,6 +64,7 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
     delete process.env.REDDIT_ADVANCE_ROUTE_BUDGET_MS;
     delete process.env.REDDIT_ADVANCE_META_TIMEOUT_MS;
     delete process.env.REDDIT_ADVANCE_TOKEN_TIMEOUT_MS;
+    delete process.env.REDDIT_ALLOW_PUBLIC_FALLBACK;
   });
 
   test('returns an empty coverage summary when scope has not been created yet', async () => {
@@ -82,6 +83,29 @@ describe('/api/reddit/coverage + /api/reddit/advance', () => {
       totalPosts: 0,
     });
     expect(res.body.results).toEqual([]);
+  });
+
+  test('returns 401 instead of falling back to public Reddit when public fallback is disabled', async () => {
+    process.env.REDDIT_ALLOW_PUBLIC_FALLBACK = 'false';
+
+    const advanceRes = await runHandler(coverageHandler, {
+      method: 'POST',
+      url: '/api/reddit/advance',
+      headers: { origin: 'http://localhost:3000' },
+      body: {
+        subs: ['programming'],
+        sub: 'programming',
+        mode: 'new',
+        days: 1,
+        target_window_days: 1,
+        limit: 15,
+      },
+    });
+
+    expect(advanceRes.status).toBe(401);
+    expect(advanceRes.body).toMatchObject({
+      error: 'Not authenticated',
+    });
   });
 
   test('advances subreddit coverage and persists merged results for later reads', async () => {

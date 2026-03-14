@@ -1,4 +1,8 @@
 (function initDashboardFetchModule(globalScope) {
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function getRetryAfterSeconds(response, payload = null) {
     return Number(payload?.retryAfter)
       || Number(payload?.retry_after_seconds)
@@ -226,29 +230,47 @@
     forceRefresh = false,
     signal,
   }) {
-    const response = await fetch('/api/reddit/advance', {
-      method: 'POST',
-      signal,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
-      },
-      body: JSON.stringify(body),
-    });
+    let lastError = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch('/api/reddit/advance', {
+          method: 'POST',
+          signal,
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
+          },
+          body: JSON.stringify(body),
+        });
 
-    let payload = null;
-    try {
-      payload = await response.json();
-    } catch {}
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {}
 
-    return {
-      ok: response.ok,
-      status: response.status,
-      response,
-      payload,
-      retryAfterSeconds: getRetryAfterSeconds(response, payload),
-    };
+        if (attempt === 0 && [502, 503, 504].includes(response.status)) {
+          await sleep(500);
+          continue;
+        }
+
+        return {
+          ok: response.ok,
+          status: response.status,
+          response,
+          payload,
+          retryAfterSeconds: getRetryAfterSeconds(response, payload),
+        };
+      } catch (error) {
+        lastError = error;
+        if (signal?.aborted || attempt > 0) {
+          throw error;
+        }
+        await sleep(500);
+      }
+    }
+
+    throw lastError || new Error('Advance request failed');
   }
 
   function buildSnapshotParams({

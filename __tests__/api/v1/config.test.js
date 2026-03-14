@@ -334,6 +334,59 @@ describe('workspace config handler', () => {
     expect(res.body.error.code).toBe('VERSION_CONFLICT');
   });
 
+  test('PATCH treats identical workspace config payloads as no-ops', async () => {
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('agent-config:ws_demo', {
+      scopeId: 'ws_demo',
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      subreddits: ['programming'],
+      filters: {},
+      goals: 'Current goals',
+      aiContext: '',
+      aiPrompt: '',
+      opportunityConfig: null,
+      scoringConfig: null,
+      threshold: 4,
+      model: 'openai/gpt-4o-mini',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+      version: 7,
+    });
+
+    const res = await runHandler(configHandler, {
+      method: 'PATCH',
+      url: '/api/workspaces/ws_demo/config',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        subreddits: ['programming'],
+        goals: 'Current goals',
+        threshold: 4,
+        model: 'openai/gpt-4o-mini',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.config).toMatchObject({
+      goals: 'Current goals',
+      version: 7,
+    });
+    expect(res.body.data.auditLog).toBeUndefined();
+    expect(mockStore.get('agent-config:ws_demo')).toMatchObject({
+      goals: 'Current goals',
+      version: 7,
+    });
+  });
+
   test('PATCH rejects workspace CAS conflicts after the initial version check', async () => {
     mockStore.set('agent-workspace:ws_demo', {
       workspaceId: 'ws_demo',
@@ -384,5 +437,75 @@ describe('workspace config handler', () => {
     expect(res.body.error.details).toEqual([
       { field: 'version', message: 'Current stored version is 5' },
     ]);
+  });
+
+  test('PATCH retries background workspace sync conflicts without If-Match', async () => {
+    mockStore.set('agent-workspace:ws_demo', {
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+    });
+    mockStore.set('agent-config:ws_demo', {
+      scopeId: 'ws_demo',
+      workspaceId: 'ws_demo',
+      sourceSyncToken: 'sync-token',
+      subreddits: ['programming'],
+      filters: {},
+      goals: 'Current goals',
+      aiContext: '',
+      aiPrompt: '',
+      threshold: 3,
+      model: 'openai/gpt-4o-mini',
+      createdAt: '2026-03-08T10:00:00.000Z',
+      updatedAt: '2026-03-08T10:00:00.000Z',
+      version: 4,
+    });
+
+    const storage = require('../../../lib/storage');
+    storage.compareAndSwap.mockImplementationOnce(async () => {
+      mockStore.set('agent-config:ws_demo', {
+        scopeId: 'ws_demo',
+        workspaceId: 'ws_demo',
+        sourceSyncToken: 'sync-token',
+        subreddits: ['programming'],
+        filters: {},
+        goals: 'Updated goals',
+        aiContext: '',
+        aiPrompt: '',
+        threshold: 3,
+        model: 'openai/gpt-4o-mini',
+        createdAt: '2026-03-08T10:00:00.000Z',
+        updatedAt: '2026-03-08T10:00:00.000Z',
+        version: 5,
+      });
+      return {
+        ok: false,
+        current: mockStore.get('agent-config:ws_demo'),
+      };
+    });
+
+    const res = await runHandler(configHandler, {
+      method: 'PATCH',
+      url: '/api/workspaces/ws_demo/config',
+      params: { workspaceId: 'ws_demo' },
+      headers: {
+        authorization: 'Bearer agent-test-key',
+        origin: 'http://localhost:3000',
+      },
+      body: {
+        goals: 'Updated goals',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.config).toMatchObject({
+      goals: 'Updated goals',
+      version: 5,
+    });
+    expect(mockStore.get('agent-config:ws_demo')).toMatchObject({
+      goals: 'Updated goals',
+      version: 5,
+    });
   });
 });

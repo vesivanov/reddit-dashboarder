@@ -283,6 +283,7 @@
     scoringConfig,
     threshold,
     model,
+    version,
   }) {
     const workspaceResult = await ensureWorkspace({ snapshotInfo, syncToken });
     if (!workspaceResult.ok || !workspaceResult.workspaceId) {
@@ -299,7 +300,10 @@
       {
       method: 'PATCH',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(Number.isInteger(version) ? { 'If-Match': String(version) } : {}),
+      },
       body: JSON.stringify({
         workspaceId,
         token: syncToken,
