@@ -10,6 +10,34 @@
       || 0;
   }
 
+  function parseJsonHeader(response, headerName) {
+    const raw = response?.headers?.get?.(headerName);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  function extractRateLimitInfo(response, payload = null) {
+    const limit = Number(response?.headers?.get?.('X-RateLimit-Limit'));
+    const remaining = Number(response?.headers?.get?.('X-RateLimit-Remaining'));
+    const reset = Number(response?.headers?.get?.('X-RateLimit-Reset'));
+    const retryAfterSeconds = getRetryAfterSeconds(response, payload);
+
+    if (!Number.isFinite(limit) && !Number.isFinite(remaining) && !Number.isFinite(reset) && retryAfterSeconds <= 0) {
+      return null;
+    }
+
+    return {
+      limit: Number.isFinite(limit) ? limit : null,
+      remaining: Number.isFinite(remaining) ? remaining : null,
+      reset: Number.isFinite(reset) ? reset : null,
+      retryAfterSeconds: retryAfterSeconds > 0 ? retryAfterSeconds : 0,
+    };
+  }
+
   function getEffectiveMaxPages(maxPages, subsCount) {
     const requestedFetchAllPages = Number(maxPages) === 0;
     let effectiveMaxPages = requestedFetchAllPages ? 30 : maxPages;
@@ -309,6 +337,8 @@
       status: response.status,
       response,
       body,
+      metrics: parseJsonHeader(response, 'X-RDD-Metrics') || body?.metrics || null,
+      rateLimit: extractRateLimitInfo(response, body),
       retryAfterSeconds: getRetryAfterSeconds(response, body),
     };
   }

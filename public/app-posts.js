@@ -11,13 +11,27 @@
       .replace(/^./, (char) => char.toUpperCase());
   }
 
-  function getPriorityScore({ postId, getAiItemForPost, getOpportunityForPost }) {
+  function getAiScoreValue({ postId, getAiItemForPost, getOpportunityForPost }) {
+    const relevance = getAiItemForPost(postId)?.score;
+    if (relevance !== undefined && relevance !== null) return Number(relevance) || 0;
+    const opportunity = getOpportunityForPost(postId);
+    if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
+      return Math.max(0, Math.min(5, Math.round((Number(opportunity.scores.priority) || 0) * 5)));
+    }
+    return null;
+  }
+
+  function getOpportunityPriority({ postId, getOpportunityForPost }) {
     const opportunity = getOpportunityForPost(postId);
     if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
       return Number(opportunity.scores.priority) || 0;
     }
-    const relevance = getAiItemForPost(postId)?.score;
-    if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
+    return null;
+  }
+
+  function getAiScoreNormalized({ postId, getAiItemForPost, getOpportunityForPost }) {
+    const score = getAiScoreValue({ postId, getAiItemForPost, getOpportunityForPost });
+    if (score !== null && score !== undefined) return (Number(score) || 0) / 5;
     return null;
   }
 
@@ -99,7 +113,8 @@
     velocityMeta,
     getAiItemForPost,
     getOpportunityForPost,
-    getPriorityScore,
+    getAiScoreValue,
+    getOpportunityPriority,
     getOpportunityTypeLabel,
     getRecommendedActionLabel,
     handlePostHoverStart,
@@ -131,19 +146,14 @@
         const flairBg = post.link_flair_background_color || '#e4e4e7';
         const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
         const aiItem = getAiItemForPost(post.id);
-        const relevanceScore = aiItem?.score;
+        const aiScore = getAiScoreValue(post.id);
         const relevanceMeta = aiItem?.metadata || null;
         const opportunity = aiItem?.opportunity || null;
-        const priorityScore = getPriorityScore(post.id);
+        const priorityScore = getOpportunityPriority(post.id);
         const opportunityType = getOpportunityTypeLabel(post.id);
         const reviewStatus = aiItem?.review?.status || '';
-        const hasPriority = priorityScore !== null;
-        const isHighlyRelevant = hasPriority
-          ? priorityScore >= 0.65
-          : relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 4;
-        const isVeryHighRelevant = hasPriority
-          ? priorityScore >= 0.85
-          : relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 5;
+        const isHighlyRelevant = aiScore !== undefined && aiScore !== null && aiScore >= 4;
+        const isVeryHighRelevant = aiScore !== undefined && aiScore !== null && aiScore >= 5;
         const velocity = velocityMeta.map.get(String(post.id));
         const isSpiking = velocityMeta.spiking.has(String(post.id));
         const upvotesPerHour = velocity?.upvotesPerHour || 0;
@@ -154,7 +164,7 @@
         if (hasAiData) {
           if (isVeryHighRelevant) cardTier = 'hero';
           else if (isHighlyRelevant) cardTier = 'feature';
-          else if (hasPriority ? priorityScore >= 0.3 : (relevanceScore !== undefined && relevanceScore !== null && relevanceScore >= 3)) cardTier = 'standard';
+          else if (aiScore !== undefined && aiScore !== null && aiScore >= 3) cardTier = 'standard';
           else cardTier = 'suppressed';
         }
 
@@ -198,10 +208,10 @@
             : null;
 
         // ── Score badge ───────────────────────────────────────────────
-        const scoreDisplay = priorityScore !== null
-          ? `${Math.round(priorityScore * 100)}%`
-          : (relevanceScore !== undefined && relevanceScore !== null
-              ? `${aiScoresStale ? '~' : ''}${relevanceScore}/5`
+        const scoreDisplay = aiScore !== undefined && aiScore !== null
+          ? `${aiScoresStale ? '~' : ''}${aiScore}/5`
+          : (priorityScore !== undefined && priorityScore !== null
+              ? `${Math.round(priorityScore * 100)}%`
               : null);
 
         // Score badge visual — solid colored pill
@@ -351,7 +361,8 @@
     selectedPost,
     getAiItemForPost,
     getOpportunityForPost,
-    getPriorityScore,
+    getAiScoreValue,
+    getOpportunityPriority,
     aiScoresStale,
     aiScoreLabel,
     showAiReasons,
@@ -371,16 +382,16 @@
     const detailAiItem = selectedPost ? getAiItemForPost(selectedPost.id) : null;
     const detailOpportunity = detailAiItem?.opportunity || (selectedPost ? getOpportunityForPost(selectedPost.id) : null);
     const detailReview = detailAiItem?.review || null;
-    const detailPriority = selectedPost ? getPriorityScore(selectedPost.id) : null;
-    const detailRelevanceScore = detailAiItem?.score;
-    const detailScoreDisplay = detailPriority !== null && detailPriority !== undefined
-      ? `P${Math.round(detailPriority * 100)}`
-      : (detailRelevanceScore !== undefined && detailRelevanceScore !== null
-          ? `${aiScoresStale ? '~' : ''}${detailRelevanceScore}/5`
+    const detailPriority = selectedPost ? getOpportunityPriority(selectedPost.id) : null;
+    const detailAiScore = selectedPost ? getAiScoreValue(selectedPost.id) : null;
+    const detailScoreDisplay = detailAiScore !== undefined && detailAiScore !== null
+      ? `${aiScoresStale ? '~' : ''}${detailAiScore}/5`
+      : (detailPriority !== undefined && detailPriority !== null
+          ? `Priority ${Math.round(detailPriority * 100)}%`
           : null);
-    const detailIsHero = detailPriority !== null && detailPriority !== undefined
-      ? detailPriority >= 0.85
-      : detailRelevanceScore >= 5;
+    const detailIsHero = detailAiScore !== undefined && detailAiScore !== null
+      ? detailAiScore >= 5
+      : detailPriority >= 0.85;
 
     return h('aside', { className: `w-80 bg-white dark:bg-zinc-800 flex-col shrink-0 border-l border-zinc-100 dark:border-white/[0.05] ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}` },
 
@@ -417,7 +428,7 @@
             )
           : (() => {
               const detailType = detailOpportunity?.classification?.type;
-              const hasBrief = detailOpportunity || detailPriority !== null || (detailRelevanceScore !== undefined && detailRelevanceScore !== null);
+              const hasBrief = detailOpportunity || detailPriority !== null || (detailAiScore !== undefined && detailAiScore !== null);
 
               return h('div', null,
 
@@ -439,8 +450,8 @@
                   ),
                   h('h2', { className: 'font-display text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 leading-snug mb-3' }, selectedPost.title),
                   h('div', { className: 'flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500 tabular-nums' },
-                    detailPriority !== null && h('span', { className: 'bg-amber-500 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded' }, `P${Math.round(detailPriority * 100)}`),
-                    detailPriority === null && detailRelevanceScore !== undefined && detailRelevanceScore !== null && h('span', { className: 'bg-amber-500 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded' }, `${aiScoresStale ? '~' : ''}${detailRelevanceScore}/5`),
+                    detailAiScore !== undefined && detailAiScore !== null && h('span', { className: 'bg-amber-500 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded' }, `${aiScoresStale ? '~' : ''}${detailAiScore}/5`),
+                    detailAiScore === null && detailPriority !== null && h('span', { className: 'bg-zinc-100 dark:bg-white/[0.08] text-zinc-500 dark:text-zinc-400 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded' }, `${Math.round(detailPriority * 100)}%`),
                     h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-500' },
                       renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'), selectedPost.score),
                     h('span', { className: 'inline-flex items-center gap-0.5' },
@@ -544,7 +555,9 @@
   globalScope.RDDPostView = {
     formatSignalLabel,
     formatOpportunityLabel,
-    getPriorityScore,
+    getAiScoreValue,
+    getOpportunityPriority,
+    getAiScoreNormalized,
     getOpportunitySignalSummary,
     buildSelectedPostWhyItems,
     buildSelectedPostNextAction,

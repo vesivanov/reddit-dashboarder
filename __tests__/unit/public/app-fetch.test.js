@@ -2,12 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadFetchClient() {
+function loadFetchClient(overrides = {}) {
   const source = fs.readFileSync(path.join(process.cwd(), 'public/app-fetch.js'), 'utf8');
   const context = {
     window: {},
     globalThis: {},
     console,
+    fetch: overrides.fetch || (() => { throw new Error('fetch not mocked'); }),
     setTimeout,
     clearTimeout,
     URLSearchParams,
@@ -184,5 +185,37 @@ describe('app fetch helpers', () => {
     expect(summary.targetCoverageCount).toBe(2);
     expect(summary.detail).toContain('All 2/2 subreddits reached 1d coverage.');
     expect(summary.detail).not.toContain('Coverage:');
+  });
+
+  test('requestAiRank surfaces response metrics and rate-limit headers for frontend logging', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get(name) {
+          const normalized = String(name || '').toLowerCase();
+          if (normalized === 'x-rdd-metrics') {
+            return JSON.stringify({ batchCount: 1, processedCount: 3 });
+          }
+          if (normalized === 'x-ratelimit-limit') return '10';
+          if (normalized === 'x-ratelimit-remaining') return '7';
+          if (normalized === 'x-ratelimit-reset') return '1741987200';
+          return null;
+        },
+      },
+      json: async () => ({ items: [], metrics: { batchCount: 1, processedCount: 3 } }),
+    });
+    const fetchClient = loadFetchClient({ fetch: fetchMock });
+
+    const result = await fetchClient.requestAiRank({ posts: [] });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.metrics).toEqual({ batchCount: 1, processedCount: 3 });
+    expect(result.rateLimit).toEqual({
+      limit: 10,
+      remaining: 7,
+      reset: 1741987200,
+      retryAfterSeconds: 0,
+    });
   });
 });

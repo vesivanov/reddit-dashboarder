@@ -116,6 +116,29 @@
     };
   }
 
+  function logAiRankResponse({ requestChunk, aiRankResult }) {
+    if (!aiRankResult) return;
+    const detail = {
+      chunkIndex: requestChunk?.index ?? null,
+      totalChunks: requestChunk?.totalChunks ?? null,
+      chunkPostCount: requestChunk?.posts?.length ?? null,
+      llmPostLimit: requestChunk?.llmPostLimit ?? null,
+      status: aiRankResult.status,
+      ok: Boolean(aiRankResult.ok),
+      model: aiRankResult.body?.model || null,
+      requestedModel: aiRankResult.body?.requestedModel || null,
+      metrics: aiRankResult.metrics || null,
+      rate: aiRankResult.rateLimit || null,
+      requestStrategiesUsed: Array.isArray(aiRankResult.body?.requestStrategiesUsed) ? aiRankResult.body.requestStrategiesUsed : [],
+      fallbackUsed: Boolean(aiRankResult.body?.fallbackUsed),
+      routingFallbackUsed: Boolean(aiRankResult.body?.routingFallbackUsed),
+      failedPostIds: Array.isArray(aiRankResult.body?.failedPostIds) ? aiRankResult.body.failedPostIds : [],
+      error: aiRankResult.ok ? null : (aiRankResult.body?.message || aiRankResult.body?.error || `HTTP ${aiRankResult.status}`),
+    };
+    const log = aiRankResult.ok ? console.info : console.warn;
+    log('[ai-ranking-client]', detail);
+  }
+
   function maybeSendStrongOpportunityNotifications({
     triggeredByAuto,
     notificationsEnabled,
@@ -368,6 +391,8 @@
                 },
               }))
             : { ok: false, status: 500, body: null, retryAfterSeconds: 0 };
+
+          logAiRankResponse({ requestChunk, aiRankResult });
 
           if (!aiRankResult.ok) {
             const parsedError = aiRankResult.body;

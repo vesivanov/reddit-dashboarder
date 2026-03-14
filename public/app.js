@@ -132,13 +132,20 @@ const {
   runSnapshotRefreshFlow = async ({ localPauseUntil }) => localPauseUntil,
 } = refreshController;
 const {
-  getPriorityScore: getPriorityScoreValue = ({ postId, getAiItemForPost, getOpportunityForPost }) => {
+  getAiScoreValue: getAiScoreValueForPost = ({ postId, getAiItemForPost, getOpportunityForPost }) => {
+    const relevance = getAiItemForPost(postId)?.score;
+    if (relevance !== undefined && relevance !== null) return Number(relevance) || 0;
+    const opportunity = getOpportunityForPost(postId);
+    if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
+      return Math.max(0, Math.min(5, Math.round((Number(opportunity.scores.priority) || 0) * 5)));
+    }
+    return null;
+  },
+  getOpportunityPriority: getOpportunityPriorityForPost = ({ postId, getOpportunityForPost }) => {
     const opportunity = getOpportunityForPost(postId);
     if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
       return Number(opportunity.scores.priority) || 0;
     }
-    const relevance = getAiItemForPost(postId)?.score;
-    if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
     return null;
   },
   formatOpportunityLabel = (value) => (value ? String(value).replace(/_/g, ' ') : null),
@@ -875,13 +882,20 @@ function buildConfigSyncSignature({
         return getAiItemForPost(postId)?.opportunity || null;
       }, [getAiItemForPost]);
 
-      const getPriorityScore = useCallback((postId) => {
-        return getPriorityScoreValue({
+      const getAiScore = useCallback((postId) => {
+        return getAiScoreValueForPost({
           postId,
           getAiItemForPost,
           getOpportunityForPost,
         });
       }, [getAiItemForPost, getOpportunityForPost]);
+
+      const getOpportunityPriority = useCallback((postId) => {
+        return getOpportunityPriorityForPost({
+          postId,
+          getOpportunityForPost,
+        });
+      }, [getOpportunityForPost]);
 
       const getOpportunityTypeLabel = useCallback((postId) => {
         return formatOpportunityLabel(getOpportunityForPost(postId)?.classification?.type || null);
@@ -1112,12 +1126,8 @@ function buildConfigSyncSignature({
           if (minCommentsValue !== null && comments < minCommentsValue) return false;
           // Opportunity priority filter
           if (minAiScore !== null) {
-            const aiScore = postScoreProxies.get(String(post.id));
-            const priorityScore = getPriorityScore(post.id);
-            const normalizedThreshold = minAiScore / 5;
-            const passesPriority = priorityScore !== null && priorityScore >= normalizedThreshold;
-            const passesLegacy = aiScore !== null && aiScore !== undefined && aiScore >= minAiScore;
-            if (!passesPriority && !passesLegacy) return false;
+            const aiScore = getAiScore(post.id);
+            if (aiScore === null || aiScore === undefined || aiScore < minAiScore) return false;
           }
           if (actionFilter) {
             const recommendedAction = getAiItemForPost(post.id)?.opportunity?.action?.recommended || '';
@@ -1157,8 +1167,8 @@ function buildConfigSyncSignature({
               break;
             }
             case 'priority': {
-              const scoreA = getPriorityScore(a.id);
-              const scoreB = getPriorityScore(b.id);
+              const scoreA = getAiScore(a.id);
+              const scoreB = getAiScore(b.id);
               const metaA = postScoreMetadata.get(String(a.id));
               const metaB = postScoreMetadata.get(String(b.id));
               const sourceRank = (meta) => {
@@ -1194,7 +1204,7 @@ function buildConfigSyncSignature({
           return ignoreMultiplier ? delta : delta * multiplier;
         });
         return sorted;
-      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, actionFilter, sortBy, sortOrder, hiddenPosts, postScoreProxies, postScoreMetadata, getPriorityScore, getAiItemForPost, scoresVersion]);
+      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, actionFilter, sortBy, sortOrder, hiddenPosts, postScoreMetadata, getAiScore, getAiItemForPost, scoresVersion]);
 
       const velocityMeta = useMemo(() => {
         const nowSeconds = Date.now() / 1000;
@@ -1826,7 +1836,7 @@ function buildConfigSyncSignature({
         if (keyword.trim()) pills.push({ key: 'keyword', label: `Keyword: ${truncateText(keyword.trim(), 24)}` });
         if (minUpvoteFilter) pills.push({ key: 'upvotes', label: `Upvotes: ${minUpvoteFilter}+` });
         if (minCommentFilter) pills.push({ key: 'comments', label: `Comments: ${minCommentFilter}+` });
-        if (minPriorityFilter) pills.push({ key: 'ai', label: `Priority: ${minPriorityFilter}+` });
+        if (minPriorityFilter) pills.push({ key: 'ai', label: `AI score: ${minPriorityFilter}+` });
         if (actionFilter) {
           const actionLabel = actionFilter === 'act_now'
             ? 'Act now'
@@ -2314,12 +2324,12 @@ function buildConfigSyncSignature({
                 opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
                   h('div', { key: 'ai-divider', className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
                   h('div', { key: 'ai-group', className: 'flex items-center gap-0.5' },
-                    h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, 'Priority'),
+                    h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, 'AI'),
                     OPPORTUNITY_PRIORITY_PRESETS.filter(p => p.value !== '').map(preset =>
                       h('button', {
                         key: `ai-${preset.value}`,
                         onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
-                        title: `Minimum priority ${preset.label}`,
+                        title: `Minimum AI score ${preset.label}`,
                         className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D97706] ${minPriorityFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
                       }, preset.label)
                     )
@@ -2354,8 +2364,8 @@ function buildConfigSyncSignature({
                   h('option', { value: 'velocity-upvotes-desc' }, '↑ velocity'),
                   h('option', { value: 'velocity-comments-desc' }, '💬 velocity'),
                   opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
-                    h('option', { key: 'priority-desc', value: 'priority-desc' }, 'Top priority'),
-                    h('option', { key: 'priority-asc', value: 'priority-asc' }, 'Low priority')
+                    h('option', { key: 'priority-desc', value: 'priority-desc' }, 'Top AI score'),
+                    h('option', { key: 'priority-asc', value: 'priority-asc' }, 'Low AI score')
                   ]
                 ),
                 filtersActive && h('button', {
@@ -2371,7 +2381,7 @@ function buildConfigSyncSignature({
                         : actionFilter === 'research'
                           ? 'Research'
                           : '';
-                    const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `P${minPriorityFilter}+`, actionPresetLabel, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
+                    const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `AI${minPriorityFilter}+`, actionPresetLabel, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
                     setFilterPresets(prev => [...prev, { id: Date.now(), label: label || `Preset ${prev.length + 1}`, upvote: minUpvoteFilter, comment: minCommentFilter, priority: minPriorityFilter, action: actionFilter, keyword }]);
                   },
                   title: 'Save current filters as a preset',
@@ -2458,7 +2468,7 @@ function buildConfigSyncSignature({
                               minPriorityFilter && h('button', {
                                 onClick: () => setMinPriorityFilter(''),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                              }, 'Remove priority filter')
+                              }, 'Remove AI score filter')
                             )
                           ]
                         : [
@@ -2492,7 +2502,8 @@ function buildConfigSyncSignature({
                     velocityMeta,
                     getAiItemForPost,
                     getOpportunityForPost,
-                    getPriorityScore,
+                    getAiScoreValue: getAiScore,
+                    getOpportunityPriority,
                     getOpportunityTypeLabel,
                     getRecommendedActionLabel,
                     handlePostHoverStart,
@@ -2540,7 +2551,8 @@ function buildConfigSyncSignature({
             selectedPost,
             getAiItemForPost,
             getOpportunityForPost,
-            getPriorityScore,
+            getAiScoreValue: getAiScore,
+            getOpportunityPriority,
             aiScoresStale,
             aiScoreLabel,
             showAiReasons,
