@@ -208,7 +208,7 @@
         const cardBgClass = isSelected
           ? 'bg-zinc-100 dark:bg-white/[0.06]'
           : cardTier === 'hero'
-            ? 'bg-amber-50/40 dark:bg-amber-500/[0.08] hover:bg-amber-50/70 dark:hover:bg-amber-500/[0.12]'
+            ? 'bg-amber-50/40 dark:bg-amber-500/[0.11] hover:bg-amber-50/70 dark:hover:bg-amber-500/[0.15]'
             : 'hover:bg-zinc-50 dark:hover:bg-white/[0.03]';
 
         const cardOpacity = cardTier === 'suppressed' && !isSelected ? 'opacity-40 hover:opacity-75' : '';
@@ -235,27 +235,27 @@
                     ? 'text-zinc-900 dark:text-white'
                     : isRead
                       ? 'text-zinc-500 dark:text-zinc-400'
-                      : 'text-zinc-800 dark:text-zinc-100'
+                      : cardTier === 'hero'
+                        ? 'text-zinc-900 dark:text-white'
+                        : 'text-zinc-800 dark:text-zinc-100'
                 }`,
               }, post.title),
               scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay),
               actionInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${actionInfo.cls}` }, actionInfo.label)
             ),
 
-            // ── Row 2: sub · time · upvotes · comments [· rationale] ──
-            h('div', { className: 'flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums' },
-              h('span', { className: 'font-semibold text-amber-600 dark:text-amber-500 shrink-0' }, `r/${post.subreddit}`),
+            // ── Row 2: sub  time  upvotes  comments  [rationale] ──
+            h('div', { className: 'flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-400 tabular-nums' },
+              h('span', { className: 'font-semibold text-amber-600 dark:text-amber-400 shrink-0' }, `r/${post.subreddit}`),
               isSpiking && h('span', { className: 'text-rose-500 shrink-0' }, '⚡'),
-              h('span', { className: 'text-zinc-300 dark:text-zinc-700 shrink-0' }, '·'),
               h('span', { title: absoluteDate(post.created_utc), className: `${timeClass} shrink-0` }, timeAgo(post.created_utc)),
-              h('span', { className: 'text-zinc-300 dark:text-zinc-700 shrink-0' }, '·'),
-              h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/70 dark:text-emerald-500/60 shrink-0' },
+              h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-500 shrink-0' },
                 renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'), score),
               h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
                 renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments),
-              rationale && showAiReasons && h('span', {
-                className: 'flex-1 truncate text-zinc-500 dark:text-zinc-500 min-w-0 ml-0.5',
-              }, `· ${rationale}`)
+              rationale && (showAiReasons || isHighlyRelevant) && h('span', {
+                className: 'flex-1 truncate text-zinc-400 dark:text-zinc-400 min-w-0',
+              }, rationale)
             )
           ),
 
@@ -263,7 +263,7 @@
           h('div', { className: 'absolute top-1 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity' },
             h('button', {
               onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
-              className: 'p-1 rounded text-zinc-400/60 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors',
+              className: 'p-1 rounded text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors',
             },
               h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z' })
@@ -318,6 +318,19 @@
   }) {
     if (detailCollapsed) return null;
 
+    // Hoist score/tier for header
+    const detailOpportunity = selectedPost ? getOpportunityForPost(selectedPost.id) : null;
+    const detailPriority = selectedPost ? getPriorityScore(selectedPost.id) : null;
+    const detailRelevanceScore = selectedPost ? postScoreProxies.get(String(selectedPost.id)) : undefined;
+    const detailScoreDisplay = detailPriority !== null && detailPriority !== undefined
+      ? `P${Math.round(detailPriority * 100)}`
+      : (detailRelevanceScore !== undefined && detailRelevanceScore !== null
+          ? `${aiScoresStale ? '~' : ''}${detailRelevanceScore}/5`
+          : null);
+    const detailIsHero = detailPriority !== null && detailPriority !== undefined
+      ? detailPriority >= 0.85
+      : detailRelevanceScore >= 5;
+
     return h('aside', { className: `w-80 bg-white dark:bg-zinc-800 flex-col shrink-0 border-l border-zinc-100 dark:border-white/[0.05] ${mobileView === 'detail' ? 'flex' : 'hidden lg:flex'}` },
 
       // Header
@@ -329,7 +342,12 @@
         }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
           h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
         )),
-        h('span', { className: 'font-display text-[9px] uppercase tracking-[0.2em] text-zinc-300 dark:text-zinc-600 hidden lg:block' }, 'Brief'),
+        h('div', { className: 'hidden lg:flex items-center gap-2' },
+          h('span', { className: 'font-display text-[9px] uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500' }, 'Brief'),
+          detailScoreDisplay && h('span', {
+            className: `font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${detailIsHero ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-white/[0.08] text-zinc-500 dark:text-zinc-400'}`,
+          }, detailScoreDisplay)
+        ),
         h('button', {
           onClick: () => setDetailCollapsed(true),
           'aria-label': 'Collapse',
@@ -344,13 +362,10 @@
       h('div', { className: 'flex-1 overflow-auto scrollbar-thin' },
         !selectedPost
           ? h('div', { className: 'flex items-center justify-center h-full' },
-              h('p', { className: 'text-xs text-zinc-300 dark:text-zinc-600' }, 'Select a post to read more')
+              h('p', { className: 'text-xs text-zinc-400 dark:text-zinc-500' }, 'Select a post to read more')
             )
           : (() => {
-              const detailOpportunity = getOpportunityForPost(selectedPost.id);
               const detailType = detailOpportunity?.classification?.type;
-              const detailRelevanceScore = postScoreProxies.get(String(selectedPost.id));
-              const detailPriority = getPriorityScore(selectedPost.id);
               const hasBrief = detailOpportunity || detailPriority !== null || (detailRelevanceScore !== undefined && detailRelevanceScore !== null);
 
               return h('div', null,
@@ -358,8 +373,8 @@
                 // ── Post header ───────────────────────────────────────────
                 h('div', { className: 'px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-white/[0.05]' },
                   h('div', { className: 'flex items-center gap-1.5 flex-wrap mb-2' },
-                    h('span', { className: 'text-xs font-semibold text-amber-600/70 dark:text-amber-400/60' }, `r/${selectedPost.subreddit}`),
-                    detailType && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-amber-500/60 dark:text-amber-400/50' }, formatOpportunityLabel(detailType)),
+                    h('span', { className: 'text-xs font-semibold text-amber-600 dark:text-amber-400' }, `r/${selectedPost.subreddit}`),
+                    detailType && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-amber-500 dark:text-amber-400' }, formatOpportunityLabel(detailType)),
                     selectedPost.link_flair_text && h('span', {
                       className: 'px-1.5 py-px rounded text-[10px] font-medium',
                       style: {
@@ -373,7 +388,7 @@
                   h('div', { className: 'flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500 tabular-nums' },
                     detailPriority !== null && h('span', { className: 'bg-amber-500 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded' }, `P${Math.round(detailPriority * 100)}`),
                     detailPriority === null && detailRelevanceScore !== undefined && detailRelevanceScore !== null && h('span', { className: 'bg-amber-500 text-white font-mono text-[11px] font-bold px-1.5 py-0.5 rounded' }, `${aiScoresStale ? '~' : ''}${detailRelevanceScore}/5`),
-                    h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/80 dark:text-emerald-500/70' },
+                    h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-500' },
                       renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'), selectedPost.score),
                     h('span', { className: 'inline-flex items-center gap-0.5' },
                       renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'), selectedPost.num_comments),
@@ -411,20 +426,20 @@
                   selectedPostNextAction && h('div', {
                     className: 'mx-4 mt-3 border-l-2 border-amber-500 dark:border-amber-400 bg-amber-50/60 dark:bg-amber-500/[0.07] px-3 py-2.5 rounded-r-lg',
                   },
-                    h('p', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-amber-600/60 dark:text-amber-400/50 mb-1' }, 'Next action'),
+                    h('p', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400 mb-1' }, 'Next action'),
                     h('p', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-200 leading-relaxed' }, selectedPostNextAction)
                   ),
 
                   h('div', { className: 'px-4 pt-3 pb-4 space-y-3' },
                     selectedPostWhyItems.slice(0, 6).map((item) =>
                       h('div', { key: item.label },
-                        h('p', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-zinc-400/60 dark:text-zinc-600 mb-1' }, item.label),
+                        h('p', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500 mb-1' }, item.label),
 
                         item.label === 'Why now'
                           ? h('div', { className: 'space-y-1' },
                               item.value.split(' • ').filter(Boolean).map((bullet, i) =>
                                 h('div', { key: i, className: 'flex items-baseline gap-1.5' },
-                                  h('span', { className: 'text-amber-400/50 dark:text-amber-500/40 shrink-0 text-[10px]' }, '·'),
+                                  h('span', { className: 'text-amber-400 dark:text-amber-500 shrink-0 text-[10px]' }, '·'),
                                   h('span', { className: 'text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed' }, bullet)
                                 )
                               )
@@ -441,14 +456,14 @@
                           ? h('div', { className: 'space-y-2' },
                               h('div', { className: 'flex items-center gap-2' },
                                 h('span', { className: 'font-mono text-[10px] text-zinc-500 dark:text-zinc-400 w-14 shrink-0' }, item.upvotesLabel || '—'),
-                                h('span', { className: 'font-display text-[9px] text-zinc-400/60 dark:text-zinc-600 w-12 shrink-0' }, 'upvotes'),
+                                h('span', { className: 'font-display text-[9px] text-zinc-400 dark:text-zinc-500 w-12 shrink-0' }, 'upvotes'),
                                 h('div', { className: 'flex-1 h-1 rounded-full bg-zinc-100 dark:bg-white/[0.06] overflow-hidden' },
                                   h('div', { className: 'h-full rounded-full bg-emerald-400/70 dark:bg-emerald-500/50', style: { width: `${Math.min(100, ((item.upvotesPerHour || 0) / 20) * 100)}%` } })
                                 )
                               ),
                               h('div', { className: 'flex items-center gap-2' },
                                 h('span', { className: 'font-mono text-[10px] text-zinc-500 dark:text-zinc-400 w-14 shrink-0' }, item.commentsLabel || '—'),
-                                h('span', { className: 'font-display text-[9px] text-zinc-400/60 dark:text-zinc-600 w-12 shrink-0' }, 'comments'),
+                                h('span', { className: 'font-display text-[9px] text-zinc-400 dark:text-zinc-500 w-12 shrink-0' }, 'comments'),
                                 h('div', { className: 'flex-1 h-1 rounded-full bg-zinc-100 dark:bg-white/[0.06] overflow-hidden' },
                                   h('div', { className: 'h-full rounded-full bg-zinc-400/50 dark:bg-zinc-500/40', style: { width: `${Math.min(100, ((item.commentsPerHour || 0) / 5) * 100)}%` } })
                                 )
@@ -463,7 +478,7 @@
 
                 // ── Post body ─────────────────────────────────────────────
                 h('div', { className: 'px-4 py-3' },
-                  h('div', { className: 'post-body text-zinc-500 dark:text-zinc-500' },
+                  h('div', { className: 'post-body text-zinc-600 dark:text-zinc-400' },
                     renderBody(selectedPost)
                   )
                 )
