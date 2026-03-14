@@ -219,8 +219,15 @@ describe('AI rank handler', () => {
       body: {
         posts: [{ id: 'post1', title: 'Need help with SEO', subreddit: 'smallbusiness', score: 14, num_comments: 5, created_utc: Date.now() / 1000 }],
         userGoals: 'Find commercial marketing opportunities',
+        userContext: 'We sell SEO services to small businesses.',
         openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
         openRouterApiKey: 'inline-key',
+        auditContext: {
+          clientRunId: 'airun_test_1',
+          chunkIndex: 0,
+          totalChunks: 3,
+          totalFeedPosts: 696,
+        },
       },
       headers: { cookie: '' },
     };
@@ -261,9 +268,50 @@ describe('AI rank handler', () => {
       .filter((call) => call[0] === '[ai-ranking-event]')
       .map((call) => JSON.parse(call[1]));
 
-    expect(aiLogCalls.map((entry) => entry.eventType)).toEqual(expect.arrayContaining(['request_started', 'request_completed']));
+    expect(aiLogCalls.map((entry) => entry.eventType)).toEqual(expect.arrayContaining([
+      'request_started',
+      'request_context',
+      'input_post',
+      'batch_completed',
+      'ranked_post',
+      'request_completed',
+    ]));
+    expect(aiLogCalls.find((entry) => entry.eventType === 'request_context')).toMatchObject({
+      clientRunId: 'airun_test_1',
+      chunkIndex: 0,
+      totalChunks: 3,
+      totalFeedPosts: 696,
+      userGoals: 'Find commercial marketing opportunities',
+      userContext: 'We sell SEO services to small businesses.',
+    });
+    expect(aiLogCalls.find((entry) => entry.eventType === 'input_post')).toMatchObject({
+      clientRunId: 'airun_test_1',
+      postId: 'post1',
+      post: expect.objectContaining({
+        id: 'post1',
+        title: 'Need help with SEO',
+        subreddit: 'smallbusiness',
+      }),
+      reviewPlan: expect.objectContaining({
+        plannedReview: 'llm',
+        heuristicDetails: expect.any(Object),
+      }),
+    });
+    expect(aiLogCalls.find((entry) => entry.eventType === 'ranked_post')).toMatchObject({
+      clientRunId: 'airun_test_1',
+      postId: 'post1',
+      item: expect.objectContaining({
+        postId: 'post1',
+        review: expect.objectContaining({ status: 'llm_reviewed' }),
+        opportunity: expect.objectContaining({
+          classification: expect.any(Object),
+          action: expect.any(Object),
+        }),
+      }),
+    });
     expect(aiLogCalls.find((entry) => entry.eventType === 'request_completed')).toMatchObject({
       status: 'success',
+      clientRunId: 'airun_test_1',
       postCount: 1,
       llmReviewedCount: 1,
       failedReviewCount: 0,
