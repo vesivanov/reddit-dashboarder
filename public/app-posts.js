@@ -166,8 +166,18 @@
           : 'text-zinc-400 dark:text-zinc-500';
 
         // ── Rationale ─────────────────────────────────────────────────
+        // Only show AI-generated text; skip the buildWhyLine stats fallback
+        // since score/comments/velocity are already shown in the metadata row
         const rationale = opportunity?.explanation?.summary
-          || buildWhyLine({ post, relevanceMeta, upvotesPerHour, commentsPerHour });
+          || (relevanceMeta?.reason ? `Why: ${relevanceMeta.reason}` : null);
+
+        // ── Post type + domain ─────────────────────────────────────────
+        const domain = !post.is_self && post.domain ? post.domain : null;
+        const isTextPost = Boolean(post.is_self);
+
+        // ── Upvote ratio ───────────────────────────────────────────────
+        const upvoteRatio = post.upvote_ratio != null ? Math.round(post.upvote_ratio * 100) : null;
+        const isControversial = upvoteRatio !== null && upvoteRatio < 70;
 
         // ── Recommended action badge ───────────────────────────────────
         const recommendedAction = opportunity?.action?.recommended;
@@ -220,7 +230,7 @@
             ? 'bg-amber-50/40 dark:bg-amber-500/[0.11] hover:bg-amber-50/70 dark:hover:bg-amber-500/[0.15]'
             : 'hover:bg-zinc-50 dark:hover:bg-white/[0.03]';
 
-        const cardOpacity = cardTier === 'suppressed' && !isSelected ? 'opacity-40 hover:opacity-75' : '';
+        const cardOpacity = '';
 
         // ── Read tracking: subtle left indicator dot (not title dimming) ──
         const isRead = openedPostIds && openedPostIds.has(post.id) && !isSelected;
@@ -233,11 +243,11 @@
         },
           h('button', {
             onClick: () => onSelectPost(post),
-            className: 'w-full text-left px-3 py-2.5 pr-16',
+            className: 'w-full text-left px-3 py-2 pr-16',
           },
 
             // ── Row 1: title + badges ─────────────────────────────────
-            h('div', { className: 'flex items-start gap-2 mb-1.5' },
+            h('div', { className: 'flex items-start gap-2 mb-1' },
               h('p', {
                 className: `flex-1 text-[13px] font-semibold leading-snug line-clamp-2 ${
                   isSelected
@@ -254,21 +264,30 @@
               scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay)
             ),
 
-            // ── Row 2: sub  time  upvotes  comments  author ───────────
-            h('div', { className: 'flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums' },
+            // ── Row 2: sub  flair  type/domain  time  upvotes  comments  ratio  author ──
+            h('div', { className: 'flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums flex-wrap' },
               h('span', { className: 'font-medium text-zinc-500 dark:text-zinc-400 shrink-0' }, `r/${post.subreddit}`),
+              flair && h('span', {
+                className: 'px-1 py-px rounded text-[10px] font-medium shrink-0',
+                style: { backgroundColor: flairBg, color: flairTextColor },
+              }, flair),
+              domain
+                ? h('span', { className: 'shrink-0 text-zinc-400 dark:text-zinc-500 font-mono text-[10px]' }, domain)
+                : isTextPost && h('span', { className: 'shrink-0 text-zinc-400 dark:text-zinc-500' }, 'text'),
+              h('span', { className: 'shrink-0 text-zinc-300 dark:text-zinc-600' }, '·'),
               isSpiking
                 ? h('span', { className: 'inline-flex items-center gap-0.5 text-rose-500 shrink-0 font-medium' },
                     '⚡', upvotesPerHour > 0 && `${formatVelocity(upvotesPerHour)}/h`)
                 : null,
               h('span', { title: absoluteDate(post.created_utc), className: `${timeClass} shrink-0` }, timeAgo(post.created_utc)),
-              h('span', { className: 'inline-flex items-center gap-1 text-zinc-500 dark:text-zinc-400 shrink-0' },
+              h('span', { className: 'inline-flex items-center gap-0.5 text-zinc-500 dark:text-zinc-400 shrink-0' },
                 renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'),
                 score,
                 !isSpiking && upvotesPerHour > 2 && h('span', { className: 'text-amber-500 dark:text-amber-400 font-medium' }, `+${formatVelocity(upvotesPerHour)}/h`)
               ),
               h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
                 renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments),
+              isControversial && h('span', { className: 'shrink-0 text-rose-500 dark:text-rose-400 font-medium', title: `${upvoteRatio}% upvoted` }, `${upvoteRatio}%↑`),
               post.author && h('span', { className: 'shrink-0 text-zinc-400 dark:text-zinc-500' }, `u/${post.author}`)
             ),
 
