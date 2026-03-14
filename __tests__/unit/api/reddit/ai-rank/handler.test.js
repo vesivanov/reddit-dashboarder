@@ -93,8 +93,16 @@ describe('AI rank handler', () => {
 
     const payload = res.json.mock.calls[0][0];
     expect(payload.scores.p1).toBe(5);
-    expect(payload.scores.p2).toBeNull();
+    expect(payload.scores.p2).not.toBeNull();
+    expect(payload.opportunities.p2).toBeDefined();
     expect(payload.failedPostIds).toContain('p2');
+    expect(payload.items.find((item) => item.postId === 'p2')).toMatchObject({
+      opportunity: expect.objectContaining({
+        classification: expect.any(Object),
+        action: expect.any(Object),
+      }),
+      review: { status: 'failed', failed: true },
+    });
   });
 
   test('returns structured opportunities alongside legacy scores', async () => {
@@ -145,6 +153,9 @@ describe('AI rank handler', () => {
     expect(payload.opportunities.post1).toMatchObject({
       classification: { type: 'lead' },
       action: { recommended: 'reply_now' },
+    });
+    expect(payload.items.find((item) => item.postId === 'post1')).toMatchObject({
+      review: { status: 'llm_reviewed', failed: false },
     });
     expect(payload.opportunities.post1.scores.priority).toBeGreaterThan(0.6);
   });

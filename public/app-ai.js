@@ -4,10 +4,28 @@
   const AI_MODEL_KEY = 'dashboard_ai_model';
   const AI_PROMPT_VERSION_KEY = 'dashboard_ai_prompt_version';
 
-  function buildAiCacheVersion({ goalText, contextText, promptVersion, model, hashGoals }) {
-    const combinedGoals = `${String(goalText || '').trim()}||${String(contextText || '').trim()}`;
-    const goalsHash = hashGoals(combinedGoals);
-    return `${goalsHash}_${promptVersion}_${model}`;
+  function buildAiCacheVersion({
+    goalText,
+    contextText,
+    avoidText,
+    examples,
+    promptVersion,
+    model,
+    llmLimit,
+    rankingStrategyVersion = 'hybrid-v1',
+    hashGoals,
+  }) {
+    const signature = JSON.stringify({
+      goalText: String(goalText || '').trim(),
+      contextText: String(contextText || '').trim(),
+      avoidText: String(avoidText || '').trim(),
+      examples: examples || {},
+      promptVersion: String(promptVersion || '').trim(),
+      model: String(model || '').trim(),
+      llmLimit: Number(llmLimit) || 0,
+      rankingStrategyVersion,
+    });
+    return `${hashGoals(signature)}_${promptVersion}_${model}`;
   }
 
   function getAiCacheVersionStatus(currentVersion) {
@@ -66,6 +84,7 @@
     const cache = readAiScoreCacheObject();
     const now = Date.now();
     const requestedIds = new Set((posts || []).map(post => String(post?.id || post?.data?.id || '')).filter(Boolean));
+    const items = new Map();
     const scores = new Map();
     const metadata = new Map();
     const opportunities = new Map();
@@ -92,15 +111,28 @@
 
       scores.set(postId, entry.score);
       if (entry.source || entry.confidence || entry.reason || entry.debug) {
-        metadata.set(postId, {
+        const nextMeta = {
           source: entry.source || fallbackSource,
           confidence: entry.confidence || 'medium',
           reason: entry.reason || fallbackReason,
           debug: entry.debug || null,
-        });
+        };
+        metadata.set(postId, nextMeta);
       }
       if (entry.opportunity && typeof entry.opportunity === 'object') {
         opportunities.set(postId, entry.opportunity);
+      }
+      if (entry.item && typeof entry.item === 'object') {
+        items.set(postId, entry.item);
+      } else {
+        items.set(postId, {
+          postId,
+          post: null,
+          score: entry.score,
+          metadata: metadata.get(postId) || null,
+          opportunity: entry.opportunity || null,
+          review: entry.review || null,
+        });
       }
     });
 
@@ -114,6 +146,7 @@
       scores,
       metadata,
       opportunities,
+      items,
       cacheObject: Object.fromEntries(validEntries),
       hadExpiredRequestedEntries,
     };
@@ -181,7 +214,7 @@
   }
 
   function buildAiRankRequestPayload({
-    topPosts = [],
+    posts = [],
     goalText = '',
     contextText = '',
     avoidText = '',
@@ -189,11 +222,12 @@
     secureKeyAvailable = false,
     openRouterApiKey = '',
     openRouterModel = '',
+    llmPostLimit = 0,
     modelTemperature = 0,
     modelTopP = 1,
   }) {
     return {
-      posts: topPosts.map(post => ({
+      posts: posts.map(post => ({
         id: post.id,
         title: post.title,
         selftext: post.selftext || '',
@@ -208,6 +242,7 @@
       })),
       userGoals: goalText.trim(),
       userContext: contextText && contextText.trim() ? contextText.trim() : undefined,
+      llmPostLimit,
       scoringConfig: {
         lookingFor: goalText.trim(),
         avoid: avoidText && avoidText.trim() ? avoidText.trim() : undefined,
@@ -249,65 +284,50 @@
 
   function mergeAiRankResponse({
     result,
+    items,
     scores,
     metadata,
     opportunities,
     cacheObject,
-    heuristicDetailsById,
-    scoredPostMap,
-    buildRelevanceDebug,
     now = Date.now(),
   }) {
+    const nextItems = new Map(items);
     const nextScores = new Map(scores);
     const nextMetadata = new Map(metadata);
     const nextOpportunities = new Map(opportunities);
     const nextCacheObject = { ...(cacheObject || {}) };
-    const scoresObj = result?.scores || {};
-    const metadataObj = result?.metadata || {};
-    const opportunitiesObj = result?.opportunities || {};
+    const resultItems = Array.isArray(result?.items) ? result.items : [];
 
-    if (scoresObj && typeof scoresObj === 'object' && !Array.isArray(scoresObj)) {
-      Object.entries(scoresObj).forEach(([postId, relevanceScore]) => {
-        const postIdStr = String(postId);
-        if (relevanceScore !== null && relevanceScore !== undefined) {
-          nextScores.set(postIdStr, relevanceScore);
-          const meta = metadataObj[postId] || {};
-          const opportunity = opportunitiesObj[postId] || null;
-          const heuristicDetails = heuristicDetailsById.get(postIdStr);
-          nextMetadata.set(postIdStr, {
-            source: 'llm',
-            confidence: meta.confidence || 'medium',
-            reason: meta.reason || 'LLM-ranked opportunity',
-            debug: buildRelevanceDebug({
-              postId: postIdStr,
-              heuristicDetails,
-              postMap: scoredPostMap,
-              llmReason: meta.reason,
-              llmConfidence: meta.confidence,
-              source: 'llm',
-            }),
-          });
-          if (opportunity) {
-            nextOpportunities.set(postIdStr, opportunity);
-          }
-          nextCacheObject[postIdStr] = {
-            score: relevanceScore,
-            timestamp: now,
-            version: result?.promptVersion || 'v3.1',
-            model: result?.model || 'unknown',
-            confidence: meta.confidence || 'medium',
-            reason: meta.reason || 'LLM-ranked opportunity',
-            source: 'llm',
-            debug: nextMetadata.get(postIdStr)?.debug || null,
-            opportunity: opportunity || null,
-          };
-        } else {
-          nextScores.set(postIdStr, null);
-        }
-      });
-    }
+    resultItems.forEach((item) => {
+      const postIdStr = String(item?.postId || item?.post?.id || '');
+      if (!postIdStr) return;
+      const itemScore = item?.score ?? null;
+      const itemMetadata = item?.metadata || null;
+      const itemOpportunity = item?.opportunity || null;
+      const itemReview = item?.review || null;
+
+      nextItems.set(postIdStr, item);
+      nextScores.set(postIdStr, itemScore);
+      if (itemMetadata) nextMetadata.set(postIdStr, itemMetadata);
+      if (itemOpportunity) nextOpportunities.set(postIdStr, itemOpportunity);
+
+      nextCacheObject[postIdStr] = {
+        score: itemScore,
+        timestamp: now,
+        version: result?.promptVersion || 'v3.1',
+        model: result?.model || 'unknown',
+        confidence: itemMetadata?.confidence || 'medium',
+        reason: itemMetadata?.reason || '',
+        source: itemMetadata?.source || itemReview?.source || 'llm',
+        debug: itemMetadata?.debug || null,
+        opportunity: itemOpportunity || null,
+        review: itemReview || null,
+        item,
+      };
+    });
 
     return {
+      items: nextItems,
       scores: nextScores,
       metadata: nextMetadata,
       opportunities: nextOpportunities,

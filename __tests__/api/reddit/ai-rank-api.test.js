@@ -87,9 +87,22 @@ describe('/api/reddit/ai-rank', () => {
     expect(parsedBody.models).toBeUndefined();
     expect(parsedBody.response_format?.type).toBe('json_schema');
     expect(parsedBody.provider).toMatchObject({ require_parameters: true, sort: 'throughput' });
-    expect(res.body.scores).toMatchObject({ p1: 5, p2: null });
+    expect(res.body.scores.p1).toBe(5);
+    expect(res.body.scores.p2).not.toBeNull();
     expect(res.body.metadata.p1).toMatchObject({ confidence: 'high' });
     expect(res.body.opportunities.p1).toBeDefined();
+    expect(res.body.opportunities.p2).toBeDefined();
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.find((item) => item.postId === 'p1')).toMatchObject({
+      review: { status: 'llm_reviewed', failed: false },
+    });
+    expect(res.body.items.find((item) => item.postId === 'p2')).toMatchObject({
+      opportunity: expect.objectContaining({
+        classification: expect.any(Object),
+        action: expect.any(Object),
+      }),
+      review: { status: 'failed', failed: true },
+    });
     expect(res.headers['x-rdd-metrics']).toBeDefined();
   });
 
@@ -127,7 +140,9 @@ describe('/api/reddit/ai-rank', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.failedPostIds).toEqual(expect.arrayContaining(['p1', 'p2']));
-    expect(Object.values(res.body.scores).every((score) => score === null)).toBe(true);
+    expect(res.body.items.every((item) => item.review?.status === 'failed')).toBe(true);
+    expect(res.body.items.every((item) => item.opportunity)).toBe(true);
+    expect(Object.values(res.body.scores).every((score) => score !== undefined && score !== null)).toBe(true);
   });
 
   test('accepts larger single-request post payloads for server-side batching', async () => {

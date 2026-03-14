@@ -103,16 +103,25 @@ const {
   requestAiRank = null,
 } = fetchClient;
 const {
-  buildAiCacheVersion = ({ goalText, contextText, promptVersion, model, hashGoals }) => `${hashGoals(`${goalText}||${contextText}`)}_${promptVersion}_${model}`,
+  buildAiCacheVersion = ({
+    goalText,
+    contextText,
+    avoidText,
+    examples,
+    promptVersion,
+    model,
+    llmLimit,
+    hashGoals,
+  }) => `${hashGoals(JSON.stringify({ goalText, contextText, avoidText, examples, promptVersion, model, llmLimit }))}_${promptVersion}_${model}`,
   getAiCacheVersionStatus = () => ({ savedVersion: '', mismatched: false }),
   ensureAiCacheVersion = () => ({ savedVersion: '', mismatched: false }),
   persistAiModelInfo = () => {},
-  loadAiScoreCache = () => ({ scores: new Map(), metadata: new Map(), opportunities: new Map(), cacheObject: {}, hadExpiredRequestedEntries: false }),
+  loadAiScoreCache = () => ({ scores: new Map(), metadata: new Map(), opportunities: new Map(), items: new Map(), cacheObject: {}, hadExpiredRequestedEntries: false }),
   persistAiScoreCache = () => {},
   buildHeuristicRankingPlan = ({ posts = [] }) => ({ keywords: [], postsWithHeuristic: [], topPosts: posts, remainingPosts: [], heuristicDetailsById: new Map() }),
   buildAiRankRequestPayload = (payload) => payload,
   collectStrongOpportunityNotifications = () => [],
-  mergeAiRankResponse = ({ scores, metadata, opportunities, cacheObject }) => ({ scores, metadata, opportunities, cacheObject }),
+  mergeAiRankResponse = ({ items, scores, metadata, opportunities, cacheObject }) => ({ items, scores, metadata, opportunities, cacheObject }),
   appendHeuristicScores = ({ scores, metadata, cacheObject }) => ({ scores, metadata, cacheObject }),
   appendNotifiedPostIds = (previousIds) => new Set(previousIds || []),
 } = aiClient;
@@ -123,12 +132,12 @@ const {
   runSnapshotRefreshFlow = async ({ localPauseUntil }) => localPauseUntil,
 } = refreshController;
 const {
-  getPriorityScore: getPriorityScoreValue = ({ postId, getOpportunityForPost, postScoreProxies }) => {
+  getPriorityScore: getPriorityScoreValue = ({ postId, getAiItemForPost, getOpportunityForPost }) => {
     const opportunity = getOpportunityForPost(postId);
     if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
       return Number(opportunity.scores.priority) || 0;
     }
-    const relevance = postScoreProxies.get(String(postId));
+    const relevance = getAiItemForPost(postId)?.score;
     if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
     return null;
   },
@@ -244,6 +253,7 @@ function buildConfigSyncSignature({
       const [minUpvoteFilter, setMinUpvoteFilter] = useState('');
       const [minCommentFilter, setMinCommentFilter] = useState('');
       const [minPriorityFilter, setMinPriorityFilter] = useState('');
+      const [actionFilter, setActionFilter] = useState('');
       const [filterPresets, setFilterPresets] = useState(() => {
         return readJSON('dashboard_filter_presets', [], Array.isArray);
       });
@@ -365,9 +375,7 @@ function buildConfigSyncSignature({
       const [showAiReasons, setShowAiReasons] = useState(() => {
         return readBooleanFlag('dashboard_show_ai_reasons', true);
       });
-      const [postScoreProxies, setPostScoreProxies] = useState(new Map());
-      const [postScoreMetadata, setPostScoreMetadata] = useState(new Map());
-      const [postOpportunities, setPostOpportunities] = useState(new Map());
+      const [postAiItems, setPostAiItems] = useState(new Map());
       const [scoresVersion, setScoresVersion] = useState(0); // Version counter to force useMemo recalculation
       const [opportunityScanLoading, setOpportunityScanLoading] = useState(false);
       const [aiScoresStale, setAiScoresStale] = useState(false);
@@ -584,13 +592,20 @@ function buildConfigSyncSignature({
       const hasRestoredScoresRef = useRef(false);
       useEffect(() => {
         // Only run once when data is available, AI is enabled, and we haven't restored scores yet
-        if (data.length > 0 && opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size === 0 && !hasRestoredScoresRef.current) {
+        if (data.length > 0 && opportunityEngineEnabled && hasOpportunityGoals && postAiItems.size === 0 && !hasRestoredScoresRef.current) {
           hasRestoredScoresRef.current = true;
           const currentCacheVersion = buildAiCacheVersion({
             goalText: effectiveGoalText,
             contextText: effectiveContextText,
+            avoidText: effectiveAvoidText,
+            examples: {
+              perfect: aiExamplePerfect,
+              strong: aiExampleStrong,
+              reject: aiExampleReject,
+            },
             promptVersion: AI_PROMPT_VERSION,
             model: openRouterModel,
+            llmLimit: aiLlmPostLimit,
             hashGoals,
           });
           const cacheVersionStatus = getAiCacheVersionStatus(currentCacheVersion);
@@ -602,15 +617,13 @@ function buildConfigSyncSignature({
             fallbackReason: '',
           });
 
-          if (cacheState.scores.size > 0) {
-            setPostScoreProxies(cacheState.scores);
-            setPostScoreMetadata(cacheState.metadata);
-            setPostOpportunities(cacheState.opportunities);
+          if ((cacheState.items || new Map()).size > 0) {
+            setPostAiItems(cacheState.items || new Map());
             setScoresVersion(v => v + 1);
             setAiScoresStale(Boolean(cacheVersionStatus.mismatched || cacheState.hadExpiredRequestedEntries));
           }
         }
-      }, [data, opportunityEngineEnabled, hasOpportunityGoals, effectiveGoalText, effectiveContextText, postScoreProxies.size, openRouterModel, AI_PROMPT_VERSION]); // Run when data or AI settings change
+      }, [data, opportunityEngineEnabled, hasOpportunityGoals, effectiveGoalText, effectiveContextText, effectiveAvoidText, aiExamplePerfect, aiExampleStrong, aiExampleReject, aiLlmPostLimit, postAiItems.size, openRouterModel, AI_PROMPT_VERSION]); // Run when data or AI settings change
 
       // Touch/swipe gesture handlers
       const handleTouchStart = useCallback((e) => {
@@ -846,17 +859,29 @@ function buildConfigSyncSignature({
         });
       }, [subs, allPosts]);
 
+      const getAiItemForPost = useCallback((postId) => {
+        return postAiItems.get(String(postId)) || null;
+      }, [postAiItems]);
+
+      const postScoreProxies = useMemo(() => {
+        return new Map(Array.from(postAiItems.entries()).map(([postId, item]) => [postId, item?.score]));
+      }, [postAiItems]);
+
+      const postScoreMetadata = useMemo(() => {
+        return new Map(Array.from(postAiItems.entries()).map(([postId, item]) => [postId, item?.metadata || null]));
+      }, [postAiItems]);
+
       const getOpportunityForPost = useCallback((postId) => {
-        return postOpportunities.get(String(postId)) || null;
-      }, [postOpportunities]);
+        return getAiItemForPost(postId)?.opportunity || null;
+      }, [getAiItemForPost]);
 
       const getPriorityScore = useCallback((postId) => {
         return getPriorityScoreValue({
           postId,
+          getAiItemForPost,
           getOpportunityForPost,
-          postScoreProxies,
         });
-      }, [getOpportunityForPost, postScoreProxies]);
+      }, [getAiItemForPost, getOpportunityForPost]);
 
       const getOpportunityTypeLabel = useCallback((postId) => {
         return formatOpportunityLabel(getOpportunityForPost(postId)?.classification?.type || null);
@@ -1094,6 +1119,13 @@ function buildConfigSyncSignature({
             const passesLegacy = aiScore !== null && aiScore !== undefined && aiScore >= minAiScore;
             if (!passesPriority && !passesLegacy) return false;
           }
+          if (actionFilter) {
+            const recommendedAction = getAiItemForPost(post.id)?.opportunity?.action?.recommended || '';
+            const matchesAction = actionFilter === 'act_now'
+              ? recommendedAction === 'reply_now' || recommendedAction === 'dm_if_possible'
+              : recommendedAction === actionFilter;
+            if (!matchesAction) return false;
+          }
           return true;
         });
 
@@ -1162,7 +1194,7 @@ function buildConfigSyncSignature({
           return ignoreMultiplier ? delta : delta * multiplier;
         });
         return sorted;
-      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, sortBy, sortOrder, hiddenPosts, postScoreProxies, postScoreMetadata, getPriorityScore, scoresVersion]);
+      }, [filteredBySub, keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, actionFilter, sortBy, sortOrder, hiddenPosts, postScoreProxies, postScoreMetadata, getPriorityScore, getAiItemForPost, scoresVersion]);
 
       const velocityMeta = useMemo(() => {
         const nowSeconds = Date.now() / 1000;
@@ -1198,7 +1230,7 @@ function buildConfigSyncSignature({
 
       const selectedPostWhyItems = useMemo(() => {
         if (!selectedPost) return [];
-        const meta = postScoreMetadata.get(String(selectedPost.id)) || null;
+        const meta = getAiItemForPost(selectedPost.id)?.metadata || null;
         const opportunity = getOpportunityForPost(selectedPost.id);
         const velocity = selectedPostVelocity;
         return buildPostWhyItems({
@@ -1209,18 +1241,18 @@ function buildConfigSyncSignature({
           formatVelocity,
           buildWhyLine,
         });
-      }, [selectedPost, postScoreMetadata, selectedPostVelocity, getOpportunityForPost]);
+      }, [selectedPost, getAiItemForPost, selectedPostVelocity, getOpportunityForPost]);
 
       const selectedPostNextAction = useMemo(() => {
         if (!selectedPost) return '';
         const opportunity = getOpportunityForPost(selectedPost.id);
-        const score = postScoreProxies.get(String(selectedPost.id));
+        const score = getAiItemForPost(selectedPost.id)?.score;
         return buildPostNextAction({
           selectedPost,
           opportunity,
           score,
         });
-      }, [selectedPost, postScoreProxies, getOpportunityForPost]);
+      }, [selectedPost, getAiItemForPost, getOpportunityForPost]);
 
       const aiScoreStats = useMemo(() => {
         const stats = { total: allPosts.length, scored: 0, llm: 0, high: 0, visibleHigh: 0 };
@@ -1291,13 +1323,8 @@ function buildConfigSyncSignature({
           aiExamplePerfect,
           aiExampleStrong,
           aiExampleReject,
-          extractGoalKeywords,
-          computeHeuristicDetails,
-          computeHeuristicScore,
           buildRelevanceDebug,
-          setPostScoreProxies,
-          setPostScoreMetadata,
-          setPostOpportunities,
+          setPostAiItems,
           setScoresVersion,
           setAiActivity,
           setOpportunityScanError,
@@ -1778,8 +1805,8 @@ function buildConfigSyncSignature({
         },
         {
           id: 'ai',
-          title: 'Choose engine mode',
-          description: 'Run manual search only or enable the opportunity engine.',
+          title: 'Choose review mode',
+          description: 'Run manual search only or enable AI review.',
         },
         {
           id: 'depth',
@@ -1799,9 +1826,17 @@ function buildConfigSyncSignature({
         if (keyword.trim()) pills.push({ key: 'keyword', label: `Keyword: ${truncateText(keyword.trim(), 24)}` });
         if (minUpvoteFilter) pills.push({ key: 'upvotes', label: `Upvotes: ${minUpvoteFilter}+` });
         if (minCommentFilter) pills.push({ key: 'comments', label: `Comments: ${minCommentFilter}+` });
-        if (minPriorityFilter) pills.push({ key: 'ai', label: `AI: ${minPriorityFilter}+` });
+        if (minPriorityFilter) pills.push({ key: 'ai', label: `Priority: ${minPriorityFilter}+` });
+        if (actionFilter) {
+          const actionLabel = actionFilter === 'act_now'
+            ? 'Act now'
+            : actionFilter === 'save_for_followup'
+              ? 'Save'
+              : 'Research';
+          pills.push({ key: 'action', label: `Action: ${actionLabel}` });
+        }
         return pills;
-      }, [keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, truncateText]);
+      }, [keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, actionFilter, truncateText]);
       const showingFilteredResults = visiblePosts.length !== preFilterPostCount;
 
       function clearFilterPill(key) {
@@ -1809,6 +1844,7 @@ function buildConfigSyncSignature({
         if (key === 'upvotes') setMinUpvoteFilter('');
         if (key === 'comments') setMinCommentFilter('');
         if (key === 'ai') setMinPriorityFilter('');
+        if (key === 'action') setActionFilter('');
       }
 
       function renderStatusChip(label, value, tone = 'neutral', title = undefined) {
@@ -1911,7 +1947,7 @@ function buildConfigSyncSignature({
         );
       };
 
-      const filtersActive = minUpvoteFilter || minCommentFilter || minPriorityFilter || keyword;
+      const filtersActive = minUpvoteFilter || minCommentFilter || minPriorityFilter || actionFilter || keyword;
       const staleSubCount = (data || []).filter(group => group?.stale).length;
       const coverageStateBySub = new Map((data || []).map(group => [
         String(group?.subreddit || '').toLowerCase(),
@@ -2057,10 +2093,8 @@ function buildConfigSyncSignature({
                     ? h('span', { className: 'text-xs text-rose-600 dark:text-rose-400 font-medium truncate' }, feedHealthLabel)
                     : h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' }, feedHealthLabel),
                   // AI engine inline status
-                  opportunityScanLoading && h('span', { className: 'text-xs text-amber-600 dark:text-amber-400 font-medium shrink-0' }, '· Ranking…'),
-                  !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && h('span', { className: 'font-mono text-xs text-zinc-400 dark:text-zinc-600 shrink-0' },
-                    `· ${aiScoreStats.scored}/${aiScoreStats.total} scored`
-                  ),
+                  opportunityScanLoading && h('span', { className: 'text-xs text-amber-600 dark:text-amber-400 font-medium shrink-0' }, '· Reviewing'),
+                  !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && h('span', { className: 'text-xs text-zinc-400 dark:text-zinc-600 shrink-0' }, '· Review ready'),
                   aiScoresStale && h('span', { className: 'text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 shrink-0' }, 'Stale'),
                   error && h('button', {
                     onClick: (e) => { e.stopPropagation(); refresh({ force: true }); },
@@ -2120,11 +2154,10 @@ function buildConfigSyncSignature({
           rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
           autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt), 'neutral'),
           BUILD_INFO?.commit && renderStatusChip('Build', BUILD_INFO.commit),
-          opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success'),
-          !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success'),
-          !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
-          !opportunityScanLoading && aiScoresStale && renderStatusChip('AI Scores', 'Stale', 'warning'),
-          !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Engine', 'Off', 'neutral')
+          opportunityScanLoading && renderStatusChip('Review', 'Running', 'success'),
+          !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && !aiScoresStale && renderStatusChip('Review', 'Ready', 'success'),
+          !opportunityScanLoading && aiScoresStale && renderStatusChip('Review', 'Stale', 'warning'),
+          !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Review', 'Setup needed', 'neutral')
         ),
         loading && fetchActivity && h('div', {
           className: 'border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200'
@@ -2189,18 +2222,12 @@ function buildConfigSyncSignature({
                   opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
                   'text-zinc-400 dark:text-zinc-600'
                 )},
-                  opportunityScanLoading ? 'Ranking…' :
-                  opportunityScanError ? 'AI failed' :
-                  opportunityEngineEnabled && hasOpportunityGoals ? 'AI on' : 'AI off'
+                  opportunityScanLoading ? 'Reviewing' :
+                  opportunityScanError ? 'Review failed' :
+                  opportunityEngineEnabled && hasOpportunityGoals ? 'Ready' : 'Needs setup'
                 ),
                 opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500 truncate min-w-0' },
                   `· ${aiGoalSummary || effectiveGoalText.trim()}`
-                ),
-                postScoreProxies.size > 0 && h('span', { className: 'font-mono text-[11px] text-zinc-400 dark:text-zinc-600 shrink-0' },
-                  `· ${aiScoreStats.scored}/${aiScoreStats.total}`
-                ),
-                aiScoreStats.high > 0 && h('span', { className: 'font-mono text-[11px] text-emerald-600 dark:text-emerald-500 shrink-0' },
-                  ` ${aiScoreStats.high} strong`
                 ),
                 aiScoresStale && h('span', { className: 'text-[10px] px-1 py-px rounded font-semibold bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 shrink-0' }, 'Stale'),
                 (opportunityScanError || aiActivity?.detail) && h('span', {
@@ -2214,15 +2241,15 @@ function buildConfigSyncSignature({
                     onClick: rerankNow,
                     disabled: opportunityScanLoading || loading,
                     className: 'px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                  }, opportunityScanLoading ? '…' : 'Re-rank'),
+                  }, opportunityScanLoading ? '…' : 'Run again'),
                   h('button', {
                     onClick: () => setSettingsOpen(true),
                     className: 'px-2 py-0.5 rounded text-[11px] font-medium border border-zinc-300 dark:border-white/[0.1] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-white/[0.05] transition-colors'
-                  }, opportunityEngineEnabled && hasOpportunityGoals ? 'Edit AI' : 'Set up AI'),
+                  }, 'AI setup'),
                   postScoreProxies.size > 0 && h('button', {
                     onClick: () => setShowAiReasons(!showAiReasons),
                     className: `px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${showAiReasons ? 'border-amber-400/60 text-amber-600 dark:text-amber-400' : 'border-zinc-300 dark:border-white/[0.1] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-white/[0.05]'}`
-                  }, showAiReasons ? 'Why: on' : 'Why')
+                  }, showAiReasons ? 'Reasons on' : 'Reasons')
                 )
               ),
               // Row 2: search + filter presets + sort
@@ -2254,6 +2281,25 @@ function buildConfigSyncSignature({
                   )
                 ),
                 h('div', { className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
+                opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
+                  h('div', { key: 'action-divider', className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
+                  h('div', { key: 'action-group', className: 'flex items-center gap-0.5' },
+                    h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, 'Do'),
+                    [
+                      { value: 'act_now', label: 'Act now', title: 'Reply now or DM if possible' },
+                      { value: 'save_for_followup', label: 'Save', title: 'Save for follow-up' },
+                      { value: 'research', label: 'Research', title: 'Research only' },
+                    ].map((preset) =>
+                      h('button', {
+                        key: `action-${preset.value}`,
+                        onClick: () => setActionFilter(actionFilter === preset.value ? '' : preset.value),
+                        title: preset.title,
+                        className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D97706] ${actionFilter === preset.value ? 'bg-zinc-900 text-white dark:bg-[#D97706]' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
+                      }, preset.label)
+                    )
+                  )
+                ],
+                h('div', { className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
                 h('div', { className: 'flex items-center gap-0.5' },
                   h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, '💬'),
                   COMMENT_PRESETS.filter(p => p.value !== '').map(preset =>
@@ -2268,12 +2314,12 @@ function buildConfigSyncSignature({
                 opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
                   h('div', { key: 'ai-divider', className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
                   h('div', { key: 'ai-group', className: 'flex items-center gap-0.5' },
-                    h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, 'AI'),
+                    h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, 'Priority'),
                     OPPORTUNITY_PRIORITY_PRESETS.filter(p => p.value !== '').map(preset =>
                       h('button', {
                         key: `ai-${preset.value}`,
                         onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
-                        title: `AI score ${preset.label}`,
+                        title: `Minimum priority ${preset.label}`,
                         className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D97706] ${minPriorityFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
                       }, preset.label)
                     )
@@ -2313,13 +2359,20 @@ function buildConfigSyncSignature({
                   ]
                 ),
                 filtersActive && h('button', {
-                  onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
+                  onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setActionFilter(''); setKeyword(''); },
                   className: 'px-2 py-1 rounded text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-white/[0.06] transition-colors'
                 }, '✕ Clear'),
                 filtersActive && filterPresets.length < 5 && h('button', {
                   onClick: () => {
-                    const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `AI${minPriorityFilter}+`, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
-                    setFilterPresets(prev => [...prev, { id: Date.now(), label: label || `Preset ${prev.length + 1}`, upvote: minUpvoteFilter, comment: minCommentFilter, priority: minPriorityFilter, keyword }]);
+                    const actionPresetLabel = actionFilter === 'act_now'
+                      ? 'Act'
+                      : actionFilter === 'save_for_followup'
+                        ? 'Save'
+                        : actionFilter === 'research'
+                          ? 'Research'
+                          : '';
+                    const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `P${minPriorityFilter}+`, actionPresetLabel, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
+                    setFilterPresets(prev => [...prev, { id: Date.now(), label: label || `Preset ${prev.length + 1}`, upvote: minUpvoteFilter, comment: minCommentFilter, priority: minPriorityFilter, action: actionFilter, keyword }]);
                   },
                   title: 'Save current filters as a preset',
                   className: 'text-xs text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 font-medium px-1'
@@ -2329,7 +2382,7 @@ function buildConfigSyncSignature({
                 filterPresets.map(preset =>
                   h('span', { key: preset.id, className: 'inline-flex items-center gap-0.5 rounded bg-amber-50 dark:bg-[#D97706]/10 border border-amber-200 dark:border-[#D97706]/25 text-[11px] font-medium text-[#B45309] dark:text-amber-400' },
                     h('button', {
-                      onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setKeyword(preset.keyword); },
+                      onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setActionFilter(preset.action || ''); setKeyword(preset.keyword); },
                       title: `Apply: ${preset.label}`,
                       className: 'pl-2 pr-1 py-0.5 hover:text-[#D97706] dark:hover:text-amber-200 transition-colors'
                     }, preset.label),
@@ -2355,7 +2408,7 @@ function buildConfigSyncSignature({
                 ))
               ),
               h('button', {
-                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
+                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setActionFilter(''); setKeyword(''); },
                 className: 'text-xs font-medium text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300'
               }, 'Clear filters')
             ),
@@ -2399,13 +2452,13 @@ function buildConfigSyncSignature({
                             h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mb-4' }, 'Clear one or more filters to bring posts back into view.'),
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
                               h('button', {
-                                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
+                                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setActionFilter(''); setKeyword(''); },
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#D97706] dark:hover:bg-[#B45309] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900'
                               }, 'Clear all filters'),
                               minPriorityFilter && h('button', {
                                 onClick: () => setMinPriorityFilter(''),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                              }, 'Remove AI filter')
+                              }, 'Remove priority filter')
                             )
                           ]
                         : [
@@ -2414,9 +2467,9 @@ function buildConfigSyncSignature({
                                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 1.5, d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' })
                               )
                             ),
-                            h('h3', { key: 'title', className: 'text-base font-semibold text-zinc-900 dark:text-white mb-1' }, opportunityEngineEnabled && hasOpportunityGoals ? 'No strong opportunities yet' : 'No posts found'),
+                            h('h3', { key: 'title', className: 'text-base font-semibold text-zinc-900 dark:text-white mb-1' }, opportunityEngineEnabled && hasOpportunityGoals ? 'No opportunities yet' : 'No posts found'),
                             h('p', { key: 'desc', className: 'text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mb-4' }, opportunityEngineEnabled && hasOpportunityGoals
-                              ? 'Try broadening your opportunity settings, lowering the priority filter, or fetching more posts.'
+                              ? 'Try broadening your opportunity settings, changing the action queue, lowering the priority filter, or fetching more posts.'
                               : 'Try a different fetch mode or add more subreddits.'
                             ),
                             h('div', { key: 'actions', className: 'flex items-center gap-2 flex-wrap justify-center' },
@@ -2427,7 +2480,7 @@ function buildConfigSyncSignature({
                               h('button', {
                                 onClick: () => setSettingsOpen(true),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                              }, opportunityEngineEnabled && hasOpportunityGoals ? 'Adjust engine settings' : 'Open settings')
+                              }, opportunityEngineEnabled && hasOpportunityGoals ? 'AI setup' : 'Open settings')
                             )
                           ]
                   )
@@ -2436,9 +2489,8 @@ function buildConfigSyncSignature({
                     visiblePosts,
                     postPageLimit,
                     selectedPostId: selectedPost?.id || null,
-                    postScoreProxies,
-                    postScoreMetadata,
                     velocityMeta,
+                    getAiItemForPost,
                     getOpportunityForPost,
                     getPriorityScore,
                     getOpportunityTypeLabel,
@@ -2486,10 +2538,9 @@ function buildConfigSyncSignature({
             setMobileView,
             setDetailCollapsed,
             selectedPost,
+            getAiItemForPost,
             getOpportunityForPost,
             getPriorityScore,
-            postScoreProxies,
-            postScoreMetadata,
             aiScoresStale,
             aiScoreLabel,
             showAiReasons,
@@ -2552,9 +2603,6 @@ function buildConfigSyncSignature({
           hasOpportunityGoals,
           secureKeyStatus,
           selectedModelInfo,
-          modelGroups,
-          setOpenRouterModel,
-          openRouterModel,
           days,
           setDays,
           maxPages,

@@ -11,12 +11,12 @@
       .replace(/^./, (char) => char.toUpperCase());
   }
 
-  function getPriorityScore({ postId, getOpportunityForPost, postScoreProxies }) {
+  function getPriorityScore({ postId, getAiItemForPost, getOpportunityForPost }) {
     const opportunity = getOpportunityForPost(postId);
     if (opportunity?.scores?.priority !== undefined && opportunity?.scores?.priority !== null) {
       return Number(opportunity.scores.priority) || 0;
     }
-    const relevance = postScoreProxies.get(String(postId));
+    const relevance = getAiItemForPost(postId)?.score;
     if (relevance !== undefined && relevance !== null) return (Number(relevance) || 0) / 5;
     return null;
   }
@@ -58,7 +58,7 @@
     }
     const signalSummary = getOpportunitySignalSummary(opportunity);
     if (signalSummary) items.push({ label: 'Signals', value: signalSummary });
-    if (meta?.reason) items.push({ label: 'AI note', value: meta.reason });
+    if (meta?.reason) items.push({ label: 'Review note', value: meta.reason });
     if (velocity) {
       items.push({
         label: 'Momentum',
@@ -96,9 +96,8 @@
     visiblePosts,
     postPageLimit,
     selectedPostId,
-    postScoreProxies,
-    postScoreMetadata,
     velocityMeta,
+    getAiItemForPost,
     getOpportunityForPost,
     getPriorityScore,
     getOpportunityTypeLabel,
@@ -121,7 +120,7 @@
     absoluteDate,
     openedPostIds,
   }) {
-    const hasAiData = postScoreProxies.size > 0;
+    const hasAiData = visiblePosts.some((post) => Boolean(getAiItemForPost(post.id)));
 
     return h('ul', { role: 'list', className: 'list-none' },
       visiblePosts.slice(0, postPageLimit).map((post) => {
@@ -131,11 +130,13 @@
         const flair = post.link_flair_text;
         const flairBg = post.link_flair_background_color || '#e4e4e7';
         const flairTextColor = post.link_flair_text_color === 'light' ? '#fff' : '#18181b';
-        const relevanceScore = postScoreProxies.get(String(post.id));
-        const relevanceMeta = postScoreMetadata.get(String(post.id));
-        const opportunity = getOpportunityForPost(post.id);
+        const aiItem = getAiItemForPost(post.id);
+        const relevanceScore = aiItem?.score;
+        const relevanceMeta = aiItem?.metadata || null;
+        const opportunity = aiItem?.opportunity || null;
         const priorityScore = getPriorityScore(post.id);
         const opportunityType = getOpportunityTypeLabel(post.id);
+        const reviewStatus = aiItem?.review?.status || '';
         const hasPriority = priorityScore !== null;
         const isHighlyRelevant = hasPriority
           ? priorityScore >= 0.65
@@ -177,6 +178,14 @@
             : recommendedAction === 'save_for_followup'
               ? { label: 'Save', cls: 'border border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500' }
               : null;
+        const typeInfo = opportunityType
+          ? { label: opportunityType, cls: 'border border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400' }
+          : null;
+        const reviewInfo = reviewStatus === 'heuristic_only'
+          ? { label: 'Light review', cls: 'border border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500' }
+          : reviewStatus === 'failed'
+            ? { label: 'Fallback', cls: 'border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400' }
+            : null;
 
         // ── Score badge ───────────────────────────────────────────────
         const scoreDisplay = priorityScore !== null
@@ -240,8 +249,10 @@
                         : 'text-zinc-800 dark:text-zinc-100'
                 }`,
               }, post.title),
-              scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay),
-              actionInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${actionInfo.cls}` }, actionInfo.label)
+              actionInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${actionInfo.cls}` }, actionInfo.label),
+              typeInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${typeInfo.cls}` }, typeInfo.label),
+              reviewInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${reviewInfo.cls}` }, reviewInfo.label),
+              scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay)
             ),
 
             // ── Row 2: sub  time  upvotes  comments  [rationale] ──
@@ -299,10 +310,9 @@
     setMobileView,
     setDetailCollapsed,
     selectedPost,
+    getAiItemForPost,
     getOpportunityForPost,
     getPriorityScore,
-    postScoreProxies,
-    postScoreMetadata,
     aiScoresStale,
     aiScoreLabel,
     showAiReasons,
@@ -319,9 +329,11 @@
     if (detailCollapsed) return null;
 
     // Hoist score/tier for header
-    const detailOpportunity = selectedPost ? getOpportunityForPost(selectedPost.id) : null;
+    const detailAiItem = selectedPost ? getAiItemForPost(selectedPost.id) : null;
+    const detailOpportunity = detailAiItem?.opportunity || (selectedPost ? getOpportunityForPost(selectedPost.id) : null);
+    const detailReview = detailAiItem?.review || null;
     const detailPriority = selectedPost ? getPriorityScore(selectedPost.id) : null;
-    const detailRelevanceScore = selectedPost ? postScoreProxies.get(String(selectedPost.id)) : undefined;
+    const detailRelevanceScore = detailAiItem?.score;
     const detailScoreDisplay = detailPriority !== null && detailPriority !== undefined
       ? `P${Math.round(detailPriority * 100)}`
       : (detailRelevanceScore !== undefined && detailRelevanceScore !== null
@@ -375,6 +387,8 @@
                   h('div', { className: 'flex items-center gap-1.5 flex-wrap mb-2' },
                     h('span', { className: 'text-xs font-semibold text-amber-600 dark:text-amber-400' }, `r/${selectedPost.subreddit}`),
                     detailType && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-amber-500 dark:text-amber-400' }, formatOpportunityLabel(detailType)),
+                    detailReview?.status === 'heuristic_only' && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500' }, 'light review'),
+                    detailReview?.status === 'failed' && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-rose-500 dark:text-rose-400' }, 'fallback'),
                     selectedPost.link_flair_text && h('span', {
                       className: 'px-1.5 py-px rounded text-[10px] font-medium',
                       style: {

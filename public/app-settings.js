@@ -242,7 +242,7 @@
               h('div', { className: 'flex items-center justify-between' },
                 h('div', null,
                   h('p', { className: 'font-medium text-zinc-900 dark:text-white' }, 'Notify on strong opportunities'),
-                  h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post reaches your threshold (opportunity engine must be enabled)')
+                  h('p', { className: 'text-sm text-zinc-500 dark:text-zinc-400' }, 'Get notified when a post reaches your threshold while AI review is enabled')
                 ),
                 h('button', {
                   onClick: () => setNotifyStrongOpportunities(!notifyStrongOpportunities),
@@ -268,17 +268,28 @@
             )
           ),
           h('div', { className: 'pt-4 border-t border-zinc-200 dark:border-zinc-700' },
-            h('div', { className: 'flex items-center justify-between mb-4' },
-              h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'Opportunity Engine'),
+            h('div', { className: 'flex items-start justify-between gap-4 mb-4' },
+              h('div', null,
+                h('p', { className: 'font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500' }, 'AI Review'),
+                h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400 max-w-md' }, 'Use presets and your business context to sort the feed by likely opportunities. Model, key, and prompt controls stay in Advanced.')
+              ),
               h('button', {
                 onClick: () => setOpportunityEngineEnabled(!opportunityEngineEnabled),
-                title: opportunityEngineEnabled ? 'Disable opportunity engine' : 'Enable opportunity engine',
+                title: opportunityEngineEnabled ? 'Disable AI review' : 'Enable AI review',
                 className: `relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${opportunityEngineEnabled ? 'bg-[#D97706]' : 'bg-zinc-300 dark:bg-zinc-600'}`,
               },
                 h('span', { className: `absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${opportunityEngineEnabled ? 'translate-x-5' : ''}` })
               )
             ),
             h('div', { className: 'space-y-4' },
+              h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-900/40 px-3 py-2.5' },
+                h('div', { className: 'flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400' },
+                  h('span', { className: 'rounded-full border border-zinc-200 dark:border-zinc-700 px-2.5 py-1' }, opportunityEngineEnabled ? 'AI review on' : 'AI review off'),
+                  h('span', { className: 'rounded-full border border-zinc-200 dark:border-zinc-700 px-2.5 py-1 font-mono truncate max-w-[220px]' }, openRouterModel || 'No model selected'),
+                  h('span', { className: 'rounded-full border border-zinc-200 dark:border-zinc-700 px-2.5 py-1' }, secureKeyStatus.hasKey ? 'Secure key saved' : 'Key not saved')
+                ),
+                h('p', { className: 'mt-2 text-xs text-zinc-500 dark:text-zinc-400' }, 'Most setups only need a preset plus the three profile fields below.')
+              ),
               h('div', null,
                 h('div', { className: 'flex flex-wrap gap-1.5 mb-2' },
                   AI_PRESETS.map((preset) => h('button', {
@@ -337,7 +348,7 @@
                   disabled: !opportunityEngineEnabled,
                   className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                 },
-                  h('span', null, 'Advanced'),
+                  h('span', null, 'Advanced controls'),
                   h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiAdvancedOpen ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                     h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
                   )
@@ -565,7 +576,7 @@
                   h('svg', { className: `w-3 h-3 transition-transform ${aiShowPromptPreview ? 'rotate-90' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                     h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5l7 7-7 7' })
                   ),
-                  'Preview engine prompt',
+                  'Preview review prompt',
                   h('span', { className: 'px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 font-mono text-[10px]' }, AI_PROMPT_VERSION)
                 ),
                 aiShowPromptPreview && h('pre', { className: 'mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-2 text-[11px] text-zinc-700 dark:text-zinc-200' },
@@ -589,7 +600,7 @@
                 `${aiActivity.status}: ${aiActivity.detail}`
               ),
               aiScoresStale && !opportunityScanError && h('div', { className: 'p-2 rounded-lg border border-amber-200 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300' },
-                'Scores are cached — badges show ~ prefix. Re-run for fresh results.'
+                'Results are cached. Run the review again for a fresh pass.'
               ),
               h('div', { className: 'flex items-center gap-3' },
                 h('button', {
@@ -597,7 +608,7 @@
                   onClick: rerankNow,
                   disabled: !opportunityEngineEnabled || !hasOpportunityGoals || opportunityScanLoading || loading || dataLength === 0,
                   className: 'flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors',
-                }, opportunityScanLoading ? 'Analyzing…' : 'Run opportunity scan'),
+                }, opportunityScanLoading ? 'Reviewing…' : 'Run AI review'),
                 opportunityScanLoading && h('div', { className: 'flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 shrink-0' },
                   h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' })
                 )

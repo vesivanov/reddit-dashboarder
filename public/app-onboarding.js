@@ -31,9 +31,6 @@
     hasOpportunityGoals,
     secureKeyStatus,
     selectedModelInfo,
-    modelGroups,
-    setOpenRouterModel,
-    openRouterModel,
     days,
     setDays,
     maxPages,
@@ -224,26 +221,14 @@
             opportunityEngineEnabled && h('div', { className: 'md:col-span-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
               h('div', { className: 'flex flex-wrap items-start justify-between gap-3' },
                 h('div', null,
-                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Model'),
-                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, secureKeyStatus.hasKey ? 'You already have a secure key saved.' : 'You can save a key later in Settings if you want more model options.')
+                  h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Finish setup in Settings'),
+                  h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, 'Use onboarding to define what to look for. Model choice, secure key storage, and advanced review controls stay in Settings.')
                 ),
                 selectedModelInfo && h('span', { className: 'rounded-full bg-zinc-100 px-3 py-1 text-xs font-mono text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200' }, selectedModelInfo.name)
               ),
-              h('div', { className: 'mt-3 grid gap-3 md:grid-cols-2' },
-                modelGroups.recommended
-                  .concat(modelGroups.latestFree.slice(0, 1))
-                  .filter((model, index, allModels) => allModels.findIndex((item) => item.id === model.id) === index)
-                  .map((model) =>
-                    h('button', {
-                      key: model.id,
-                      type: 'button',
-                      onClick: () => setOpenRouterModel(model.id),
-                      className: `rounded-xl border p-3 text-left transition-colors ${openRouterModel === model.id ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
-                    },
-                      h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, model.name),
-                      h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, model.hint || model.id)
-                    )
-                  )
+              h('div', { className: 'mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400' },
+                h('span', { className: 'rounded-full border border-zinc-200 px-2.5 py-1 dark:border-zinc-700' }, secureKeyStatus.hasKey ? 'Secure key saved' : 'Using default access'),
+                h('span', { className: 'rounded-full border border-zinc-200 px-2.5 py-1 dark:border-zinc-700' }, 'Advanced controls in Settings')
               )
             )
           ),
@@ -315,7 +300,7 @@
               h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'What happens next'),
               h('ul', { className: 'mt-3 space-y-3 text-sm text-zinc-600 dark:text-zinc-300' },
                 h('li', null, `Scan ${subs.length || 0} subreddit${subs.length === 1 ? '' : 's'}.`),
-                h('li', null, opportunityEngineEnabled ? 'The opportunity engine will rank posts against your business profile.' : 'The feed will stay manual until you enable the opportunity engine.'),
+                h('li', null, opportunityEngineEnabled ? 'AI review will sort posts against your business profile.' : 'The feed will stay manual until you enable AI review.'),
                 h('li', null, `Refreshes will aim for ${days} day${days === 1 ? '' : 's'} of subreddit coverage.`),
                 h('li', null, `Fetch depth is set to ${maxPages === 0 ? 'all available pages' : `${maxPages} page${maxPages === 1 ? '' : 's'}`}.`)
               )
