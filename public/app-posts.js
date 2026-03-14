@@ -214,60 +214,42 @@
         },
           h('button', {
             onClick: () => onSelectPost(post),
-            className: 'w-full text-left px-4 py-3 pr-9',
+            className: 'w-full text-left px-3 py-1.5 pr-8',
           },
 
-            // ── Row 1: meta ──────────────────────────────────────────
-            h('div', { className: 'flex items-center justify-between gap-2 mb-1.5' },
-              // Left: subreddit · type · flair · spiking
-              h('div', { className: 'flex items-center gap-1.5 min-w-0 overflow-hidden' },
-                h('span', { className: 'text-xs font-semibold text-amber-600/70 dark:text-amber-400/60 shrink-0' }, `r/${post.subreddit}`),
-                opportunityType && h('span', { className: 'text-zinc-300 dark:text-zinc-700 shrink-0' }, '·'),
-                opportunityType && h('span', {
-                  className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-amber-500/70 dark:text-amber-500/60 shrink-0',
-                }, opportunityType.replace(/_/g, ' ')),
-                flair && h('span', {
-                  className: 'px-1.5 py-px rounded text-[10px] font-medium shrink-0 max-w-[80px] truncate',
-                  style: { backgroundColor: flairBg, color: flairTextColor },
-                }, flair),
-                isSpiking && h('span', {
-                  className: 'text-[10px] font-bold text-rose-500 dark:text-rose-400 shrink-0',
-                }, '⚡')
-              ),
-              // Right: time · score badge
-              h('div', { className: 'flex items-center gap-2 shrink-0' },
-                h('span', { title: absoluteDate(post.created_utc), className: `text-xs ${timeClass}` }, timeAgo(post.created_utc)),
-                scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay)
-              )
+            // ── Row 1: title + score badge ────────────────────────────
+            h('div', { className: 'flex items-baseline gap-2 mb-0.5' },
+              h('p', {
+                className: `flex-1 text-[13px] font-semibold leading-tight truncate ${
+                  isSelected
+                    ? 'text-zinc-900 dark:text-white'
+                    : isRead
+                      ? 'text-zinc-500 dark:text-zinc-400'
+                      : 'text-zinc-800 dark:text-zinc-100'
+                }`,
+              }, post.title),
+              scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay)
             ),
 
-            // ── Row 2: title ─────────────────────────────────────────
-            h('p', {
-              className: `text-sm font-medium leading-snug line-clamp-2 mb-1 ${
-                isSelected
-                  ? 'text-zinc-900 dark:text-white'
-                  : isRead
-                    ? 'text-zinc-500 dark:text-zinc-400'
-                    : 'text-zinc-800 dark:text-zinc-100'
-              }`,
-            }, post.title),
-
-            // ── Row 3: stats + rationale ──────────────────────────────
-            h('div', { className: 'flex items-center gap-3' },
-              h('div', { className: 'flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500 tabular-nums shrink-0' },
-                h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/80 dark:text-emerald-500/70' },
-                  renderGlyph('M7 14l5-5 5 5', 'w-3 h-3'), score),
-                h('span', { className: 'inline-flex items-center gap-0.5' },
-                  renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-3 h-3'), comments)
-              ),
-              rationale && showAiReasons && h('p', {
-                className: 'flex-1 text-xs text-zinc-400 dark:text-zinc-500 line-clamp-1',
-              }, rationale)
+            // ── Row 2: sub · time · upvotes · comments [· rationale] ──
+            h('div', { className: 'flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums' },
+              h('span', { className: 'font-semibold text-amber-600/60 dark:text-amber-400/50 shrink-0' }, `r/${post.subreddit}`),
+              isSpiking && h('span', { className: 'text-rose-500 shrink-0' }, '⚡'),
+              h('span', { className: 'text-zinc-300 dark:text-zinc-700 shrink-0' }, '·'),
+              h('span', { title: absoluteDate(post.created_utc), className: `${timeClass} shrink-0` }, timeAgo(post.created_utc)),
+              h('span', { className: 'text-zinc-300 dark:text-zinc-700 shrink-0' }, '·'),
+              h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/70 dark:text-emerald-500/60 shrink-0' },
+                renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'), score),
+              h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
+                renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments),
+              rationale && showAiReasons && h('span', {
+                className: 'flex-1 truncate text-zinc-400/70 dark:text-zinc-600 min-w-0 ml-0.5',
+              }, `· ${rationale}`)
             )
           ),
 
           // ── Context menu ──────────────────────────────────────────────
-          h('div', { className: 'absolute top-2.5 right-2 opacity-0 group-hover:opacity-100 transition-opacity' },
+          h('div', { className: 'absolute top-1 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity' },
             h('button', {
               onClick: (e) => { e.stopPropagation(); setActivePostMenu(activePostMenu === post.id ? null : post.id); },
               className: 'p-1 rounded text-zinc-400/60 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors',
