@@ -168,6 +168,16 @@
         const rationale = opportunity?.explanation?.summary
           || buildWhyLine({ post, relevanceMeta, upvotesPerHour, commentsPerHour });
 
+        // ── Recommended action badge ───────────────────────────────────
+        const recommendedAction = opportunity?.action?.recommended;
+        const actionInfo = recommendedAction === 'reply_now'
+          ? { label: 'Reply now', cls: 'bg-amber-500 text-white' }
+          : recommendedAction === 'dm_if_possible'
+            ? { label: 'DM', cls: 'border border-amber-400/60 text-amber-600 dark:text-amber-400' }
+            : recommendedAction === 'save_for_followup'
+              ? { label: 'Save', cls: 'border border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500' }
+              : null;
+
         // ── Score badge ───────────────────────────────────────────────
         const scoreDisplay = priorityScore !== null
           ? `P${Math.round(priorityScore * 100)}`
@@ -228,7 +238,8 @@
                       : 'text-zinc-800 dark:text-zinc-100'
                 }`,
               }, post.title),
-              scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay)
+              scoreDisplay && h('span', { className: scoreBadgeClass }, scoreDisplay),
+              actionInfo && h('span', { className: `font-mono text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${actionInfo.cls}` }, actionInfo.label)
             ),
 
             // ── Row 2: sub · time · upvotes · comments [· rationale] ──

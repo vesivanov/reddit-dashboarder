@@ -1,198 +1,206 @@
-# Amber Signal — Design Brief
+# Amber Signal — Design Principles
 
-## Identity
+## What This Tool Does
 
-**Product name**: Amber Signal
-**What it does**: Scans noise, surfaces signal.
-**Who it's for**: People who need to act on information, not admire it.
+Users monitor Reddit for business opportunities: leads, customer signals, brand mentions, research. They configure a goal, fetch posts across subreddits, and let the AI rank what's worth acting on.
 
-The interface should disappear when the work is obvious and command attention when something matters. Dense, dark, warm. A cockpit — not a marketing dashboard.
+The core user loop:
+
+1. **Fetch** — pull fresh posts from configured subreddits
+2. **Rank** — AI scores posts against the user's goal
+3. **Scan** — eye traverses the list, picks out what matters
+4. **Triage** — open a post, read the AI analysis, decide
+5. **Act** — reply, DM, save, research, or discard
+
+Everything in the interface exists to make this loop faster and more confident. If a design element doesn't help the user complete one of these steps, it shouldn't be there.
 
 ---
 
-## Aesthetic Direction
+## The One Job of Each Region
 
-Think: night-vision scope. Reuters terminal. Advanced reconnaissance software.
+**Post list (center)** — fast scanning. The user should be able to determine "should I open this?" without clicking. Title + subreddit + score + one-line rationale is enough. Everything else is clutter at this stage.
 
-The product has one visual job: make relevance legible instantly. Low-signal content should recede. High-signal content should ignite. The eye should be able to traverse the interface in a single scan and land exactly where action is required.
+**Detail pane (right)** — confident decision. Once a post is selected, the user needs: what is this about, why is it relevant, and what should I do? In that order. The AI output (opportunity type, recommended action, explanation) is the content — not supporting metadata.
 
-**What this product is not:**
-- A blue SaaS app with purple gradients
-- A whitespace-maximalist marketing page
-- Generic "AI startup" aesthetic — friendly, rounded, pastel, forgettable
+**Sidebar (left)** — workspace navigation. The user knows where they are. The sidebar should be available but not competing. It's chrome, not content.
 
-**Why amber**: Amber is the color of signal, warning, attention, treasure. It reads as both technical precision (oscilloscopes, status lights) and value (gold standard, signal found). It is warm against dark surfaces — less institutional than sky blue, more visceral. Every competitor uses blue. We don't.
+**AI status bar** — system awareness. The user should always know: is the AI running, what's the current goal, how many results came back. Never hidden. Never verbose.
+
+**Settings modal** — configuration, not daily use. Complexity is acceptable here because the user is in setup mode, not triage mode.
+
+---
+
+## Information Hierarchy (Post List)
+
+Posts are tiered by the AI. The visual treatment must make tiers legible at a glance — not through labels, but through the card itself.
+
+| Tier | Condition | Visual |
+|------|-----------|--------|
+| Hero | Priority ≥ 85% or relevance 5/5 | Amber left border (3px, full) + warm tint |
+| Feature | Priority ≥ 65% or relevance ≥ 4/5 | Amber left border (50% opacity) |
+| Standard | Mid-range scores | No left border treatment |
+| Suppressed | Low/no relevance | Reduced opacity |
+
+The score badge reinforces the tier — it is not the primary signal. The primary signal is the left border and background tint. If the user has to read the badge to know the tier, the visual treatment has failed.
+
+**The rationale line** (one-line AI summary below the title) is the most important text in a post card. It answers "why did this surface?" without requiring the user to open the post. Keep it. Protect it. Never truncate it before the title.
+
+---
+
+## Detail Pane: Decision Pipeline
+
+The right pane is ordered by decision urgency, not by data availability:
+
+1. **Recommended action** — what to do (reply now, DM, save, research, ignore)
+2. **Next step** — plain English instruction based on action + score
+3. **Opportunity type** — classification of what this post is
+4. **Summary** — AI explanation in 1–2 sentences
+5. **Why now** — bullets explaining time-sensitivity or signal strength
+6. **Scores** — priority, conversion likelihood, reply likelihood (secondary)
+7. **Signals** — individual scored dimensions (tertiary, can stay collapsed)
+8. **Momentum** — velocity data (upvotes/h, comments/h)
+
+If the user reads only items 1–3, they should be able to act with confidence. Items 4–8 exist for users who want to understand, not just act.
+
+---
+
+## State Visibility
+
+The user must always know:
+
+- **Data freshness** — when was this fetched? Timestamps matter. Stale data should be flagged visibly (orange warning, not hidden).
+- **AI status** — is ranking running, done, idle, or errored? Status dot + one-line summary in the bar above the list.
+- **Fetch progress** — for large workspace fetches, show how many subreddits have loaded. A progress indicator isn't optional — without it the user doesn't know if the list is complete.
+- **Rate limits** — when Reddit is throttling, say so plainly. Don't silently pause without explanation.
+
+When the system is doing work in the background, the interface should acknowledge it. When the system errors, the error should be visible, specific, and actionable — not a generic toast.
+
+---
+
+## Cognitive Load
+
+Show less, mean more.
+
+- The post list shows: title, subreddit, score badge, rationale, timestamp, upvote/comment counts. Nothing else at rest.
+- AI reasoning (per-post signal details) is off by default. Toggle-to-reveal for users who want to audit.
+- Scores appear as formatted badges, not raw decimals. `P87` not `0.873`.
+- Settings are collapsed by default (advanced options, model selection, prompt preview). Users configure once; they shouldn't see it on every session.
+- Empty states should be informative: "No posts yet — hit Refresh to fetch" is better than silence. "AI hasn't ranked yet — run ranking to see scores" is better than missing columns.
 
 ---
 
 ## Typography
 
-Three fonts. No exceptions, no substitutions.
+Three fonts. No substitutions.
 
 | Role | Font |
 |------|------|
 | Body / UI copy | Plus Jakarta Sans |
-| Display / Structural headers | Syne |
-| Data / Numbers / Metrics | JetBrains Mono |
+| Structural labels / headers | Syne |
+| Data / numbers / scores | JetBrains Mono |
 
-**Philosophy:**
-- Plus Jakarta Sans handles the interface. It's legible at density, neutral enough to not compete with content.
-- Syne is structural and slightly alien — right for section titles and modal headers that need to feel authoritative, not decorative.
-- JetBrains Mono is for anything that is a value: scores, counts, timestamps, API keys. Numbers and data must be visually distinct from prose. Always tabular, always monospaced.
+Numbers are data. Scores, counts, timestamps, and rates always use JetBrains Mono. This makes them visually distinct from prose and scannable in dense lists.
 
-**Rules:**
-- No serif. No italic. Not now, not ever.
-- Everything the user reads is a number or it isn't — treat them differently
-- Section labels: all-caps, tracked out, small, structural (labels are wayfinding, not content)
-- Titles should feel precise, not heavy — use semibold over bold
+Section labels: all-caps, tracked out, small. They are wayfinding, not content.
+
+No italic. No serif.
 
 ---
 
 ## Color
 
-### The two jobs of this palette
+Dark mode is the primary environment.
 
-**Recession**: Most surfaces should demand nothing. Dark, warm, near-black. The palette's default state is quiet.
+**Surface layers** (dark → light):
 
-**Ignition**: Amber fires when something is worth acting on. It should feel rare enough to carry urgency — never decorative, never wallpaper.
+| Token | Dark | Light |
+|-------|------|-------|
+| Page background | zinc-950 | zinc-100 |
+| Panel / sidebar | zinc-900 | zinc-50 |
+| Raised / cards | zinc-800 | white |
+| Overlay / modal | zinc-800 + backdrop blur | white + backdrop blur |
 
-### Dark mode is canonical
+**Accent**: Amber only. It appears on active states, high-relevance signals, the primary CTA button, and the AI status dot. Amber at full saturation is reserved for moments that must be noticed — hero tier borders, the run-ranking button, live AI status. Everywhere else, use tinted amber (low opacity).
 
-The primary experience is dark. Dark mode is not an afterthought or an accessibility option — it is the intended environment. Design dark first.
+**Semantic colors** (do not repurpose):
 
-Light mode exists for daytime use and user preference. It inherits the same hierarchy and warmth — off-white surfaces, not clinical white.
+- Emerald — success, confirmed action, high score
+- Orange — warning, stale data, caution (distinct from amber on purpose)
+- Rose — error, danger, destructive action
 
-### Surface hierarchy
+**Borders**: `white/7%` in dark mode. They suggest separation, they don't enforce it. A border that competes visually with content has failed.
 
-Surfaces are layered to create depth without shadow. From outermost to most elevated:
-
-1. **Page background** — the darkest layer, recedes completely
-2. **Panel / detail surface** — visibly lighter, draws the eye
-3. **Raised / input surface** — interactive elements sit above panels
-4. **Overlay** — modals and dropdowns float above everything
-
-The separation between layers should be subtle enough to feel atmospheric, not striped.
-
-### Accent
-
-Amber is the sole accent. It appears in:
-- Active states and selected items
-- High-relevance signals and scores
-- Primary call-to-action buttons
-- The AI module's live status
-
-Amber at full saturation is loud. Use it deliberately. Prefer soft amber tints (low opacity, desaturated) for backgrounds and selected states — save full amber for moments that must be noticed.
-
-### Semantic colors
-
-These carry universal meaning and should not be repurposed:
-
-- **Emerald** — success, high score, confirmed action
-- **Orange** — warning, stale data, caution (orange, not amber — it must contrast from the accent)
-- **Rose** — error, danger, destructive action
-
-Warnings use orange specifically to avoid visual collision with the amber accent. If warnings used amber, the accent would lose its urgency.
-
-### Borders
-
-Dark mode borders are glass-like whispers, not hard dividers. They suggest separation rather than enforce it. When a border competes visually with content, it has failed.
-
----
-
-## Motion
-
-Animate high-impact moments. Suppress everything else.
-
-**What to animate:**
-- Page-level panel entrances (fade up from slightly below)
-- List items staggered on load — not all at once, but in a brief cascade
-- Status transitions in the AI module (active, ranking, idle)
-
-**What not to animate:**
-- Individual list item hovers (too frequent — creates fatigue)
-- Filter chips and small repeated elements
-- Anything that fires more than a few times per second of normal use
-
-**High-relevance post glow**: Posts with a score of 5 or marked high-priority by the AI engine render a warm amber left-bar and ambient glow. This is the interface's highest-stakes visual signal — it should feel like the item is illuminated, not just styled.
-
-**Loading states**: Skeleton shimmer for content areas, not spinners. Status dots pulse at a calm 2s rhythm — not urgently.
+**Timestamps and velocity**: amber when very recent (< 15 min) or spiking. This is the only place amber appears on secondary metadata, and only because recency is a decision factor.
 
 ---
 
 ## Density
 
-Two density modes. One per region.
+**Compact** — post list, sidebar, filter bar, AI status bar. The user is scanning. Every pixel of vertical space is another post in view.
 
-**Comfortable** — used for reading, detail views, modals, onboarding. Generous padding. Content should breathe.
+**Comfortable** — detail pane, modals, settings, onboarding. The user is reading and deciding. Content should breathe.
 
-**Compact** — used for the post list, sidebar, filter bars. Tight rows. The user is scanning, not reading. Optimize for information per viewport-height.
-
-Never mix densities within the same region. The sidebar and post list are always compact. The detail pane and modals are always comfortable.
+Never mix these in the same region.
 
 ---
 
 ## Layout
 
-### Three-pane application
+Three fixed panes:
 
-The dashboard is a fixed three-pane layout:
-1. **Left sidebar** — workspace navigation, narrow and fixed
-2. **Center** — post list, scrollable, takes remaining width
-3. **Right** — post detail pane, fixed width, lighter surface
+1. **Left sidebar** — narrow, fixed, workspace navigation
+2. **Center** — scrollable post list, takes remaining width
+3. **Right** — detail pane, fixed width, visibly elevated surface
 
-The sidebar and page background share the same surface in dark mode. No visual separation needed — a single border-right is enough. The detail pane should read as distinctly elevated: a visibly lighter surface, clearly distinct from the list behind it.
+The sidebar shares the page background in dark mode. A single right border is enough separation. The detail pane is a lighter surface — it must read as distinct from the list without a hard border between them.
 
-### Sidebar
+The filter toolbar sits above the post list, below the AI status bar. Search is always visible. Additional filters (subreddit, score, time range) are behind a "Filter" drawer — they're used occasionally, not constantly.
 
-The sidebar is navigation, not content. It should feel like the chrome of the application — present but not competing. Selected workspace items use a soft amber tint with a left-border accent. Unselected items are low-contrast zinc.
+---
 
-### Scrollbar
+## Motion
 
-Even the scrollbar should be on-brand. Amber-toned thumb — subtle, warm, present when needed. Not chrome gray.
+Animate transitions that carry meaning. Suppress everything else.
+
+**Animate:**
+- Panel load: fade up from 8px below, 400ms ease-out, 60ms stagger between list items
+- AI status transitions (idle → ranking → done)
+- Score bar fill on mount: 600ms ease-out
+
+**Don't animate:**
+- Individual row hover states
+- Filter chips and repeated small elements
+- Anything that fires more than a few times per normal use session
+
+Loading states: skeleton shimmer for content areas, not spinners. Status dots pulse at a calm 2s rhythm — not urgently.
 
 ---
 
 ## AI Module
 
-### Status bar
+**Status bar** — single compact row above the post list. Always visible. Shows:
+- Status dot: amber solid (active), amber pulsing (ranking), zinc-600 (off)
+- Active goal, truncated
+- Score count + strong match count
+- Quick actions: rerank, edit goal, toggle reasons
 
-A single compact row above the post list — never a card, never a panel. It communicates:
-- Current AI status (off, active, ranking)
-- The active goal (truncated if long)
-- Score count and strong-match count
-- Quick actions (rerank, edit goal, toggle reasons)
-
-Status is communicated through a dot: amber solid when active, amber pulsing when ranking, zinc-600 when off. The dot is the first thing the eye should find.
-
-### Settings
-
-The AI settings section has a fixed order that should never change:
-1. Section header + enable toggle
-2. Goal — preset chips collapsing to a textarea
-3. Tuning options (collapsible by default)
-4. Model and API key (collapsible by default)
-5. Prompt preview (hidden by default, toggle-to-reveal)
-6. Status banners — error first, then stale warning
-7. Run ranking — full-width primary amber button, always last
-
-The ranking button should feel conclusive. It ends the configuration and begins the computation.
+**Settings order** (fixed, never reorder):
+1. Enable toggle
+2. Goal (preset chips → textarea)
+3. Tuning options (collapsible)
+4. Model + API key (collapsible)
+5. Prompt preview (hidden by default)
+6. Status banners (error first, then stale warning)
+7. Run ranking — full-width amber button, always last
 
 ---
 
-## Landing Page
+## What to Cut
 
-Dark-only. No light mode on the landing. The landing page is a first impression — it should feel like entering a monitoring room, not landing on a SaaS homepage.
+If a design element doesn't help the user scan faster, triage more confidently, or understand system state — remove it.
 
-The amber signal theme should be literal: a top-bar amber gradient bleeds from the left edge and fades to transparent, as though the interface is receiving something. The hero has a subtle upward amber glow from below the fold — warmth rising from the content, not a spotlight from above.
-
----
-
-## What this system does not include
-
-- Stone color scale (zinc only)
-- Violet, purple, or indigo in any role
-- Italic typography
-- Serif fonts
-- Light mode on the landing page
-- Heavy drop shadows inside the dashboard (shadows only on modals and floating overlays)
-- Blue as any accent or action color
+- Decorative borders and dividers that don't indicate structure
+- Metadata that doesn't influence a decision (raw API fields, internal IDs)
+- Animations on elements that repeat frequently
+- Settings visible in daily use that are only relevant during setup
+- Color used for visual interest rather than meaning

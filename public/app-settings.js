@@ -283,8 +283,8 @@
                     )
                   ))
                 ),
-                h('div', { className: 'grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3' },
-                  h('label', { className: 'block sm:col-span-2' },
+                h('div', { className: 'space-y-3 mb-3' },
+                  h('label', { className: 'block' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'What do you sell?'),
                     h('input', {
                       type: 'text',
@@ -307,20 +307,6 @@
                     })
                   ),
                   h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Preferred engagement'),
-                    h('select', {
-                      value: preferredEngagement,
-                      onChange: (event) => setPreferredEngagement(event.target.value),
-                      disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
-                    },
-                      h('option', { value: 'reply' }, 'Public reply'),
-                      h('option', { value: 'dm' }, 'DM / outreach'),
-                      h('option', { value: 'either' }, 'Either'),
-                      h('option', { value: 'research' }, 'Research only')
-                    )
-                  ),
-                  h('label', { className: 'block sm:col-span-2' },
                     h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Problems you solve'),
                     h('textarea', {
                       value: problemsSolved,
@@ -330,54 +316,8 @@
                       rows: 2,
                       className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed resize-none focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
                     })
-                  ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strategy'),
-                    h('select', {
-                      value: strategyPreset,
-                      onChange: (event) => setStrategyPreset(event.target.value),
-                      disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
-                    },
-                      h('option', { value: 'balanced' }, 'Balanced'),
-                      h('option', { value: 'sales' }, 'Sales'),
-                      h('option', { value: 'fast_wins' }, 'Fast wins'),
-                      h('option', { value: 'research' }, 'Research')
-                    )
-                  ),
-                  h('label', { className: 'block' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Strictness'),
-                    h('select', {
-                      value: opportunityStrictness,
-                      onChange: (event) => setOpportunityStrictness(event.target.value),
-                      disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
-                    },
-                      h('option', { value: 'strict' }, 'Strict'),
-                      h('option', { value: 'balanced' }, 'Balanced'),
-                      h('option', { value: 'broad' }, 'Broad recall')
-                    )
-                  ),
-                  h('label', { className: 'block sm:col-span-2' },
-                    h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Opportunity types'),
-                    h('input', {
-                      type: 'text',
-                      value: opportunityFocus,
-                      onChange: (event) => setOpportunityFocus(event.target.value),
-                      placeholder: 'lead, pain_point, tool_search',
-                      disabled: !opportunityEngineEnabled,
-                      className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
-                    })
                   )
-                ),
-                h('textarea', {
-                  value: opportunityBrief,
-                  onChange: (event) => setOpportunityBrief(event.target.value),
-                  placeholder: 'Optional: extra instructions or nuanced opportunities to prioritize',
-                  disabled: !opportunityEngineEnabled,
-                  rows: 3,
-                  className: 'w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none',
-                })
+                )
               ),
               h('div', { className: 'rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden' },
                 h('button', {
@@ -386,12 +326,77 @@
                   disabled: !opportunityEngineEnabled,
                   className: 'w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                 },
-                  h('span', null, 'Advanced tuning'),
+                  h('span', null, 'Advanced'),
                   h('svg', { className: `w-4 h-4 text-zinc-400 transition-transform ${aiAdvancedOpen ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                     h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
                   )
                 ),
                 aiAdvancedOpen && h('div', { className: 'px-3 pb-3 pt-3 space-y-3 border-t border-zinc-200 dark:border-zinc-700' },
+                  h('div', { className: 'grid grid-cols-1 gap-3 sm:grid-cols-2 pb-3 border-b border-zinc-200 dark:border-zinc-700' },
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Preferred engagement'),
+                      h('select', {
+                        value: preferredEngagement,
+                        onChange: (event) => setPreferredEngagement(event.target.value),
+                        disabled: !opportunityEngineEnabled,
+                        className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      },
+                        h('option', { value: 'reply' }, 'Public reply'),
+                        h('option', { value: 'dm' }, 'DM / outreach'),
+                        h('option', { value: 'either' }, 'Either'),
+                        h('option', { value: 'research' }, 'Research only')
+                      )
+                    ),
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Strategy'),
+                      h('select', {
+                        value: strategyPreset,
+                        onChange: (event) => setStrategyPreset(event.target.value),
+                        disabled: !opportunityEngineEnabled,
+                        className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      },
+                        h('option', { value: 'balanced' }, 'Balanced'),
+                        h('option', { value: 'sales' }, 'Sales'),
+                        h('option', { value: 'fast_wins' }, 'Fast wins'),
+                        h('option', { value: 'research' }, 'Research')
+                      )
+                    ),
+                    h('label', { className: 'block' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Strictness'),
+                      h('select', {
+                        value: opportunityStrictness,
+                        onChange: (event) => setOpportunityStrictness(event.target.value),
+                        disabled: !opportunityEngineEnabled,
+                        className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      },
+                        h('option', { value: 'strict' }, 'Strict'),
+                        h('option', { value: 'balanced' }, 'Balanced'),
+                        h('option', { value: 'broad' }, 'Broad recall')
+                      )
+                    ),
+                    h('label', { className: 'block sm:col-span-2' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Opportunity types'),
+                      h('input', {
+                        type: 'text',
+                        value: opportunityFocus,
+                        onChange: (event) => setOpportunityFocus(event.target.value),
+                        placeholder: 'lead, pain_point, tool_search',
+                        disabled: !opportunityEngineEnabled,
+                        className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
+                      })
+                    ),
+                    h('label', { className: 'block sm:col-span-2' },
+                      h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Extra instructions'),
+                      h('textarea', {
+                        value: opportunityBrief,
+                        onChange: (event) => setOpportunityBrief(event.target.value),
+                        placeholder: 'Optional: nuanced opportunities to prioritize',
+                        disabled: !opportunityEngineEnabled,
+                        rows: 2,
+                        className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent resize-none',
+                      })
+                    )
+                  ),
                   h('label', { className: 'block' },
                     h('span', { className: 'text-xs font-medium text-zinc-700 dark:text-zinc-300' }, 'Avoid'),
                     h('p', { className: 'text-xs text-zinc-500 dark:text-zinc-400 mb-1' }, 'What should score low? e.g. job posts, memes, ads'),
