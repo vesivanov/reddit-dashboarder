@@ -119,7 +119,7 @@
       fetch_all_pages: maxPages === 0,
       results: [],
       fetched_at: Date.now(),
-      request_capped: false,
+      request_capped: effectiveMaxPages !== maxPages,
       rate_limited: false,
       rate_limited_subreddits: [],
       retry_after_seconds: 0,
@@ -135,7 +135,7 @@
         retryAfterSeconds: 0,
         redditRequestCount: 0,
         sharedCooldownHit: false,
-        requestCapped: false,
+        requestCapped: effectiveMaxPages !== maxPages,
       },
     };
     let sawRateLimitedHeader = false;
@@ -145,7 +145,7 @@
       const { chunkLimit, chunkMaxPages, chunkWasCapped } = shapeSnapshotChunk({
         chunkLength: chunkSubs.length,
         limit,
-        maxPages,
+        maxPages: effectiveMaxPages,
       });
       setFetchActivity({
         status: `Fetching batch ${chunkIndex + 1}/${subChunks.length}`,
@@ -159,6 +159,7 @@
         days,
         limit: chunkLimit,
         maxPages: chunkMaxPages,
+        totalSubsCount: subsCount,
         forceRefresh,
         chunkIdx: chunkIndex,
       });

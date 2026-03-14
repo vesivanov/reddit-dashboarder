@@ -206,7 +206,7 @@ describe('/api/reddit aggregation', () => {
       .get('/r/programming/about.json')
       .reply(200, { data: { subscribers: 100, title: 'programming' } })
       .get('/r/programming/new.json')
-      .query((query) => query.limit === '25' && !query.after)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
       .reply(200, {
         data: {
           children: [buildPost('programming', 'p1', withinWindow)],
@@ -214,7 +214,7 @@ describe('/api/reddit aggregation', () => {
         },
       })
       .get('/r/programming/new.json')
-      .query((query) => query.limit === '25' && query.after === 'page-2')
+      .query((query) => query.limit === '100' && query.raw_json === '1' && query.after === 'page-2')
       .reply(200, {
         data: {
           children: [
@@ -245,7 +245,7 @@ describe('/api/reddit aggregation', () => {
       .get(`/r/${sub}/about.json`)
       .reply(200, { data: { subscribers: 100, title: sub } })
       .get(`/r/${sub}/new.json`)
-      .query((query) => query.limit === '25' && query.raw_json === '1' && !query.after)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
       .reply(200, {
         data: {
           children: [buildPost(sub, 'direct-new-1')],
@@ -264,10 +264,10 @@ describe('/api/reddit aggregation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.results[0].posts.map((post) => post.id)).toEqual(['direct-new-1']);
-    expect(res.body.results[0].coverage_state).toMatchObject({
-      subreddit: sub,
-      status: 'complete',
-      complete_1d: true,
+    expect(res.body.results[0].partial).toBe(true);
+    expect(res.body.results[0].meta).toMatchObject({
+      subscribers: 100,
+      title: sub,
     });
     expect(oauth.isDone()).toBe(true);
   });
@@ -345,6 +345,55 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.metrics.requestCapped).toBe(true);
     expect(res.headers['x-rdd-request-capped']).toBe('1');
     expect(res.body.results).toHaveLength(20);
+    expect(oauth.isDone()).toBe(true);
+  });
+
+  test('uses total_subs_count to cap chunked large scans and skip metadata fetches', async () => {
+    const subs = Array.from({ length: 6 }, (_, index) => `chunksub${index + 1}`);
+    const oauth = nock('https://oauth.reddit.com');
+
+    subs.forEach((sub) => {
+      oauth
+        .get(`/r/${sub}/new.json`)
+        .query((query) => query.limit === '25' && query.raw_json === '1' && !query.after)
+        .reply(200, {
+          data: {
+            children: [buildPost(sub, `${sub}-1`)],
+            after: 'page-2',
+          },
+        })
+        .get(`/r/${sub}/new.json`)
+        .query((query) => query.limit === '25' && query.raw_json === '1' && query.after === 'page-2')
+        .reply(200, {
+          data: {
+            children: [buildPost(sub, `${sub}-2`)],
+            after: 'page-3-not-fetched',
+          },
+        });
+    });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${subs.join(',')}&mode=new&limit=100&max_pages=all&total_subs_count=31`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(25);
+    expect(res.body.max_pages).toBe(2);
+    expect(res.body.fetch_all_pages).toBe(false);
+    expect(res.body.request_capped).toBe(true);
+    expect(res.body.metrics).toMatchObject({
+      requestCapped: true,
+      overallSubredditCount: 31,
+      metadataRequestCount: 0,
+      metadataSkippedCount: 6,
+    });
+    expect(res.body.results).toHaveLength(6);
+    expect(res.body.results.every((result) => result.meta?.subscribers == null)).toBe(true);
     expect(oauth.isDone()).toBe(true);
   });
 

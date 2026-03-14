@@ -83,11 +83,11 @@ describe('/api/reddit/ai-rank', () => {
     const parsedBody = typeof capturedBody === 'string' ? JSON.parse(capturedBody) : capturedBody;
     expect(parsedBody.messages[0].content).toContain('Prefer practical tutorials');
     expect(parsedBody.messages[1].content).toContain('React news');
-    expect(parsedBody.models).toEqual(expect.arrayContaining([
+    expect(parsedBody.models).toEqual([
       'meta-llama/llama-3.3-70b-instruct:free',
       'qwen/qwen3-next-80b-a3b-instruct:free',
       'stepfun/step-3.5-flash:free',
-    ]));
+    ]);
     expect(parsedBody.response_format?.type).toBe('json_schema');
     expect(parsedBody.provider).toMatchObject({ require_parameters: true, sort: 'throughput' });
     expect(res.body.scores).toMatchObject({ p1: 5, p2: null });

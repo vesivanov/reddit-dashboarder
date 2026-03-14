@@ -177,6 +177,7 @@
     days,
     limit,
     maxPages,
+    totalSubsCount = 0,
     forceRefresh = false,
     chunkIdx = 0,
   }) {
@@ -188,6 +189,9 @@
       limit: String(limit),
     });
     params.set('max_pages', maxPages === 0 ? 'all' : String(maxPages));
+    if (Number(totalSubsCount) > 0) {
+      params.set('total_subs_count', String(Math.max(chunkSubs.length, Number(totalSubsCount) || 0)));
+    }
     if (forceRefresh) {
       params.set('_ts', `${Date.now()}_${chunkIdx}`);
       params.set('fresh', '1');
