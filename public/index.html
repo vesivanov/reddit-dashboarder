@@ -93,8 +93,9 @@
        ════════════════════════════════════════════════════════ */
 
     /* ── Light mode surfaces (warm paper, not clinical white) ── */
-    .bg-zinc-100 { background-color: #F0EEE9 !important; }
-    .bg-zinc-50  { background-color: #F8F6F1 !important; }
+    /* Scoped to light mode only — dark mode must NOT inherit these warm overrides */
+    html:not(.dark) .bg-zinc-100 { background-color: #F0EEE9 !important; }
+    html:not(.dark) .bg-zinc-50  { background-color: #F8F6F1 !important; }
 
     /* ── Dark mode surfaces (softer, warmer — less eye fatigue) ── */
     html.dark .dark\:bg-zinc-900     { background-color: #16161E !important; }

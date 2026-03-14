@@ -233,7 +233,7 @@
 
             // ── Row 2: sub · time · upvotes · comments [· rationale] ──
             h('div', { className: 'flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 tabular-nums' },
-              h('span', { className: 'font-semibold text-amber-600/60 dark:text-amber-400/50 shrink-0' }, `r/${post.subreddit}`),
+              h('span', { className: 'font-semibold text-amber-600 dark:text-amber-500 shrink-0' }, `r/${post.subreddit}`),
               isSpiking && h('span', { className: 'text-rose-500 shrink-0' }, '⚡'),
               h('span', { className: 'text-zinc-300 dark:text-zinc-700 shrink-0' }, '·'),
               h('span', { title: absoluteDate(post.created_utc), className: `${timeClass} shrink-0` }, timeAgo(post.created_utc)),
@@ -243,7 +243,7 @@
               h('span', { className: 'inline-flex items-center gap-0.5 shrink-0' },
                 renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments),
               rationale && showAiReasons && h('span', {
-                className: 'flex-1 truncate text-zinc-400/70 dark:text-zinc-600 min-w-0 ml-0.5',
+                className: 'flex-1 truncate text-zinc-500 dark:text-zinc-500 min-w-0 ml-0.5',
               }, `· ${rationale}`)
             )
           ),

@@ -169,6 +169,47 @@ const {
 const {
   renderSidebar = () => null,
 } = sidebarView;
+const SIDECAR_SYNC_DEBOUNCE_MS = 2500;
+
+function serializeSyncPayload(value) {
+  try {
+    return JSON.stringify(value);
+  } catch (_error) {
+    return '';
+  }
+}
+
+function buildSnapshotSyncSignature({ settings, filters, posts, source }) {
+  return serializeSyncPayload({
+    settings: settings || {},
+    filters: filters || {},
+    posts: Array.isArray(posts) ? posts : null,
+    source: source || null,
+  });
+}
+
+function buildConfigSyncSignature({
+  subreddits,
+  goals,
+  aiContext,
+  aiPrompt,
+  opportunityConfig,
+  scoringConfig,
+  threshold,
+  model,
+}) {
+  return serializeSyncPayload({
+    subreddits: Array.isArray(subreddits) ? subreddits : [],
+    goals: goals || '',
+    aiContext: aiContext || '',
+    aiPrompt: aiPrompt || '',
+    opportunityConfig: opportunityConfig || null,
+    scoringConfig: scoringConfig || null,
+    threshold: threshold ?? 4,
+    model: model || '',
+  });
+}
+
     function App() {
       const [subs, setSubs] = useState(() => {
         return loadSubs(DEFAULT_SUBS);
@@ -379,6 +420,9 @@ const {
       const addSubInputRef = useRef(null);
       const opportunityScanRequestIdRef = useRef(0);
       const hydratedOpportunityConfigRef = useRef(null);
+      const workspaceConfigVersionRef = useRef(null);
+      const snapshotSyncStateRef = useRef({ inFlight: false, inFlightSignature: null, lastCompletedSignature: null, pending: null });
+      const configSyncStateRef = useRef({ inFlight: false, inFlightSignature: null, lastCompletedSignature: null, pending: false });
 
       useEffect(() => { loadingRef.current = loading; }, [loading]);
 
@@ -635,10 +679,20 @@ const {
         async function checkAuth() {
           setAuthChecking(true);
           try {
-            const response = await fetch('/api/auth/status', { cache: 'no-store' });
+            const response = await fetch('/api/auth/status', { cache: 'no-store', credentials: 'include' });
             if (!response.ok) throw new Error('Failed to check auth status');
             const payload = await response.json();
-            if (!cancelled) setAuthenticated(Boolean(payload.authenticated));
+            let authenticated = Boolean(payload.authenticated);
+
+            if (authenticated && payload.hasRefreshToken && !payload.hasAccessToken) {
+              const refreshResponse = await fetch('/api/auth/refresh', {
+                cache: 'no-store',
+                credentials: 'include',
+              });
+              authenticated = refreshResponse.ok;
+            }
+
+            if (!cancelled) setAuthenticated(authenticated);
           } catch (e) {
             if (!cancelled) setAuthenticated(false);
           } finally {
@@ -686,6 +740,18 @@ const {
             const examples = scoringConfig.examples || {};
 
             if (cancelled) return;
+            hydratedOpportunityConfigRef.current = configIdentity;
+            workspaceConfigVersionRef.current = Number.isInteger(config.version) ? config.version : null;
+            configSyncStateRef.current.lastCompletedSignature = buildConfigSyncSignature({
+              subreddits: config.subreddits || [],
+              goals: config.goals || '',
+              aiContext: config.aiContext || '',
+              aiPrompt: config.aiPrompt || '',
+              opportunityConfig: config.opportunityConfig || null,
+              scoringConfig: config.scoringConfig || null,
+              threshold: config.threshold ?? 4,
+              model: config.model || '',
+            });
 
             if (Array.isArray(config.subreddits) && config.subreddits.length > 0) setSubs(config.subreddits);
             setOpportunityBrief(config.goals || '');
@@ -706,8 +772,6 @@ const {
             }
             if (config.model) setOpenRouterModel(config.model);
             if (config.opportunityConfig || config.goals || config.aiContext) setOpportunityEngineEnabled(true);
-
-            hydratedOpportunityConfigRef.current = configIdentity;
           } catch {}
         }
 
@@ -894,12 +958,24 @@ const {
           ...(Array.isArray(posts) ? { posts } : {}),
           ...(sourceContext ? { source: sourceContext } : {}),
         };
+        const signature = buildSnapshotSyncSignature(payload);
+        const syncState = snapshotSyncStateRef.current;
+
+        if (signature && (signature === syncState.lastCompletedSignature || signature === syncState.inFlightSignature)) {
+          return;
+        }
+        if (syncState.inFlight) {
+          syncState.pending = { groups, sourceContext, signature };
+          return;
+        }
 
         if (getPayloadSizeBytes(payload) > (WORKSPACE_SNAPSHOT_SOFT_LIMIT_BYTES || 185000)) {
           setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           return;
         }
 
+        syncState.inFlight = true;
+        syncState.inFlightSignature = signature;
         try {
           const result = postWorkspaceSnapshot
             ? await postWorkspaceSnapshot({
@@ -913,6 +989,7 @@ const {
             : { ok: false, status: 500, body: null };
           if (result.ok) {
             setSyncPauseUntil(null);
+            syncState.lastCompletedSignature = signature;
             setSnapshotInfo(prev => ({
               ...(prev || {}),
               syncToken,
@@ -925,6 +1002,15 @@ const {
             setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           }
         } catch {}
+        finally {
+          syncState.inFlight = false;
+          syncState.inFlightSignature = null;
+          const pending = syncState.pending;
+          syncState.pending = null;
+          if (pending?.signature && pending.signature !== syncState.lastCompletedSignature) {
+            void syncDashboardSnapshot(pending.groups, pending.sourceContext);
+          }
+        }
       }, [
         data,
         authenticated,
@@ -944,6 +1030,27 @@ const {
         if (snapshotInfo?.syncToken !== syncToken) return;
         try {
           const settings = buildSyncSettings();
+          const configSignature = buildConfigSyncSignature({
+            subreddits: subs.map(normalizeSubredditName).filter(Boolean).slice(0, 50),
+            goals: opportunityBrief.trim().slice(0, 500),
+            aiContext: opportunityContext.trim().slice(0, 600),
+            aiPrompt: opportunityBrief.trim().slice(0, 500),
+            opportunityConfig: settings.opportunityConfig,
+            scoringConfig: settings.scoringConfig,
+            threshold: Math.max(0, Math.min(5, Number(priorityNotificationThreshold) || 4)),
+            model: String(openRouterModel || '').slice(0, 100),
+          });
+          const syncState = configSyncStateRef.current;
+          if (configSignature && (configSignature === syncState.lastCompletedSignature || configSignature === syncState.inFlightSignature)) {
+            return;
+          }
+          if (syncState.inFlight) {
+            syncState.pending = true;
+            return;
+          }
+
+          syncState.inFlight = true;
+          syncState.inFlightSignature = configSignature;
           const result = postWorkspaceOpportunityConfig
             ? await postWorkspaceOpportunityConfig({
                 snapshotInfo,
@@ -956,10 +1063,14 @@ const {
                 scoringConfig: settings.scoringConfig,
                 threshold: Math.max(0, Math.min(5, Number(priorityNotificationThreshold) || 4)),
                 model: String(openRouterModel || '').slice(0, 100),
+                version: Number.isInteger(workspaceConfigVersionRef.current) ? workspaceConfigVersionRef.current : undefined,
               })
             : { ok: false, status: 500, payload: null };
           if (result.ok) {
             setConfigSyncPauseUntil(null);
+            syncState.lastCompletedSignature = configSignature;
+            const nextVersion = Number(result.payload?.config?.version);
+            workspaceConfigVersionRef.current = Number.isInteger(nextVersion) ? nextVersion : workspaceConfigVersionRef.current;
           } else if (result.status === 400 || result.status === 413) {
             try {
               console.warn('Failed to sync opportunity config', result.status, result.payload);
@@ -971,6 +1082,16 @@ const {
             setConfigSyncPauseUntil(Date.now() + 10 * 60 * 1000);
           }
         } catch {}
+        finally {
+          const syncState = configSyncStateRef.current;
+          const shouldRetry = Boolean(syncState.pending);
+          syncState.inFlight = false;
+          syncState.inFlightSignature = null;
+          syncState.pending = false;
+          if (shouldRetry) {
+            void syncOpportunityConfig();
+          }
+        }
       }, [
         authenticated,
         configSyncPauseUntil,
@@ -1583,15 +1704,18 @@ const {
 
       useEffect(() => {
         if (!authenticated || data.length === 0 || !syncToken) return;
+        if (loading || opportunityScanLoading) return;
         if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         const timeoutId = setTimeout(() => {
           syncDashboardSnapshot();
-        }, 600);
+        }, SIDECAR_SYNC_DEBOUNCE_MS);
         return () => clearTimeout(timeoutId);
       }, [
         authenticated,
         data,
         syncToken,
+        loading,
+        opportunityScanLoading,
         sidecarSyncSuppressedUntil,
         subs,
         opportunityBrief,
@@ -1618,16 +1742,19 @@ const {
 
       useEffect(() => {
         if (!authenticated || !syncToken || !hasOpportunityGoals) return;
+        if (loading || opportunityScanLoading) return;
         if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
         if (snapshotInfo?.syncToken !== syncToken) return;
         const timeoutId = setTimeout(() => {
           syncOpportunityConfig();
-        }, 700);
+        }, SIDECAR_SYNC_DEBOUNCE_MS);
         return () => clearTimeout(timeoutId);
       }, [
         authenticated,
         syncToken,
         hasOpportunityGoals,
+        loading,
+        opportunityScanLoading,
         sidecarSyncSuppressedUntil,
         snapshotInfo,
         subs,
@@ -2164,72 +2291,55 @@ const {
 
           // Center - Post list
           h('main', { className: `flex-1 flex-col bg-zinc-100 dark:bg-zinc-900 min-w-0 ${detailCollapsed ? '' : 'lg:border-r lg:border-zinc-200 dark:lg:border-zinc-700'} ${mobileView === 'posts' ? 'flex' : 'hidden lg:flex'}` },
-            subs.length > 0 && h('section', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 shrink-0' },
-              h('div', { className: 'flex items-center gap-3 px-4 py-2.5 min-w-0' },
-
-                // Status dot
-                h('div', { className: `w-2 h-2 rounded-full shrink-0 ${
+            // Combined AI status + filter bar (single bar instead of two)
+            h('div', { className: 'bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 shrink-0' },
+              // Row 1: AI engine status — only when subreddits added
+              subs.length > 0 && h('div', { className: 'flex items-center gap-2 px-3 py-1.5 border-b border-zinc-200/60 dark:border-white/[0.04] min-w-0' },
+                h('div', { className: `w-1.5 h-1.5 rounded-full shrink-0 ${
                   opportunityScanLoading ? 'bg-amber-400 animate-pulse' :
                   opportunityEngineEnabled && hasOpportunityGoals ? 'bg-emerald-400' :
                   'bg-zinc-300 dark:bg-zinc-600'
                 }` }),
-
-                // Status label + goal summary
-                h('div', { className: 'min-w-0 flex-1' },
-                  h('div', { className: 'flex items-center gap-2 min-w-0' },
-                    h('span', { className: 'text-xs font-medium shrink-0 ' + (
-                      opportunityScanLoading ? 'text-amber-600 dark:text-amber-400' :
-                      opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
-                      'text-zinc-500 dark:text-zinc-400'
-                    )},
-                      opportunityScanLoading ? 'Ranking…' :
-                      opportunityEngineEnabled && hasOpportunityGoals ? 'Opportunity engine on' :
-                      'Opportunity engine off'
-                    ),
-                    opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-zinc-300 dark:text-zinc-600 shrink-0 text-xs' }, '·'),
-                    opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' },
-                      aiGoalSummary || effectiveGoalText.trim()
-                    )
-                  ),
-                  aiActivity?.detail && h('div', { className: 'mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400 truncate' },
-                    `${aiActivity.status}: ${aiActivity.detail}`
-                  )
+                h('span', { className: 'text-[11px] font-medium shrink-0 ' + (
+                  opportunityScanLoading ? 'text-amber-600 dark:text-amber-400' :
+                  opportunityEngineEnabled && hasOpportunityGoals ? 'text-emerald-700 dark:text-emerald-400' :
+                  'text-zinc-400 dark:text-zinc-600'
+                )},
+                  opportunityScanLoading ? 'Ranking…' :
+                  opportunityEngineEnabled && hasOpportunityGoals ? 'AI on' : 'AI off'
                 ),
-
-                // Stats (when scored)
-                postScoreProxies.size > 0 && h('div', { className: 'hidden sm:flex items-center gap-2.5 shrink-0' },
-                  h('span', { className: 'font-mono text-xs text-zinc-500 dark:text-zinc-400' },
-                    `${aiScoreStats.scored} / ${aiScoreStats.total}`
-                  ),
-                  aiScoreStats.high > 0 && h('span', { className: 'font-mono text-xs text-emerald-600 dark:text-emerald-400' },
-                    `${aiScoreStats.high} strong`
-                  ),
-                  aiScoresStale && h('span', { className: 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800/60', title: 'Goals or model changed since last scan — re-run to refresh scores' }, 'Stale')
+                opportunityEngineEnabled && hasOpportunityGoals && h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-500 truncate min-w-0' },
+                  `· ${aiGoalSummary || effectiveGoalText.trim()}`
                 ),
-
-                // Actions
-                h('div', { className: 'flex items-center gap-1.5 shrink-0' },
+                postScoreProxies.size > 0 && h('span', { className: 'font-mono text-[11px] text-zinc-400 dark:text-zinc-600 shrink-0' },
+                  `· ${aiScoreStats.scored}/${aiScoreStats.total}`
+                ),
+                aiScoreStats.high > 0 && h('span', { className: 'font-mono text-[11px] text-emerald-600 dark:text-emerald-500 shrink-0' },
+                  ` ${aiScoreStats.high} strong`
+                ),
+                aiScoresStale && h('span', { className: 'text-[10px] px-1 py-px rounded font-semibold bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 shrink-0' }, 'Stale'),
+                aiActivity?.detail && h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 truncate min-w-0' },
+                  `· ${aiActivity.detail}`
+                ),
+                h('div', { className: 'flex-1' }),
+                h('div', { className: 'flex items-center gap-1 shrink-0' },
                   opportunityEngineEnabled && hasOpportunityGoals && h('button', {
                     onClick: rerankNow,
                     disabled: opportunityScanLoading || loading,
-                    className: 'px-2.5 py-1 rounded-lg text-xs font-medium bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                  }, opportunityScanLoading ? '…' : 'Refresh ranking'),
+                    className: 'px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-white hover:bg-zinc-700 dark:bg-[#D97706] dark:hover:bg-[#B45309] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                  }, opportunityScanLoading ? '…' : 'Re-rank'),
                   h('button', {
                     onClick: () => setSettingsOpen(true),
-                    className: 'px-2.5 py-1 rounded-lg text-xs font-medium border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors'
-                  }, opportunityEngineEnabled && hasOpportunityGoals ? 'Edit engine' : 'Set up engine'),
+                    className: 'px-2 py-0.5 rounded text-[11px] font-medium border border-zinc-300 dark:border-white/[0.1] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-white/[0.05] transition-colors'
+                  }, opportunityEngineEnabled && hasOpportunityGoals ? 'Edit AI' : 'Set up AI'),
                   postScoreProxies.size > 0 && h('button', {
                     onClick: () => setShowAiReasons(!showAiReasons),
-                    className: `px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${showAiReasons ? 'border-[#D97706] text-[#D97706] dark:text-amber-400 dark:border-[#D97706]' : 'border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`
-                  }, showAiReasons ? 'Reasons on' : 'Reasons')
+                    className: `px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${showAiReasons ? 'border-amber-400/60 text-amber-600 dark:text-amber-400' : 'border-zinc-300 dark:border-white/[0.1] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-white/[0.05]'}`
+                  }, showAiReasons ? 'Why: on' : 'Why')
                 )
-              )
-            ),
-            // Filter toolbar — always visible, clearly labelled
-            h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-3 py-2 shrink-0' },
-              // Row 1: search + filter presets + sort
-              h('div', { className: 'flex items-center gap-2 flex-wrap' },
-                // Search
+              ),
+              // Row 2: search + filter presets + sort
+              h('div', { className: 'flex items-center gap-2 px-3 py-1.5 flex-wrap' },
                 h('div', { className: 'relative min-w-[140px] flex-1 max-w-[220px]' },
                   h('label', { htmlFor: 'search-input', className: 'sr-only' }, 'Search posts'),
                   h('svg', { className: 'absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
@@ -2241,66 +2351,55 @@ const {
                     value: keyword,
                     onChange: (e) => setKeyword(e.target.value),
                     placeholder: 'Search posts…',
-                    className: 'w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-700/60 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:border-transparent focus:bg-white dark:focus:bg-zinc-700 transition-colors'
+                    className: 'w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800/80 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:border-transparent transition-colors'
                   })
                 ),
-                // Divider
                 h('div', { className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
-                // Upvotes
-                h('div', { className: 'flex items-center gap-1' },
-                  h('span', { className: 'font-display text-[9px] uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mr-0.5' }, '↑'),
-                  UPVOTE_PRESETS.map(preset =>
+                h('div', { className: 'flex items-center gap-0.5' },
+                  h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, '↑'),
+                  UPVOTE_PRESETS.filter(p => p.value !== '').map(preset =>
                     h('button', {
                       key: `upvote-${preset.value}`,
                       onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
-                      'aria-pressed': minUpvoteFilter === preset.value,
-                      title: `Upvotes ${preset.label}`,
-                      className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] ${minUpvoteFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
+                      title: `Min ${preset.label} upvotes`,
+                      className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D97706] ${minUpvoteFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
                     }, preset.label)
                   )
                 ),
-                // Divider
                 h('div', { className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
-                // Comments
-                h('div', { className: 'flex items-center gap-1' },
-                  h('span', { className: 'font-display text-[9px] uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mr-0.5' }, '💬'),
-                  COMMENT_PRESETS.map(preset =>
+                h('div', { className: 'flex items-center gap-0.5' },
+                  h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, '💬'),
+                  COMMENT_PRESETS.filter(p => p.value !== '').map(preset =>
                     h('button', {
                       key: `comment-${preset.value}`,
                       onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
-                      'aria-pressed': minCommentFilter === preset.value,
-                      title: `Comments ${preset.label}`,
-                      className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] ${minCommentFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
+                      title: `Min ${preset.label} comments`,
+                      className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D97706] ${minCommentFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
                     }, preset.label)
                   )
                 ),
-                // Priority (AI) — only when active
                 opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
-                  h('div', { key: 'priority-divider', className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
-                  h('div', { key: 'priority-group', className: 'flex items-center gap-1' },
-                    h('span', { className: 'font-display text-[9px] uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mr-0.5' }, 'AI'),
-                    OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
+                  h('div', { key: 'ai-divider', className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
+                  h('div', { key: 'ai-group', className: 'flex items-center gap-0.5' },
+                    h('span', { className: 'text-[11px] text-zinc-400 dark:text-zinc-600 mr-0.5' }, 'AI'),
+                    OPPORTUNITY_PRIORITY_PRESETS.filter(p => p.value !== '').map(preset =>
                       h('button', {
                         key: `ai-${preset.value}`,
                         onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
-                        'aria-pressed': minPriorityFilter === preset.value,
                         title: `AI score ${preset.label}`,
-                        className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] ${minPriorityFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
+                        className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D97706] ${minPriorityFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
                       }, preset.label)
                     )
                   )
                 ],
-                // Spacer
                 h('div', { className: 'flex-1' }),
-                // Alerts badge
                 (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
                   onClick: () => setSettingsOpen(true),
-                  className: 'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-[#D97706]/20 transition-colors',
+                  className: 'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-[#D97706]/10 transition-colors',
                   title: 'Alerts settings'
                 }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                   h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
                 ), 'Alerts'),
-                // Sort
                 h('select', {
                   value: `${sortBy}-${sortOrder}`,
                   onChange: (e) => {
@@ -2311,7 +2410,7 @@ const {
                     else { const i = value.lastIndexOf('-'); by = value.substring(0, i); order = value.substring(i + 1); }
                     setSortBy(by); setSortOrder(order);
                   },
-                  className: 'px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs bg-zinc-50 dark:bg-zinc-700/60 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:border-transparent'
+                  className: 'px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-800/80 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:border-transparent'
                 },
                   h('option', { value: 'date-desc' }, 'Latest'),
                   h('option', { value: 'date-asc' }, 'Oldest'),
@@ -2326,12 +2425,10 @@ const {
                     h('option', { key: 'priority-asc', value: 'priority-asc' }, 'Low priority')
                   ]
                 ),
-                // Clear
                 filtersActive && h('button', {
                   onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
-                  className: 'px-2 py-1 rounded text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/[0.06] transition-colors'
+                  className: 'px-2 py-1 rounded text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-white/[0.06] transition-colors'
                 }, '✕ Clear'),
-                // Save preset
                 filtersActive && filterPresets.length < 5 && h('button', {
                   onClick: () => {
                     const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `AI${minPriorityFilter}+`, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
@@ -2341,8 +2438,7 @@ const {
                   className: 'text-xs text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 font-medium px-1'
                 }, '+ Save')
               ),
-              // Row 2: saved presets (only if any exist)
-              filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1.5 mt-1.5 flex-wrap' },
+              filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1.5 px-3 pb-1.5 flex-wrap' },
                 filterPresets.map(preset =>
                   h('span', { key: preset.id, className: 'inline-flex items-center gap-0.5 rounded bg-amber-50 dark:bg-[#D97706]/10 border border-amber-200 dark:border-[#D97706]/25 text-[11px] font-medium text-[#B45309] dark:text-amber-400' },
                     h('button', {
