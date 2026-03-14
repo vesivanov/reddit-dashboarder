@@ -172,7 +172,7 @@
           detail: `Scoring ${uncachedPosts.length} uncached post${uncachedPosts.length === 1 ? '' : 's'} before the AI rerank.`,
         });
 
-        const { topPosts, remainingPosts, heuristicDetailsById } = buildHeuristicRankingPlan({
+        const { postsWithHeuristic, topPosts, remainingPosts, heuristicDetailsById } = buildHeuristicRankingPlan({
           posts: uncachedPosts,
           goalText: effectiveGoalText,
           llmLimit: effectiveLlmLimit,
@@ -261,8 +261,13 @@
           allOpportunities = mergedAiState.opportunities;
           cacheObject = mergedAiState.cacheObject;
 
+          const failedTopPosts = postsWithHeuristic.filter(({ post }) => {
+            const postId = String(post.id);
+            return topPosts.some((candidate) => String(candidate.id) === postId) && allScores.get(postId) == null;
+          });
+
           const heuristicState = appendHeuristicScores({
-            remainingPosts,
+            remainingPosts: [...remainingPosts, ...failedTopPosts],
             scores: allScores,
             metadata: allMetadata,
             cacheObject,
@@ -290,7 +295,7 @@
           setAiScoresStale(false);
           setAiActivity({
             status: 'Complete',
-            detail: `Ranked ${topPosts.length} post${topPosts.length === 1 ? '' : 's'} with AI and ${remainingPosts.length} heuristically.`,
+            detail: `Ranked ${topPosts.length} post${topPosts.length === 1 ? '' : 's'} with AI${result?.fallbackUsed ? ' using a free-model fallback' : ''} and ${remainingPosts.length + failedTopPosts.length} heuristically.`,
           });
 
           scoresForNotifications = allScores;

@@ -196,6 +196,9 @@
       const goalLine = (goals || '').trim() || '[Add your goals above]';
       const contextLine = (context || '').trim() || 'none provided';
       const avoidLine = (avoid || '').trim() || 'none provided';
+      const perfectExample = (examples.perfect || '').trim() || 'Founder/operator explicitly asks for help, a provider, or a tool to solve a live business problem now.';
+      const strongExample = (examples.strong || '').trim() || 'Real business pain and strong fit, but budget, urgency, or authority is less explicit.';
+      const rejectExample = (examples.reject || '').trim() || 'Student/learner, job seeker, self-promo, generic discussion, meme, or low-intent advice post.';
       return [
         'You are a Reddit post evaluator. Follow the rubric strictly.',
         '',
@@ -204,16 +207,20 @@
         `AVOID: ${avoidLine}`,
         '',
         'Scoring rubric (0-5):',
-        '5 = Perfect Match (high intent + actionable)',
-        '4 = Strong Match',
-        '3 = Maybe',
-        '2 = Weak',
-        '1 = Mostly irrelevant',
+        '5 = Explicit buying/help-seeking intent + clear business pain + likely decision-maker',
+        '4 = Strong commercial pain + strong fit, but timing/authority less explicit',
+        '3 = Relevant signal, but unclear path to paid engagement',
+        '2 = Adjacent, informational, or low-intent',
+        '1 = Mostly low-value',
         '0 = Reject',
         '',
-        examples.perfect ? `Example 5: ${examples.perfect}` : 'Example 5: [optional]',
-        examples.strong ? `Example 4: ${examples.strong}` : 'Example 4: [optional]',
-        examples.reject ? `Example 0-1: ${examples.reject}` : 'Example 0-1: [optional]',
+        'High scores require problem ownership, buyer intent, and practical fit.',
+        'Generic learning/advice posts should rarely exceed 2.',
+        'Use lead only when buying or help-seeking intent is explicit or strongly implied.',
+        '',
+        `Example 5: ${perfectExample}`,
+        `Example 4: ${strongExample}`,
+        `Example 0-1: ${rejectExample}`,
         '',
         'Return only JSON: [{"postId":"...","score":4,"confidence":"high","reason":"..."}]',
       ].join('\n');

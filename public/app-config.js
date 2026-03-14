@@ -49,8 +49,8 @@
     ];
     const AUTO_REFRESH_OPTIONS = [5, 10, 15, 30, 45, 60];
     const MIN_AUTO_REFRESH_MINUTES = 5;
-    const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.0-flash-exp:free';
-    const AI_PROMPT_VERSION = 'v4.0';
+    const DEFAULT_OPENROUTER_MODEL = 'qwen/qwen3-next-80b-a3b-instruct:free';
+    const AI_PROMPT_VERSION = 'v6.0';
     const DEFAULT_LLM_POST_LIMIT = 60;
     const LLM_SCORE_MORE_STEP = 40;
     const MAX_LLM_POST_LIMIT = 200;
@@ -104,9 +104,11 @@
       }
     ];
     const FALLBACK_MODELS = [
-      { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)', tier: 'free', speed: 'fast' },
-      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Meta Llama 3.3 70B (Free)', tier: 'free', speed: 'balanced' },
       { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B A3B (Free)', tier: 'free', speed: 'balanced' },
+      { id: 'stepfun/step-3.5-flash:free', name: 'Step 3.5 Flash (Free)', tier: 'free', speed: 'fast' },
+      { id: 'openai/gpt-oss-20b:free', name: 'GPT OSS 20B (Free)', tier: 'free', speed: 'fast' },
+      { id: 'openrouter/free', name: 'OpenRouter Free Router', tier: 'free', speed: 'balanced' },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Meta Llama 3.3 70B (Free)', tier: 'free', speed: 'balanced' },
       { id: 'openai/gpt-4o', name: 'GPT-4o', tier: 'paid', speed: 'balanced' },
       { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', tier: 'paid', speed: 'fast' },
       { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', tier: 'paid', speed: 'balanced' },

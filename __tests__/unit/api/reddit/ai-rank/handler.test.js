@@ -148,4 +148,55 @@ describe('AI rank handler', () => {
     });
     expect(payload.opportunities.post1.scores.priority).toBeGreaterThan(0.6);
   });
+
+  test('reports fallback model usage when OpenRouter routes a free request to another model', async () => {
+    const req = {
+      method: 'POST',
+      body: {
+        posts: [{ id: 'post1', title: 'Need help with SEO', subreddit: 'smallbusiness', score: 14, num_comments: 5, created_utc: Date.now() / 1000 }],
+        userGoals: 'Find commercial marketing opportunities',
+        openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
+        openRouterApiKey: 'inline-key',
+      },
+      headers: { cookie: '' },
+    };
+
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        model: 'qwen/qwen3-next-80b-a3b-instruct:free',
+        choices: [{
+          message: {
+            content: JSON.stringify([{
+              postId: 'post1',
+              score: 4,
+              confidence: 'high',
+              reason: 'Clear buyer signal',
+              opportunityType: 'lead',
+              recommendedAction: 'reply_now',
+              signals: {
+                commercialIntent: 0.9,
+                serviceFit: 0.9,
+                buyerSignal: 0.8,
+                urgency: 0.75,
+                replyability: 0.8,
+                researchValue: 0.1,
+                authorityFit: 0.7,
+                risk: 0.1,
+              }
+            }])
+          }
+        }],
+      })
+    });
+
+    await handler(req, res);
+
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.model).toBe('qwen/qwen3-next-80b-a3b-instruct:free');
+    expect(payload.requestedModel).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(payload.modelsUsed).toContain('qwen/qwen3-next-80b-a3b-instruct:free');
+    expect(payload.fallbackUsed).toBe(true);
+  });
 });
