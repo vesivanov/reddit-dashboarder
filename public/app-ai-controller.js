@@ -210,11 +210,13 @@
     }
 
     const groups = Array.isArray(perSub) ? perSub : data;
+    const allNewPosts = groups.flatMap((group) => group.posts || []);
     let effectiveLlmLimit = Math.max(10, Math.min(maxLlmPostLimit, Number(llmPostLimit) || defaultLlmPostLimit));
-    if (groups.length >= 20) {
-      effectiveLlmLimit = Math.min(effectiveLlmLimit, 40);
-    } else if (groups.length >= 12) {
-      effectiveLlmLimit = Math.min(effectiveLlmLimit, 60);
+    if (!triggeredByAuto && allNewPosts.length > 0) {
+      const desiredCoverage = allNewPosts.length <= 80
+        ? allNewPosts.length
+        : Math.ceil(allNewPosts.length * 0.75);
+      effectiveLlmLimit = Math.max(effectiveLlmLimit, Math.min(maxLlmPostLimit, desiredCoverage));
     }
 
     if (aiRateLimitPauseUntil && aiRateLimitPauseUntil > Date.now()) {
@@ -246,8 +248,6 @@
       });
       let latestPromptVersion = aiPromptVersion;
       let latestModel = openRouterModel;
-      const allNewPosts = groups.flatMap((group) => group.posts || []);
-
       ensureAiCacheVersion(currentCacheVersion, { clearOnMismatch: true });
       const cacheState = loadAiScoreCache({
         posts: allNewPosts,

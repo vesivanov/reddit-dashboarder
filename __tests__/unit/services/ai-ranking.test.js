@@ -35,9 +35,14 @@ describe('ai-ranking prompt', () => {
 
   test('builds free-model fallback order with the requested model first', () => {
     expect(buildModelAttemptOrder('meta-llama/llama-3.3-70b-instruct:free')).toEqual([
+      'stepfun/step-3.5-flash:free',
       'meta-llama/llama-3.3-70b-instruct:free',
       'qwen/qwen3-next-80b-a3b-instruct:free',
+    ]);
+    expect(buildModelAttemptOrder('stepfun/step-3.5-flash:free')).toEqual([
       'stepfun/step-3.5-flash:free',
+      'qwen/qwen3-next-80b-a3b-instruct:free',
+      'openai/gpt-oss-20b:free',
     ]);
   });
 
@@ -58,9 +63,9 @@ describe('ai-ranking prompt', () => {
     const strategies = buildOpenRouterRequestStrategies('meta-llama/llama-3.3-70b-instruct:free');
 
     expect(strategies.map((strategy) => strategy.id)).toEqual([
-      'strict_json_schema',
-      'relaxed_json_schema',
       'plain_json',
+      'relaxed_json_schema',
+      'strict_json_schema',
     ]);
   });
 });
