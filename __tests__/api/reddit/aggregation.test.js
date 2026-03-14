@@ -272,10 +272,84 @@ describe('/api/reddit aggregation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.results[0].posts.map((post) => post.id)).toEqual(['direct-new-1']);
-    expect(res.body.results[0].partial).toBe(true);
+    expect(res.body.results[0].partial).toBe(false);
     expect(res.body.results[0].meta).toMatchObject({
       subscribers: 100,
       title: sub,
+    });
+    expect(oauth.isDone()).toBe(true);
+  });
+
+  test('redistributes unused page budget to active subreddits in mode=new', async () => {
+    const quietSub = 'quietnewalpha';
+    const activeSub = 'activenewalpha';
+    const now = Math.floor(Date.now() / 1000);
+    const oauth = nock('https://oauth.reddit.com');
+
+    oauth
+      .get(`/r/${quietSub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: quietSub } })
+      .get(`/r/${quietSub}/new.json`)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost(quietSub, `${quietSub}-1`, now)],
+          after: null,
+        },
+      })
+      .get(`/r/${activeSub}/about.json`)
+      .reply(200, { data: { subscribers: 100, title: activeSub } })
+      .get(`/r/${activeSub}/new.json`)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && !query.after)
+      .reply(200, {
+        data: {
+          children: [buildPost(activeSub, `${activeSub}-1`, now)],
+          after: 'page-2',
+        },
+      })
+      .get(`/r/${activeSub}/new.json`)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && query.after === 'page-2')
+      .reply(200, {
+        data: {
+          children: [buildPost(activeSub, `${activeSub}-2`, now - 1800)],
+          after: 'page-3',
+        },
+      })
+      .get(`/r/${activeSub}/new.json`)
+      .query((query) => query.limit === '100' && query.raw_json === '1' && query.after === 'page-3')
+      .reply(200, {
+        data: {
+          children: [buildPost(activeSub, `${activeSub}-3`, now - 3600)],
+          after: null,
+        },
+      });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${quietSub},${activeSub}&mode=new&days=1&limit=100&max_pages=2`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results.find((result) => result.subreddit === quietSub).posts).toHaveLength(1);
+    expect(res.body.results.find((result) => result.subreddit === activeSub).posts.map((post) => post.id)).toEqual([
+      `${activeSub}-1`,
+      `${activeSub}-2`,
+      `${activeSub}-3`,
+    ]);
+    expect(res.body.results.find((result) => result.subreddit === activeSub).partial).toBe(false);
+    expect(res.body.results.find((result) => result.subreddit === activeSub).fetch_diagnostics).toMatchObject({
+      pagesFetched: 3,
+      adaptiveExtraPagesUsed: 1,
+      remainingAfter: false,
+    });
+    expect(res.body.metrics).toMatchObject({
+      pageBudgetTotal: 2,
+      pageBudgetConsumed: 1,
+      pageBudgetUnused: 1,
     });
     expect(oauth.isDone()).toBe(true);
   });
@@ -299,7 +373,7 @@ describe('/api/reddit aggregation', () => {
 
     const res = await runHandler(redditHandler, {
       method: 'GET',
-      url: `/api/reddit?subs=${sub}&mode=new&days=1&limit=100&max_pages=1`,
+      url: `/api/reddit?subs=${sub}&mode=new&days=1&limit=100&max_pages=1&scan_id=scan_test_123&chunk_index=2&chunk_count=6`,
       headers: {
         cookie: authCookie(),
         origin: 'http://localhost:3000',
@@ -311,24 +385,36 @@ describe('/api/reddit aggregation', () => {
     expect(summaryCall).toBeDefined();
     const summary = JSON.parse(summaryCall[1]);
     expect(summary).toMatchObject({
-      status: 'partial',
+      status: 'complete',
       scope: 'full',
       mode: 'new',
       days: 1,
       subredditCount: 1,
       successfulSubredditCount: 1,
       finishedSubredditCount: 1,
-      partialCount: 1,
-      partialSubreddits: [sub],
+      partialCount: 0,
+      partialSubreddits: [],
       subreddits: [sub],
       requestedLimit: 100,
       effectiveLimit: 100,
       requestedMaxPages: 1,
       effectiveMaxPages: 1,
       requestCapped: false,
+      scanId: 'scan_test_123',
+      chunkIndex: 2,
+      chunkCount: 6,
     });
     expect(summary.zeroPostCount).toBe(0);
     expect(summary.erroredCount).toBe(0);
+    expect(summary.perSubDiagnostics).toEqual([
+      expect.objectContaining({
+        subreddit: sub,
+        postCount: 1,
+        partial: false,
+        pagesFetched: 1,
+        remainingAfter: false,
+      }),
+    ]);
   });
 
   test('skips subreddit metadata fetches for large batches', async () => {

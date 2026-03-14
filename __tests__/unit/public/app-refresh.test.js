@@ -21,6 +21,7 @@ describe('app refresh controller', () => {
   test('uses the overall capped depth and passes total_subs_count to snapshot chunks', async () => {
     const controller = loadRefreshController();
     const requestedParams = [];
+    const buildParamCalls = [];
 
     await controller.runSnapshotRefreshFlow({
       subs: Array.from({ length: 31 }, (_, index) => `sub${index + 1}`),
@@ -49,11 +50,17 @@ describe('app refresh controller', () => {
         chunkWasCapped: false,
       }),
       buildSnapshotParams: (options) => {
+        buildParamCalls.push(options);
         const params = new URLSearchParams({
           subs: options.chunkSubs.join(','),
           max_pages: options.maxPages === 0 ? 'all' : String(options.maxPages),
           total_subs_count: String(options.totalSubsCount),
         });
+        if (options.scanId) {
+          params.set('scan_id', options.scanId);
+          params.set('chunk_index', String(options.chunkIdx));
+          params.set('chunk_count', String(options.chunkCount));
+        }
         requestedParams.push(Object.fromEntries(params.entries()));
         return params;
       },
@@ -101,5 +108,8 @@ describe('app refresh controller', () => {
     expect(requestedParams.length).toBeGreaterThan(0);
     expect(requestedParams.every((entry) => entry.max_pages === '2')).toBe(true);
     expect(requestedParams.every((entry) => entry.total_subs_count === '31')).toBe(true);
+    expect(buildParamCalls.every((entry) => typeof entry.scanId === 'string' && entry.scanId.startsWith('scan_'))).toBe(true);
+    expect(requestedParams.every((entry) => entry.scan_id)).toBe(true);
+    expect(requestedParams.every((entry) => entry.chunk_count === '6')).toBe(true);
   });
 });

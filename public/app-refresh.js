@@ -110,7 +110,9 @@
     }
 
     const mergedRequestStartedAt = Date.now();
+    const scanId = `scan_${mergedRequestStartedAt}_${Math.random().toString(36).slice(2, 8)}`;
     const mergedPayload = {
+      scan_id: scanId,
       mode,
       time,
       days,
@@ -132,6 +134,9 @@
         rateLimitedCount: 0,
         durationMs: 0,
         timedOutCount: 0,
+        partialCount: 0,
+        zeroPostCount: 0,
+        erroredCount: 0,
         retryAfterSeconds: 0,
         redditRequestCount: 0,
         sharedCooldownHit: false,
@@ -160,8 +165,10 @@
         limit: chunkLimit,
         maxPages: chunkMaxPages,
         totalSubsCount: subsCount,
+        scanId,
         forceRefresh,
         chunkIdx: chunkIndex,
+        chunkCount: subChunks.length,
       });
       const snapshotResult = await requestSnapshotChunk({
         apiUrl: defaultApiUrl,
@@ -211,10 +218,14 @@
       mergedPayload.rate_limited_subreddits.push(...(Array.isArray(chunkPayload.rate_limited_subreddits) ? chunkPayload.rate_limited_subreddits : []));
       mergedPayload.timed_out_subreddits.push(...(Array.isArray(chunkPayload.timed_out_subreddits) ? chunkPayload.timed_out_subreddits : []));
       mergedPayload.auth_mode = mergedPayload.auth_mode || chunkPayload?.auth_mode || null;
+      mergedPayload.scan_id = chunkPayload?.scan_id || mergedPayload.scan_id;
       mergedPayload.metrics.subredditCount += Number(chunkPayload?.metrics?.subredditCount) || chunkSubs.length;
       mergedPayload.metrics.totalPosts += Number(chunkPayload?.metrics?.totalPosts) || 0;
       mergedPayload.metrics.rateLimitedCount += Number(chunkPayload?.metrics?.rateLimitedCount) || 0;
       mergedPayload.metrics.timedOutCount += Number(chunkPayload?.metrics?.timedOutCount) || 0;
+      mergedPayload.metrics.partialCount += Number(chunkPayload?.metrics?.partialCount) || 0;
+      mergedPayload.metrics.zeroPostCount += Number(chunkPayload?.metrics?.zeroPostCount) || 0;
+      mergedPayload.metrics.erroredCount += Number(chunkPayload?.metrics?.erroredCount) || 0;
       mergedPayload.metrics.retryAfterSeconds = Math.max(mergedPayload.metrics.retryAfterSeconds, Number(chunkPayload?.metrics?.retryAfterSeconds) || chunkRetryAfter || 0);
       mergedPayload.metrics.redditRequestCount += Number(chunkPayload?.metrics?.redditRequestCount) || 0;
       mergedPayload.metrics.sharedCooldownHit = mergedPayload.metrics.sharedCooldownHit || Boolean(chunkPayload?.metrics?.sharedCooldownHit);

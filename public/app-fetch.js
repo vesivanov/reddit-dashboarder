@@ -219,8 +219,10 @@
     limit,
     maxPages,
     totalSubsCount = 0,
+    scanId = '',
     forceRefresh = false,
     chunkIdx = 0,
+    chunkCount = 1,
   }) {
     const params = new URLSearchParams({
       subs: chunkSubs.join(','),
@@ -232,6 +234,11 @@
     params.set('max_pages', maxPages === 0 ? 'all' : String(maxPages));
     if (Number(totalSubsCount) > 0) {
       params.set('total_subs_count', String(Math.max(chunkSubs.length, Number(totalSubsCount) || 0)));
+    }
+    if (scanId) {
+      params.set('scan_id', String(scanId));
+      params.set('chunk_index', String(Math.max(0, Number(chunkIdx) || 0)));
+      params.set('chunk_count', String(Math.max(1, Number(chunkCount) || 1)));
     }
     if (forceRefresh) {
       params.set('_ts', `${Date.now()}_${chunkIdx}`);
