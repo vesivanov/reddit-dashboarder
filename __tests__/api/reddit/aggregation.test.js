@@ -542,6 +542,92 @@ describe('/api/reddit aggregation', () => {
     expect(oauth.isDone()).toBe(true);
   });
 
+  test('uses bounded overflow pages for active subreddits in chunked large scans', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const subs = ['quietchunk1', 'quietchunk2', 'activechunk', 'quietchunk3', 'quietchunk4', 'quietchunk5'];
+    const activeSub = 'activechunk';
+    const oauth = nock('https://oauth.reddit.com');
+
+    subs.forEach((sub) => {
+      if (sub === activeSub) {
+        oauth
+          .get(`/r/${sub}/new.json`)
+          .query((query) => query.limit === '25' && query.raw_json === '1' && !query.after)
+          .reply(200, {
+            data: {
+              children: [buildPost(sub, `${sub}-1`, now)],
+              after: 'page-2',
+            },
+          })
+          .get(`/r/${sub}/new.json`)
+          .query((query) => query.limit === '25' && query.raw_json === '1' && query.after === 'page-2')
+          .reply(200, {
+            data: {
+              children: [buildPost(sub, `${sub}-2`, now - 3600)],
+              after: 'page-3',
+            },
+          })
+          .get(`/r/${sub}/new.json`)
+          .query((query) => query.limit === '25' && query.raw_json === '1' && query.after === 'page-3')
+          .reply(200, {
+            data: {
+              children: [buildPost(sub, `${sub}-3`, now - 7200)],
+              after: null,
+            },
+          });
+        return;
+      }
+
+      oauth
+        .get(`/r/${sub}/new.json`)
+        .query((query) => query.limit === '25' && query.raw_json === '1' && !query.after)
+        .reply(200, {
+          data: {
+            children: [buildPost(sub, `${sub}-1`, now)],
+            after: null,
+          },
+        });
+    });
+
+    const res = await runHandler(redditHandler, {
+      method: 'GET',
+      url: `/api/reddit?subs=${subs.join(',')}&mode=new&days=1&limit=100&max_pages=all&total_subs_count=31`,
+      headers: {
+        cookie: authCookie(),
+        origin: 'http://localhost:3000',
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(25);
+    expect(res.body.max_pages).toBe(2);
+    expect(res.body.request_capped).toBe(true);
+    expect(res.body.results.find((result) => result.subreddit === activeSub).posts.map((post) => post.id)).toEqual([
+      `${activeSub}-1`,
+      `${activeSub}-2`,
+      `${activeSub}-3`,
+    ]);
+    expect(res.body.results.find((result) => result.subreddit === activeSub).fetch_diagnostics).toMatchObject({
+      pagesFetched: 3,
+      adaptiveExtraPagesUsed: 1,
+      stoppedByAdaptiveCap: false,
+      stoppedByAdaptiveBudget: false,
+      remainingAfter: false,
+    });
+    expect(res.body.metrics).toMatchObject({
+      overallSubredditCount: 31,
+      metadataRequestCount: 0,
+      metadataSkippedCount: 6,
+      pageBudgetTotal: 3,
+      pageBudgetConsumed: 1,
+      pageBudgetUnused: 2,
+      adaptiveMode: 'chunk_overflow',
+      adaptivePageRedistributionEnabled: true,
+      adaptiveAbsoluteMaxPages: 4,
+    });
+    expect(oauth.isDone()).toBe(true);
+  });
+
   test('stops issuing new upstream requests after the first subreddit is rate limited', async () => {
     const firstSub = 'cooldownalpha';
     const otherSubs = ['cooldownbeta', 'cooldowngamma'];
