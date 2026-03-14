@@ -37,12 +37,12 @@ describe('ai-ranking prompt', () => {
     expect(buildModelAttemptOrder('meta-llama/llama-3.3-70b-instruct:free')).toEqual([
       'stepfun/step-3.5-flash:free',
       'meta-llama/llama-3.3-70b-instruct:free',
-      'qwen/qwen3-next-80b-a3b-instruct:free',
+      'z-ai/glm-4.5-air:free',
     ]);
     expect(buildModelAttemptOrder('stepfun/step-3.5-flash:free')).toEqual([
       'stepfun/step-3.5-flash:free',
+      'z-ai/glm-4.5-air:free',
       'qwen/qwen3-next-80b-a3b-instruct:free',
-      'openai/gpt-oss-20b:free',
     ]);
   });
 

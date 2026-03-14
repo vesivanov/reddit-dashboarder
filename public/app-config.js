@@ -105,10 +105,11 @@
     ];
     const FALLBACK_MODELS = [
       { id: 'stepfun/step-3.5-flash:free', name: 'Step 3.5 Flash (Free)', tier: 'free', speed: 'fast' },
+      { id: 'z-ai/glm-4.5-air:free', name: 'GLM 4.5 Air (Free)', tier: 'free', speed: 'fast' },
       { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B A3B (Free)', tier: 'free', speed: 'balanced' },
+      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Meta Llama 3.3 70B (Free)', tier: 'free', speed: 'balanced' },
       { id: 'openai/gpt-oss-20b:free', name: 'GPT OSS 20B (Free)', tier: 'free', speed: 'fast' },
       { id: 'openrouter/free', name: 'OpenRouter Free Router', tier: 'free', speed: 'balanced' },
-      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Meta Llama 3.3 70B (Free)', tier: 'free', speed: 'balanced' },
       { id: 'openai/gpt-4o', name: 'GPT-4o', tier: 'paid', speed: 'balanced' },
       { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', tier: 'paid', speed: 'fast' },
       { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', tier: 'paid', speed: 'balanced' },

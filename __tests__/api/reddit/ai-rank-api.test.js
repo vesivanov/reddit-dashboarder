@@ -83,10 +83,10 @@ describe('/api/reddit/ai-rank', () => {
     const parsedBody = typeof capturedBody === 'string' ? JSON.parse(capturedBody) : capturedBody;
     expect(parsedBody.messages[0].content).toContain('Prefer practical tutorials');
     expect(parsedBody.messages[1].content).toContain('React news');
-    expect(parsedBody.model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(parsedBody.model).toBe('stepfun/step-3.5-flash:free');
     expect(parsedBody.models).toBeUndefined();
-    expect(parsedBody.response_format?.type).toBe('json_schema');
-    expect(parsedBody.provider).toMatchObject({ require_parameters: true, sort: 'throughput' });
+    expect(parsedBody.response_format).toBeUndefined();
+    expect(parsedBody.provider).toBeUndefined();
     expect(res.body.scores.p1).toBe(5);
     expect(res.body.scores.p2).not.toBeNull();
     expect(res.body.metadata.p1).toMatchObject({ confidence: 'high' });
@@ -207,8 +207,8 @@ describe('/api/reddit/ai-rank', () => {
 
     expect(res.status).toBe(200);
     expect(bodies).toHaveLength(2);
-    expect(bodies[0].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
-    expect(bodies[1].model).toBe('qwen/qwen3-next-80b-a3b-instruct:free');
+    expect(bodies[0].model).toBe('stepfun/step-3.5-flash:free');
+    expect(bodies[1].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
     expect(res.body.modelsUsed).toEqual(['qwen/qwen3-next-80b-a3b-instruct:free']);
     expect(res.body.fallbackUsed).toBe(true);
     expect(res.body.scores).toMatchObject({ p1: 5, p2: 1 });
@@ -247,10 +247,10 @@ describe('/api/reddit/ai-rank', () => {
 
     expect(res.status).toBe(200);
     expect(bodies).toHaveLength(2);
-    expect(bodies[0].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
-    expect(bodies[0].provider).toMatchObject({ require_parameters: true, sort: 'throughput' });
-    expect(bodies[0].plugins).toEqual([{ id: 'response-healing' }]);
-    expect(bodies[1].model).toBe('meta-llama/llama-3.3-70b-instruct:free');
+    expect(bodies[0].model).toBe('stepfun/step-3.5-flash:free');
+    expect(bodies[0].provider).toBeUndefined();
+    expect(bodies[0].plugins).toBeUndefined();
+    expect(bodies[1].model).toBe('stepfun/step-3.5-flash:free');
     expect(bodies[1].provider).toMatchObject({ sort: 'throughput' });
     expect(bodies[1].provider.require_parameters).toBeUndefined();
     expect(bodies[1].plugins).toBeUndefined();
