@@ -204,7 +204,7 @@
         const reviewInfo = reviewStatus === 'heuristic_only'
           ? { label: 'Light review', cls: 'border border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500' }
           : reviewStatus === 'failed'
-            ? { label: 'Fallback', cls: 'border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400' }
+            ? { label: 'Light review', cls: 'border border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500' }
             : null;
 
         // ── Score badge ───────────────────────────────────────────────
@@ -438,7 +438,7 @@
                     h('span', { className: 'text-xs font-semibold text-amber-600 dark:text-amber-400' }, `r/${selectedPost.subreddit}`),
                     detailType && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-amber-500 dark:text-amber-400' }, formatOpportunityLabel(detailType)),
                     detailReview?.status === 'heuristic_only' && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500' }, 'light review'),
-                    detailReview?.status === 'failed' && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-rose-500 dark:text-rose-400' }, 'fallback'),
+                    detailReview?.status === 'failed' && h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500' }, 'light review'),
                     selectedPost.link_flair_text && h('span', {
                       className: 'px-1.5 py-px rounded text-[10px] font-medium',
                       style: {

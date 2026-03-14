@@ -516,7 +516,7 @@
         setAiActivity({
           status: failedReviewCount > 0 ? 'Ready with fallback' : 'Ready',
           detail: failedReviewCount > 0
-            ? `Ready. ${failedReviewCount} post${failedReviewCount === 1 ? '' : 's'} fell back to lighter review.`
+            ? `Ready. ${failedReviewCount} post${failedReviewCount === 1 ? '' : 's'} use light review.`
             : heuristicOnlyCount > 0
               ? 'Ready. Top matches received a full review and the rest use lighter review.'
               : 'Ready. Opportunities are sorted for this feed.',
