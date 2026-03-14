@@ -225,6 +225,7 @@
     llmPostLimit = 0,
     modelTemperature = 0,
     modelTopP = 1,
+    auditContext = null,
   }) {
     return {
       posts: posts.map(post => ({
@@ -256,6 +257,7 @@
       openRouterModel: openRouterModel.trim(),
       modelTemperature,
       modelTopP,
+      auditContext: auditContext && typeof auditContext === 'object' ? auditContext : undefined,
     };
   }
 

@@ -78,6 +78,10 @@
     }));
   }
 
+  function createClientAiRunId() {
+    return `client_airun_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
   function maybeSendStrongOpportunityNotifications({
     triggeredByAuto,
     notificationsEnabled,
@@ -241,6 +245,7 @@
 
       try {
         const requestChunks = buildAiRequestChunks(allNewPosts, effectiveLlmLimit);
+        const clientRunId = createClientAiRunId();
         let mergedAiState = {
           items: new Map(),
           scores: new Map(),
@@ -278,6 +283,12 @@
                 llmPostLimit: requestChunk.llmPostLimit,
                 modelTemperature: aiFixedTemperature,
                 modelTopP: aiFixedTopP,
+                auditContext: {
+                  clientRunId,
+                  chunkIndex: requestChunk.index,
+                  totalChunks: requestChunk.totalChunks,
+                  totalFeedPosts: allNewPosts.length,
+                },
               }))
             : { ok: false, status: 500, body: null, retryAfterSeconds: 0 };
 
