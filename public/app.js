@@ -189,7 +189,12 @@ function buildConfigSyncSignature({
       });
       const [mode, setMode] = useState('new');
       const [time, setTime] = useState('day');
-      const [days, setDays] = useState(1);
+      const [days, setDays] = useState(() => {
+        const saved = Number(readString('dashboard_days', '1')) || 1;
+        if (saved >= 5) return 5;
+        if (saved >= 3) return 3;
+        return 1;
+      });
       const [limit, setLimit] = useState(100);
       const [maxPages, setMaxPages] = useState(() => {
         const saved = readString('dashboard_max_pages', '');
@@ -405,6 +410,10 @@ function buildConfigSyncSignature({
       useEffect(() => {
         writeString('dashboard_max_pages', String(maxPages));
       }, [maxPages]);
+
+      useEffect(() => {
+        writeString('dashboard_days', String(days));
+      }, [days]);
 
       useEffect(() => {
         writeString('dashboard_auto_refresh_enabled', autoRefreshEnabled ? '1' : '0');
@@ -1914,6 +1923,18 @@ function buildConfigSyncSignature({
         if (state?.complete_5d) acc.complete5d += 1;
         return acc;
       }, { complete1d: 0, complete3d: 0, complete5d: 0 });
+      const dayWindowOptions = [
+        { value: 1, label: '1d' },
+        { value: 3, label: '3d' },
+        { value: 5, label: '5d' },
+      ];
+      const selectedWindowLabel = `${days}d`;
+      const selectedWindowCoverageCount = days >= 5
+        ? coverageCounts.complete5d
+        : days >= 3
+          ? coverageCounts.complete3d
+          : coverageCounts.complete1d;
+      const selectedWindowComplete = data.length > 0 && selectedWindowCoverageCount >= data.length;
 
       // Activity map: new posts per subreddit in the last hour
       const subNewPostMap = useMemo(() => {
@@ -2051,7 +2072,21 @@ function buildConfigSyncSignature({
                 )
           ),
           // Right: refresh + alerts
-          h('div', { className: 'flex items-center gap-2 shrink-0' },
+          h('div', { className: 'flex items-center gap-2 shrink-0 flex-wrap justify-end' },
+            h('div', {
+              className: 'inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-800',
+              title: 'Refresh target window',
+            },
+              dayWindowOptions.map((option) =>
+                h('button', {
+                  key: option.value,
+                  type: 'button',
+                  onClick: () => setDays(option.value),
+                  className: `rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${days === option.value ? 'bg-[#D97706] text-white shadow-sm' : 'text-zinc-500 hover:bg-white hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200'}`,
+                  title: `Aim for ${option.value} day${option.value === 1 ? '' : 's'} of subreddit coverage`,
+                }, option.label)
+              )
+            ),
             (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
               className: 'text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 focus-visible:outline-none rounded'
@@ -2074,6 +2109,8 @@ function buildConfigSyncSignature({
           renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0, 'neutral', 'Total visible posts after filters'),
           fetchedAt && renderStatusChip('Updated', timeAgo(fetchedAt / 1000), 'neutral', `Last fetched: ${absoluteDate(fetchedAt / 1000)}`),
           fetchSummary && renderStatusChip('Scope', fetchSummary.status, fetchSummary.tone),
+          renderStatusChip('Window', selectedWindowLabel, selectedWindowComplete ? 'success' : 'neutral', `Current refresh target: ${selectedWindowLabel}`),
+          data.length > 0 && renderStatusChip('Covered', `${selectedWindowCoverageCount}/${data.length}`, selectedWindowComplete ? 'success' : 'warning', `${selectedWindowLabel} coverage reached across tracked subreddits`),
           data.length > 0 && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral', `1-day depth`),
           data.length > 0 && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral', `3-day depth`),
           data.length > 0 && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral', `5-day depth`),
@@ -2106,7 +2143,9 @@ function buildConfigSyncSignature({
         },
           h('div', { className: 'flex flex-wrap items-center gap-x-3 gap-y-1' },
             h('span', { className: 'font-medium' }, fetchSummary.detail),
-            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.completedSubs}/${fetchSummary.attemptedSubs} subreddits processed`)
+            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.completedSubs}/${fetchSummary.attemptedSubs} subreddits processed`),
+            fetchSummary.attemptedSubs > 0 && h('span', { className: 'opacity-80' }, `${fetchSummary.targetCoverageCount}/${fetchSummary.attemptedSubs} reached ${fetchSummary.targetWindowLabel}`),
+            fetchSummary.targetCoverageComplete && h('span', { className: 'font-medium opacity-90' }, `All subreddits reached ${fetchSummary.targetWindowLabel}`)
           )
         ),
 
@@ -2511,6 +2550,8 @@ function buildConfigSyncSignature({
           modelGroups,
           setOpenRouterModel,
           openRouterModel,
+          days,
+          setDays,
           maxPages,
           setMaxPages,
           mode,

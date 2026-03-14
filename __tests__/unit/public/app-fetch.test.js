@@ -66,7 +66,47 @@ describe('app fetch helpers', () => {
     expect(summary.status).toBe('Shallow');
     expect(summary.tone).toBe('warning');
     expect(summary.completedSubs).toBe(2);
-    expect(summary.detail).toContain('only 0/2 reached 5d coverage');
+    expect(summary.targetWindowLabel).toBe('5d');
+    expect(summary.targetCoverageCount).toBe(0);
+    expect(summary.targetCoverageComplete).toBe(false);
+    expect(summary.detail).toContain('only 0/2 reached the selected 5d coverage window');
     expect(summary.detail).toContain('Coverage: 0/2 at 1d, 0/2 at 3d, 0/2 at 5d.');
+  });
+
+  test('marks the selected target window complete when every subreddit reached it', () => {
+    const fetchClient = loadFetchClient();
+
+    const summary = fetchClient.buildFetchSummary({
+      request_capped: false,
+      days: 3,
+    }, [
+      {
+        subreddit: 'alpha',
+        posts: [{ id: 'a1' }],
+        partial: false,
+        error: null,
+        coverage_state: { complete_1d: true, complete_3d: true, complete_5d: false },
+      },
+      {
+        subreddit: 'beta',
+        posts: [{ id: 'b1' }],
+        partial: false,
+        error: null,
+        coverage_state: { complete_1d: true, complete_3d: true, complete_5d: false },
+      },
+    ], {
+      requestedFetchAllPages: false,
+      depthAutoCapped: false,
+      effectiveMaxPages: 3,
+      subsCount: 2,
+      targetWindowDays: 3,
+    });
+
+    expect(summary.status).toBe('Complete');
+    expect(summary.tone).toBe('success');
+    expect(summary.targetWindowLabel).toBe('3d');
+    expect(summary.targetCoverageCount).toBe(2);
+    expect(summary.targetCoverageComplete).toBe(true);
+    expect(summary.detail).toContain('All 2/2 subreddits reached 3d coverage.');
   });
 });

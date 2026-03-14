@@ -34,6 +34,8 @@
     modelGroups,
     setOpenRouterModel,
     openRouterModel,
+    days,
+    setDays,
     maxPages,
     setMaxPages,
     mode,
@@ -49,6 +51,12 @@
     onSkip,
   }) {
     if (!onboardingOpen) return null;
+
+    const dayOptions = [
+      { value: 1, label: '1 day', hint: 'Fastest startup' },
+      { value: 3, label: '3 days', hint: 'Balanced coverage' },
+      { value: 5, label: '5 days', hint: 'Deeper history' },
+    ];
 
     return h('div', { className: 'fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4', onClick: closeOnboarding },
       h('div', {
@@ -241,7 +249,22 @@
           ),
           onboardingCurrentStep.id === 'depth' && h('div', { className: 'grid gap-5 lg:grid-cols-[1fr_0.9fr]' },
             h('div', { className: 'rounded-xl border border-zinc-200 p-4 dark:border-zinc-700' },
-              h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Fetch depth'),
+              h('p', { className: 'text-sm font-medium text-zinc-900 dark:text-white' }, 'Refresh target'),
+              h('p', { className: 'mt-1 text-sm text-zinc-500 dark:text-zinc-400' }, 'Pick how far back each refresh should try to cover before you choose fetch depth.'),
+              h('div', { className: 'mt-3 grid grid-cols-3 gap-3' },
+                dayOptions.map((option) =>
+                  h('button', {
+                    key: option.value,
+                    type: 'button',
+                    onClick: () => setDays(option.value),
+                    className: `rounded-xl border px-3 py-3 text-left transition-colors ${days === option.value ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+                  },
+                    h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, option.label),
+                    h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, option.hint)
+                  )
+                )
+              ),
+              h('p', { className: 'mt-5 text-sm font-medium text-zinc-900 dark:text-white' }, 'Fetch depth'),
               h('div', { className: 'mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3' },
                 [1, 3, 5, 10, 0].map((value) =>
                   h('button', {
@@ -293,6 +316,7 @@
               h('ul', { className: 'mt-3 space-y-3 text-sm text-zinc-600 dark:text-zinc-300' },
                 h('li', null, `Scan ${subs.length || 0} subreddit${subs.length === 1 ? '' : 's'}.`),
                 h('li', null, opportunityEngineEnabled ? 'The opportunity engine will rank posts against your business profile.' : 'The feed will stay manual until you enable the opportunity engine.'),
+                h('li', null, `Refreshes will aim for ${days} day${days === 1 ? '' : 's'} of subreddit coverage.`),
                 h('li', null, `Fetch depth is set to ${maxPages === 0 ? 'all available pages' : `${maxPages} page${maxPages === 1 ? '' : 's'}`}.`)
               )
             )

@@ -94,6 +94,12 @@
   }) {
     if (!settingsOpen) return null;
 
+    const dayOptions = [
+      { value: 1, label: '1 day', hint: 'Fastest check' },
+      { value: 3, label: '3 days', hint: 'Balanced' },
+      { value: 5, label: '5 days', hint: 'Deeper scan' },
+    ];
+
     return h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4', onClick: () => setSettingsOpen(false) },
       h('div', {
         className: 'w-full max-w-lg bg-white dark:bg-zinc-800 rounded-xl shadow-xl max-h-[90vh] overflow-auto',
@@ -159,14 +165,19 @@
             ),
             h('label', { className: 'block' },
               h('span', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300' }, 'Time window'),
-              h('select', {
-                value: days,
-                onChange: (event) => setDays(Number(event.target.value)),
-                className: 'mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent',
-              },
-                h('option', { value: 1 }, 'Day'),
-                h('option', { value: 3 }, '3 Days'),
-                h('option', { value: 7 }, 'Week')
+              h('p', { className: 'mt-1 text-xs text-zinc-500 dark:text-zinc-400' }, 'Choose how far back each refresh should try to reach.'),
+              h('div', { className: 'mt-2 grid grid-cols-3 gap-2' },
+                dayOptions.map((option) =>
+                  h('button', {
+                    key: option.value,
+                    type: 'button',
+                    onClick: () => setDays(option.value),
+                    className: `rounded-xl border px-3 py-3 text-left transition-colors ${days === option.value ? 'border-[#D97706] bg-amber-50 dark:border-[#D97706] dark:bg-[#D97706]/15' : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/60'}`,
+                  },
+                    h('p', { className: 'text-sm font-semibold text-zinc-900 dark:text-white' }, option.label),
+                    h('p', { className: 'mt-1 text-[11px] text-zinc-500 dark:text-zinc-400' }, option.hint)
+                  )
+                )
               )
             ),
             h('label', { className: 'block' },

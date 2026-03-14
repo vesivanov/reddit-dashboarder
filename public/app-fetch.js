@@ -70,6 +70,12 @@
     return summary;
   }
 
+  function getTargetWindowLabel(targetWindowDays) {
+    if (Number(targetWindowDays) >= 5) return '5d';
+    if (Number(targetWindowDays) >= 3) return '3d';
+    return '1d';
+  }
+
   function buildFetchSummary(payload, perSub, options = {}) {
     const requestedFetchAllPages = Boolean(options?.requestedFetchAllPages);
     const depthAutoCapped = Boolean(options?.depthAutoCapped);
@@ -85,11 +91,13 @@
     const coverageDetail = coverageSummary && attemptedSubs > 0
       ? ` Coverage: ${Number(coverageSummary.complete1dCount) || 0}/${attemptedSubs} at 1d, ${Number(coverageSummary.complete3dCount) || 0}/${attemptedSubs} at 3d, ${Number(coverageSummary.complete5dCount) || 0}/${attemptedSubs} at 5d.`
       : '';
+    const targetWindowLabel = getTargetWindowLabel(targetWindowDays);
     const targetCoverageCount = targetWindowDays >= 5
       ? Number(coverageSummary.complete5dCount) || 0
       : targetWindowDays >= 3
         ? Number(coverageSummary.complete3dCount) || 0
         : Number(coverageSummary.complete1dCount) || 0;
+    const targetCoverageComplete = attemptedSubs > 0 && targetCoverageCount >= attemptedSubs;
     const incompleteSubs = Array.from(new Set([
       ...timedOutSubs,
       ...rateLimitedSubs,
@@ -105,6 +113,9 @@
         detail: `Stopped early on ${timedOutSubs.length} subreddit${timedOutSubs.length === 1 ? '' : 's'} because the request timed out.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
+        targetCoverageCount,
+        targetCoverageComplete,
+        targetWindowLabel,
       };
     }
 
@@ -115,6 +126,9 @@
         detail: `Stopped early on ${rateLimitedSubs.length} subreddit${rateLimitedSubs.length === 1 ? '' : 's'} because Reddit rate-limited the request.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
+        targetCoverageCount,
+        targetCoverageComplete,
+        targetWindowLabel,
       };
     }
 
@@ -125,6 +139,9 @@
         detail: `Fetch depth stopped before the full timeframe was exhausted for ${partialSubs.length} subreddit${partialSubs.length === 1 ? '' : 's'}.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
+        targetCoverageCount,
+        targetCoverageComplete,
+        targetWindowLabel,
       };
     }
 
@@ -135,17 +152,22 @@
         detail: `${erroredSubs.length} subreddit fetch${erroredSubs.length === 1 ? '' : 'es'} returned an error.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
+        targetCoverageCount,
+        targetCoverageComplete,
+        targetWindowLabel,
       };
     }
 
     if (attemptedSubs > 0 && targetCoverageCount < attemptedSubs) {
-      const targetLabel = targetWindowDays >= 5 ? '5d' : targetWindowDays >= 3 ? '3d' : '1d';
       return {
         tone: 'warning',
         status: 'Shallow',
-        detail: `Processed all ${attemptedSubs} subreddits, but only ${targetCoverageCount}/${attemptedSubs} reached ${targetLabel} coverage.${coverageDetail}`,
+        detail: `Processed all ${attemptedSubs} subreddits, but only ${targetCoverageCount}/${attemptedSubs} reached the selected ${targetWindowLabel} coverage window.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
+        targetCoverageCount,
+        targetCoverageComplete,
+        targetWindowLabel,
       };
     }
 
@@ -156,17 +178,26 @@
         detail: `Fetch depth was auto-capped to ${effectiveMaxPages === 0 ? 'all pages' : `${effectiveMaxPages} page${effectiveMaxPages === 1 ? '' : 's'}`} across ${subsCount} subreddits to reduce timeouts.${coverageDetail}`,
         completedSubs,
         attemptedSubs,
+        targetCoverageCount,
+        targetCoverageComplete,
+        targetWindowLabel,
       };
     }
 
+    const completionDetail = attemptedSubs > 0
+      ? ` All ${attemptedSubs}/${attemptedSubs} subreddits reached ${targetWindowLabel} coverage.`
+      : '';
     return {
       tone: 'success',
       status: 'Complete',
       detail: requestedFetchAllPages
-        ? `Fetched all available posts Reddit returned for the selected timeframe.${coverageDetail}`
-        : `Fetched the requested scope for the selected timeframe.${coverageDetail}`,
+        ? `Fetched all available posts Reddit returned for the selected timeframe.${completionDetail}${coverageDetail}`
+        : `Fetched the requested scope for the selected timeframe.${completionDetail}${coverageDetail}`,
       completedSubs: attemptedSubs,
       attemptedSubs,
+      targetCoverageCount,
+      targetCoverageComplete,
+      targetWindowLabel,
     };
   }
 
