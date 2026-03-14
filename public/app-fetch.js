@@ -51,50 +51,6 @@
     };
   }
 
-  function isCoverageComplete(state, goalCutoffUtc) {
-    if (!state) return false;
-    if (state.status === 'complete') return true;
-    const coveredThrough = Number(state.covered_through_utc) || 0;
-    return coveredThrough > 0 && coveredThrough <= goalCutoffUtc;
-  }
-
-  function isCoveragePageCapped(state, effectiveMaxPages, goalCutoffUtc) {
-    return (
-      effectiveMaxPages !== 0
-      && Number(state?.page_count || 0) >= effectiveMaxPages
-      && !isCoverageComplete(state, goalCutoffUtc)
-    );
-  }
-
-  function computeCoverageProgress({ subs, coverageStates, coverageResults, effectiveMaxPages, goalCutoffUtc }) {
-    const completedSubs = subs.filter((sub) => {
-      const state = coverageStates.get(String(sub || '').toLowerCase());
-      return isCoverageComplete(state, goalCutoffUtc) || isCoveragePageCapped(state, effectiveMaxPages, goalCutoffUtc);
-    }).length;
-    const totalPosts = subs.reduce((sum, sub) => {
-      const result = coverageResults.get(String(sub || '').toLowerCase());
-      return sum + (Array.isArray(result?.posts) ? result.posts.length : 0);
-    }, 0);
-    return { completedSubs, totalPosts };
-  }
-
-  function buildCoverageCounts({ subs, coverageStates }) {
-    return {
-      complete1dCount: subs.filter((sub) => {
-        const state = coverageStates.get(String(sub || '').toLowerCase());
-        return Boolean(state?.complete_1d);
-      }).length,
-      complete3dCount: subs.filter((sub) => {
-        const state = coverageStates.get(String(sub || '').toLowerCase());
-        return Boolean(state?.complete_3d);
-      }).length,
-      complete5dCount: subs.filter((sub) => {
-        const state = coverageStates.get(String(sub || '').toLowerCase());
-        return Boolean(state?.complete_5d);
-      }).length,
-    };
-  }
-
   function buildFetchSummary(payload, perSub, options = {}) {
     const requestedFetchAllPages = Boolean(options?.requestedFetchAllPages);
     const depthAutoCapped = Boolean(options?.depthAutoCapped);
@@ -164,113 +120,6 @@
       completedSubs: attemptedSubs,
       attemptedSubs,
     };
-  }
-
-  function buildCoverageQuery({
-    subs,
-    mode,
-    time,
-    days,
-    targetWindowDays,
-  }) {
-    return new URLSearchParams({
-      subs: subs.join(','),
-      mode,
-      time,
-      days: String(days),
-      target_window_days: String(targetWindowDays),
-    });
-  }
-
-  async function requestCoverage({
-    coverageQuery,
-    forceRefresh = false,
-    signal,
-  }) {
-    const queryString = coverageQuery.toString();
-    const initialResponse = await fetch(`/api/reddit/coverage?${queryString}`, {
-      method: forceRefresh ? 'DELETE' : 'GET',
-      signal,
-      credentials: 'include',
-      ...(forceRefresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
-    });
-
-    if (!initialResponse.ok) {
-      return {
-        ok: false,
-        status: initialResponse.status,
-        response: initialResponse,
-        payload: null,
-      };
-    }
-
-    const finalResponse = forceRefresh
-      ? await fetch(`/api/reddit/coverage?${queryString}`, {
-          signal,
-          credentials: 'include',
-          headers: { 'Cache-Control': 'no-cache' },
-        })
-      : initialResponse;
-
-    let payload = null;
-    try {
-      payload = await finalResponse.json();
-    } catch {}
-
-    return {
-      ok: finalResponse.ok,
-      status: finalResponse.status,
-      response: finalResponse,
-      payload,
-    };
-  }
-
-  async function requestCoverageAdvance({
-    body,
-    forceRefresh = false,
-    signal,
-  }) {
-    let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const response = await fetch('/api/reddit/advance', {
-          method: 'POST',
-          signal,
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(forceRefresh ? { 'Cache-Control': 'no-cache' } : {}),
-          },
-          body: JSON.stringify(body),
-        });
-
-        let payload = null;
-        try {
-          payload = await response.json();
-        } catch {}
-
-        if (attempt === 0 && [502, 503, 504].includes(response.status)) {
-          await sleep(500);
-          continue;
-        }
-
-        return {
-          ok: response.ok,
-          status: response.status,
-          response,
-          payload,
-          retryAfterSeconds: getRetryAfterSeconds(response, payload),
-        };
-      } catch (error) {
-        lastError = error;
-        if (signal?.aborted || attempt > 0) {
-          throw error;
-        }
-        await sleep(500);
-      }
-    }
-
-    throw lastError || new Error('Advance request failed');
   }
 
   function buildSnapshotParams({
@@ -365,14 +214,7 @@
     getEffectiveMaxPages,
     determineSnapshotChunkSize,
     shapeSnapshotChunk,
-    isCoverageComplete,
-    isCoveragePageCapped,
-    computeCoverageProgress,
-    buildCoverageCounts,
     buildFetchSummary,
-    buildCoverageQuery,
-    requestCoverage,
-    requestCoverageAdvance,
     buildSnapshotParams,
     requestSnapshotChunk,
     requestAiRank,

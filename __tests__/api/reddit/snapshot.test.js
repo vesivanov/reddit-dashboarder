@@ -135,7 +135,7 @@ describe('/api/reddit/snapshot', () => {
     expect(reddit.isDone()).toBe(true);
   });
 
-  test('materializes mode=new snapshots through persisted coverage state', async () => {
+  test('returns mode=new snapshots through the live reddit handler', async () => {
     const sub = 'covsnapalpha';
     const now = Math.floor(Date.now() / 1000);
     const reddit = nock('https://www.reddit.com');
@@ -168,16 +168,11 @@ describe('/api/reddit/snapshot', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.auth_mode).toBe('public');
     expect(res.body.results[0].posts).toHaveLength(1);
-    expect(res.body.results[0].coverage_state).toMatchObject({
-      subreddit: sub,
-      status: 'complete',
-      complete_1d: true,
-    });
-    expect(Array.from(mockStore.keys()).some((key) => key.startsWith('reddit-coverage:'))).toBe(true);
+    expect(res.body.results[0].coverage_state).toBeUndefined();
     expect(reddit.isDone()).toBe(true);
   });
 
-  test('keys snapshot cache by target_window_days', async () => {
+  test('keeps target_window_days requests isolated', async () => {
     const sub = 'targetwindowalpha';
     const reddit = nock('https://www.reddit.com');
     reddit
@@ -227,7 +222,7 @@ describe('/api/reddit/snapshot', () => {
     expect(reddit.isDone()).toBe(true);
   });
 
-  test('does not cache rate-limited payloads', async () => {
+  test('passes through rate-limited payloads', async () => {
     const sub = 'uncacheablealpha';
     const firstPass = nock('https://oauth.reddit.com');
     firstPass
@@ -249,7 +244,6 @@ describe('/api/reddit/snapshot', () => {
     expect(firstRes.res.body.rate_limited).toBe(true);
     expect(firstRes.res.body.snapshot).toMatchObject({
       cached: false,
-      cacheable: false,
     });
     expect(firstPass.isDone()).toBe(true);
     await clearExpiringValue('reddit:upstream-cooldown');
@@ -283,7 +277,6 @@ describe('/api/reddit/snapshot', () => {
     expect(secondRes.res.body.results[0].posts).toHaveLength(1);
     expect(secondRes.res.body.snapshot).toMatchObject({
       cached: false,
-      cacheable: true,
     });
     expect(secondPass.isDone()).toBe(true);
   });

@@ -36,7 +36,6 @@ const {
   DEFAULT_LLM_POST_LIMIT,
   LLM_SCORE_MORE_STEP,
   MAX_LLM_POST_LIMIT,
-  WORKSPACE_SNAPSHOT_SOFT_LIMIT_BYTES,
   LATEST_MODEL_COUNT,
   AI_CACHE_EXPIRY_MS,
   AI_PRESETS,
@@ -90,30 +89,14 @@ const {
   makeSyncToken = () => `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
   getConfigIdentity = ({ syncToken }) => syncToken,
   loadOpportunityConfig: loadWorkspaceOpportunityConfig = null,
-  getPayloadSizeBytes = (payload) => new TextEncoder().encode(JSON.stringify(payload)).length,
   buildSyncSettings: buildWorkspaceSyncSettings = null,
   buildSyncFilters: buildWorkspaceSyncFilters = null,
-  buildSyncPosts: buildWorkspaceSyncPosts = null,
-  syncDashboardSnapshot: postWorkspaceSnapshot = null,
   syncOpportunityConfig: postWorkspaceOpportunityConfig = null,
 } = workspaceClient;
 const {
-  buildCoverageQuery = ({ subs, mode, time, days, targetWindowDays }) => new URLSearchParams({
-    subs: subs.join(','),
-    mode,
-    time,
-    days: String(days),
-    target_window_days: String(targetWindowDays),
-  }),
-  requestCoverage = null,
-  requestCoverageAdvance = null,
   getEffectiveMaxPages = (maxPages) => maxPages,
   determineSnapshotChunkSize = ({ subsCount }) => subsCount,
   shapeSnapshotChunk = ({ limit, maxPages }) => ({ chunkLimit: limit, chunkMaxPages: maxPages, chunkWasCapped: false }),
-  isCoverageComplete = () => false,
-  isCoveragePageCapped = () => false,
-  computeCoverageProgress = () => ({ completedSubs: 0, totalPosts: 0 }),
-  buildCoverageCounts = () => ({ complete1dCount: 0, complete3dCount: 0, complete5dCount: 0 }),
   buildFetchSummary = () => null,
   buildSnapshotParams = null,
   requestSnapshotChunk = null,
@@ -138,7 +121,6 @@ const {
 } = aiController;
 const {
   runSnapshotRefreshFlow = async ({ localPauseUntil }) => localPauseUntil,
-  startCoverageRefreshFlow = async () => false,
 } = refreshController;
 const {
   getPriorityScore: getPriorityScoreValue = ({ postId, getOpportunityForPost, postScoreProxies }) => {
@@ -177,15 +159,6 @@ function serializeSyncPayload(value) {
   } catch (_error) {
     return '';
   }
-}
-
-function buildSnapshotSyncSignature({ settings, filters, posts, source }) {
-  return serializeSyncPayload({
-    settings: settings || {},
-    filters: filters || {},
-    posts: Array.isArray(posts) ? posts : null,
-    source: source || null,
-  });
 }
 
 function buildConfigSyncSignature({
@@ -411,7 +384,6 @@ function buildConfigSyncSignature({
       const [fetchSummary, setFetchSummary] = useState(null);
       const [fetchActivity, setFetchActivity] = useState(null);
       const [aiActivity, setAiActivity] = useState(null);
-      const [syncPauseUntil, setSyncPauseUntil] = useState(null);
       const [configSyncPauseUntil, setConfigSyncPauseUntil] = useState(null);
       const [sidecarSyncSuppressedUntil, setSidecarSyncSuppressedUntil] = useState(null);
       const loadingRef = useRef(false);
@@ -421,7 +393,6 @@ function buildConfigSyncSignature({
       const opportunityScanRequestIdRef = useRef(0);
       const hydratedOpportunityConfigRef = useRef(null);
       const workspaceConfigVersionRef = useRef(null);
-      const snapshotSyncStateRef = useRef({ inFlight: false, inFlightSignature: null, lastCompletedSignature: null, pending: null });
       const configSyncStateRef = useRef({ inFlight: false, inFlightSignature: null, lastCompletedSignature: null, pending: false });
 
       useEffect(() => { loadingRef.current = loading; }, [loading]);
@@ -936,93 +907,6 @@ function buildConfigSyncSignature({
         keyword,
       }), [parseNumberFilter, minUpvoteFilter, minCommentFilter, minPriorityFilter, keyword]);
 
-      const buildSyncPosts = useCallback((groups) => buildWorkspaceSyncPosts({
-        groups,
-        postOpportunities,
-        postScoreMetadata,
-        postScoreProxies,
-      }), [postOpportunities, postScoreMetadata, postScoreProxies]);
-
-      const syncDashboardSnapshot = useCallback(async (groupsOverride, sourceOverride = null) => {
-        const groups = Array.isArray(groupsOverride) ? groupsOverride : data;
-        if (!authenticated || !syncToken || !Array.isArray(groups) || groups.length === 0) return;
-        if (syncPauseUntil && syncPauseUntil > Date.now()) return;
-        if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
-        const sourceContext = sourceOverride || snapshotInfo?.sourceContext || null;
-        const posts = sourceContext ? null : buildSyncPosts(groups);
-        const payload = {
-          token: syncToken,
-          settings: buildSyncSettings(),
-          filters: buildSyncFilters(),
-          timestamp: new Date().toISOString(),
-          ...(Array.isArray(posts) ? { posts } : {}),
-          ...(sourceContext ? { source: sourceContext } : {}),
-        };
-        const signature = buildSnapshotSyncSignature(payload);
-        const syncState = snapshotSyncStateRef.current;
-
-        if (signature && (signature === syncState.lastCompletedSignature || signature === syncState.inFlightSignature)) {
-          return;
-        }
-        if (syncState.inFlight) {
-          syncState.pending = { groups, sourceContext, signature };
-          return;
-        }
-
-        if (getPayloadSizeBytes(payload) > (WORKSPACE_SNAPSHOT_SOFT_LIMIT_BYTES || 185000)) {
-          setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
-          return;
-        }
-
-        syncState.inFlight = true;
-        syncState.inFlightSignature = signature;
-        try {
-          const result = postWorkspaceSnapshot
-            ? await postWorkspaceSnapshot({
-                snapshotInfo,
-                syncToken,
-                posts,
-                settings: payload.settings,
-                filters: payload.filters,
-                source: sourceContext,
-              })
-            : { ok: false, status: 500, body: null };
-          if (result.ok) {
-            setSyncPauseUntil(null);
-            syncState.lastCompletedSignature = signature;
-            setSnapshotInfo(prev => ({
-              ...(prev || {}),
-              syncToken,
-              workspaceId: result.body?.workspaceId || prev?.workspaceId || null,
-              sourceContext: result.body?.sourceContext || sourceContext || prev?.sourceContext || null,
-            }));
-          } else if (result.status === 413) {
-            setSyncPauseUntil(Date.now() + 15 * 60 * 1000);
-          } else if (result.status >= 500) {
-            setSyncPauseUntil(Date.now() + 10 * 60 * 1000);
-          }
-        } catch {}
-        finally {
-          syncState.inFlight = false;
-          syncState.inFlightSignature = null;
-          const pending = syncState.pending;
-          syncState.pending = null;
-          if (pending?.signature && pending.signature !== syncState.lastCompletedSignature) {
-            void syncDashboardSnapshot(pending.groups, pending.sourceContext);
-          }
-        }
-      }, [
-        data,
-        authenticated,
-        syncToken,
-        syncPauseUntil,
-        sidecarSyncSuppressedUntil,
-        buildSyncPosts,
-        buildSyncSettings,
-        buildSyncFilters,
-        snapshotInfo,
-      ]);
-
       const reconcileOpportunityConfigConflict = useCallback(async ({ configSignature }) => {
         if (!loadWorkspaceOpportunityConfig || !syncToken) {
           return { refreshed: false, alreadySynced: false };
@@ -1436,11 +1320,8 @@ function buildConfigSyncSignature({
         }
 
         const subsCount = subs.length;
-        let effectiveMaxPages = getEffectiveMaxPages(maxPages, subsCount);
+        const effectiveMaxPages = getEffectiveMaxPages(maxPages, subsCount);
         const wantsDeepFetch = maxPages === 0 || maxPages > 4;
-        // Keep fetching on the server-owned snapshot path so the browser is not
-        // responsible for sequencing coverage state, retries, and cooldowns.
-        const shouldUseServerOwnedSnapshot = true;
 
         let localPauseUntil = rateLimitPauseUntil;
 
@@ -1458,66 +1339,10 @@ function buildConfigSyncSignature({
         coverageAbortRef.current = controller;
         const refreshRunId = Date.now();
         coverageRunIdRef.current = refreshRunId;
-        const timeoutMs = shouldUseServerOwnedSnapshot
-          ? Math.min(65000, 10000 + subs.length * 3500)
-          : 30 * 60 * 1000;
+        const timeoutMs = Math.min(65000, 10000 + subs.length * 3500);
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        let keepCoverageController = false;
 
         try {
-          if (!shouldUseServerOwnedSnapshot) {
-            keepCoverageController = await startCoverageRefreshFlow({
-              subs,
-              subsCount,
-              mode,
-              time,
-              days,
-              limit,
-              maxPages,
-              forceRefresh,
-              triggeredByAuto,
-              effectiveMaxPages,
-              controller,
-              refreshRunId,
-              coverageAbortRef,
-              coverageRunIdRef,
-              data,
-              authenticated,
-              autoRefreshEnabled,
-              autoRefreshInterval,
-              minAutoRefreshMinutes: MIN_AUTO_REFRESH_MINUTES,
-              getAutoRefreshPlan,
-              aiLlmPostLimit,
-              buildCoverageQuery,
-              requestCoverage,
-              requestCoverageAdvance,
-              isCoverageComplete,
-              isCoveragePageCapped,
-              computeCoverageProgress,
-              buildCoverageCounts,
-              buildFetchSummary,
-              setFetchMethod,
-              setSidecarSyncSuppressedUntil,
-              setFetchSummary,
-              setFetchActivity,
-              setData,
-              setFetchedAt,
-              setSnapshotInfo,
-              setStorageStatus,
-              setNeedsAuth,
-              setAuthenticated,
-              setAuthChecking,
-              setError,
-              setRateLimitPauseUntil,
-              setLoading,
-              setNextRefreshAt,
-              setLastAutoRefreshAt,
-              syncDashboardSnapshot,
-              runAiRanking,
-            });
-            return;
-          }
-
           localPauseUntil = await runSnapshotRefreshFlow({
             subs,
             subsCount,
@@ -1557,7 +1382,6 @@ function buildConfigSyncSignature({
             setFetchedAt,
             setSnapshotInfo,
             setPreviousPostScores,
-            syncDashboardSnapshot,
             runAiRanking,
             localPauseUntil,
           });
@@ -1578,13 +1402,11 @@ function buildConfigSyncSignature({
           }
         } finally {
           clearTimeout(timeoutId);
-          if (!keepCoverageController && coverageAbortRef.current === controller) {
+          if (coverageAbortRef.current === controller) {
             coverageAbortRef.current = null;
           }
-          if (!keepCoverageController) {
-            setLoading(false);
-            setFetchActivity(null);
-          }
+          setLoading(false);
+          setFetchActivity(null);
           const plan = getAutoRefreshPlan({
             autoRefreshEnabled,
             subsLength: subs.length,
@@ -1596,7 +1418,7 @@ function buildConfigSyncSignature({
           setNextRefreshAt(pausedNext || plan.nextRefreshAt);
           if (triggeredByAuto) setLastAutoRefreshAt(Date.now());
         }
-      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit, data, rateLimitPauseUntil, syncDashboardSnapshot]);
+      }, [subs, mode, time, days, limit, maxPages, autoRefreshEnabled, autoRefreshInterval, notificationsEnabled, upvoteThreshold, alertKeywords, previousPostScores, runAiRanking, aiLlmPostLimit, data, rateLimitPauseUntil]);
 
       const refreshRef = useRef(refresh);
       useEffect(() => { refreshRef.current = refresh; }, [refresh]);
@@ -1760,44 +1582,6 @@ function buildConfigSyncSignature({
           }
         };
       }, []);
-
-      useEffect(() => {
-        if (!authenticated || data.length === 0 || !syncToken) return;
-        if (loading || opportunityScanLoading) return;
-        if (sidecarSyncSuppressedUntil && sidecarSyncSuppressedUntil > Date.now()) return;
-        const timeoutId = setTimeout(() => {
-          syncDashboardSnapshot();
-        }, SIDECAR_SYNC_DEBOUNCE_MS);
-        return () => clearTimeout(timeoutId);
-      }, [
-        authenticated,
-        data,
-        syncToken,
-        loading,
-        opportunityScanLoading,
-        sidecarSyncSuppressedUntil,
-        subs,
-        opportunityBrief,
-        opportunityContext,
-        aiAvoid,
-        businessOffering,
-        idealCustomer,
-        problemsSolved,
-        preferredEngagement,
-        strategyPreset,
-        opportunityFocus,
-        opportunityStrictness,
-        openRouterModel,
-        priorityNotificationThreshold,
-        postScoreProxies,
-        postScoreMetadata,
-        postOpportunities,
-        minUpvoteFilter,
-        minCommentFilter,
-        minPriorityFilter,
-        keyword,
-        syncDashboardSnapshot,
-      ]);
 
       useEffect(() => {
         if (!authenticated || !syncToken || !hasOpportunityGoals) return;

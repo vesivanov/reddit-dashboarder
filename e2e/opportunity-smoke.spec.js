@@ -5,34 +5,7 @@ test.describe('Opportunity dashboard smoke', () => {
   test('persists settings, fetches posts, ranks opportunities, and rehydrates after reload', async ({ page }) => {
     /** @type {any | null} */
     let persistedConfig = null;
-    /** @type {any | null} */
-    let lastSyncPayload = null;
     const workspaceId = 'ws_smoke';
-    const coverageSummary = {
-      totalSubreddits: 1,
-      complete1dCount: 0,
-      complete3dCount: 0,
-      complete5dCount: 0,
-      totalPosts: 0,
-      subreddits: [
-        {
-          subreddit: 'seo',
-          status: 'idle',
-          next_after: '',
-          cooldown_until: null,
-          covered_through_utc: null,
-          page_count: 0,
-          post_count: 0,
-          last_fetch_at: null,
-          last_error: null,
-          complete_1d: false,
-          complete_3d: false,
-          complete_5d: false,
-          inflight_until: null,
-          meta: null,
-        },
-      ],
-    };
 
     await page.addInitScript(() => {
       localStorage.setItem('dashboard_onboarding_complete', '1');
@@ -186,11 +159,6 @@ test.describe('Opportunity dashboard smoke', () => {
     });
 
     await page.route('**/api/workspaces/*/snapshot', async (route) => {
-      const request = route.request();
-      if (request.method() === 'PUT') {
-        lastSyncPayload = JSON.parse(request.postData() || '{}');
-      }
-
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -272,82 +240,6 @@ test.describe('Opportunity dashboard smoke', () => {
           snapshot: {
             cached: false,
             stale: false,
-            age_seconds: 0,
-            ttl_seconds: 120,
-            key: 'smoke',
-            cacheable: true,
-          },
-        }),
-      });
-    });
-
-    await page.route('**/api/reddit/coverage?*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          scopeId: 'scope_smoke',
-          storage: { persistent: false, kind: 'memory' },
-          summary: coverageSummary,
-          results: [],
-        }),
-      });
-    });
-
-    await page.route('**/api/reddit/advance', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          advanced: true,
-          auth_mode: 'oauth',
-          storage: { persistent: false, kind: 'memory' },
-          summary: {
-            totalSubreddits: 1,
-            complete1dCount: 1,
-            complete3dCount: 0,
-            complete5dCount: 0,
-            totalPosts: 1,
-            subreddits: [
-              {
-                ...coverageSummary.subreddits[0],
-                status: 'complete',
-                page_count: 1,
-                post_count: 1,
-                last_fetch_at: Date.now(),
-                complete_1d: true,
-                meta: { subscribers: 100000, title: 'SEO' },
-              },
-            ],
-          },
-          result: {
-            subreddit: 'seo',
-            state: {
-              ...coverageSummary.subreddits[0],
-              status: 'complete',
-              page_count: 1,
-              post_count: 1,
-              last_fetch_at: Date.now(),
-              complete_1d: true,
-              meta: { subscribers: 100000, title: 'SEO' },
-            },
-            posts: [
-              {
-                id: 'p1',
-                title: 'Traffic dropped after redesign, need SEO help urgently',
-                selftext: 'Founder here, looking for help fixing rankings this week.',
-                subreddit: 'seo',
-                author: 'founder1',
-                score: 18,
-                num_comments: 6,
-                created_utc: Math.floor(Date.now() / 1000) - 3600,
-                permalink: '/r/seo/comments/p1',
-                url: 'https://reddit.com/r/seo/comments/p1',
-                domain: 'reddit.com',
-                thumbnail: null,
-                link_flair_text: '',
-              },
-            ],
           },
         }),
       });
@@ -418,10 +310,6 @@ test.describe('Opportunity dashboard smoke', () => {
     await expect(page.getByText('lead').first()).toBeVisible();
     await expect(page.getByText('reply now').first()).toBeVisible();
     await expect(page.getByText('P88')).toBeVisible();
-
-    await expect.poll(() => {
-      return lastSyncPayload?.settings?.opportunityConfig?.businessOffering || '';
-    }).toBe('SEO consulting for SaaS teams');
 
     const routeChecks = await page.evaluate(async () => {
       const headers = { Authorization: 'Bearer smoke-key' };
