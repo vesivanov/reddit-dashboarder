@@ -1,5 +1,4 @@
 const { describe, test, expect, beforeEach, afterEach } = require('@jest/globals');
-
 process.env.SESSION_COOKIE_SECRET = 'test_secret_32_bytes_long_hex_string_123456';
 
 const handler = require('../../../../../lib/api-handlers/reddit/ai-rank');
@@ -21,6 +20,7 @@ describe('AI rank handler', () => {
     process.env.NODE_ENV = 'test';
     res = createMockRes();
     global.fetch = jest.fn();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -209,5 +209,61 @@ describe('AI rank handler', () => {
     expect(payload.requestedModel).toBe('meta-llama/llama-3.3-70b-instruct:free');
     expect(payload.modelsUsed).toContain('qwen/qwen3-next-80b-a3b-instruct:free');
     expect(payload.fallbackUsed).toBe(true);
+  });
+
+  test('writes structured AI ranking events to the console log', async () => {
+    const req = {
+      method: 'POST',
+      body: {
+        posts: [{ id: 'post1', title: 'Need help with SEO', subreddit: 'smallbusiness', score: 14, num_comments: 5, created_utc: Date.now() / 1000 }],
+        userGoals: 'Find commercial marketing opportunities',
+        openRouterModel: 'meta-llama/llama-3.3-70b-instruct:free',
+        openRouterApiKey: 'inline-key',
+      },
+      headers: { cookie: '' },
+    };
+
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: JSON.stringify([{
+              postId: 'post1',
+              score: 5,
+              confidence: 'high',
+              reason: 'Business owner needs SEO help now',
+              opportunityType: 'lead',
+              recommendedAction: 'reply_now',
+              signals: {
+                commercialIntent: 0.95,
+                serviceFit: 0.9,
+                buyerSignal: 0.8,
+                urgency: 0.85,
+                replyability: 0.8,
+                researchValue: 0.1,
+                authorityFit: 0.75,
+                risk: 0.05,
+              }
+            }])
+          }
+        }],
+      })
+    });
+
+    await handler(req, res);
+
+    const aiLogCalls = console.log.mock.calls
+      .filter((call) => call[0] === '[ai-ranking-event]')
+      .map((call) => JSON.parse(call[1]));
+
+    expect(aiLogCalls.map((entry) => entry.eventType)).toEqual(expect.arrayContaining(['request_started', 'request_completed']));
+    expect(aiLogCalls.find((entry) => entry.eventType === 'request_completed')).toMatchObject({
+      status: 'success',
+      postCount: 1,
+      llmReviewedCount: 1,
+      failedReviewCount: 0,
+    });
   });
 });
