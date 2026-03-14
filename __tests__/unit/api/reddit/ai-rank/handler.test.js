@@ -293,7 +293,16 @@ describe('AI rank handler', () => {
       posts: [expect.objectContaining({
         postId: 'post1',
         title: 'Need help with SEO',
+        selftext: '',
         subreddit: 'smallbusiness',
+        post: expect.objectContaining({
+          id: 'post1',
+          title: 'Need help with SEO',
+          selftext: '',
+          subreddit: 'smallbusiness',
+          redditScore: 14,
+          numComments: 5,
+        }),
         plannedReview: 'llm',
         reviewStatus: 'llm_reviewed',
         opportunityType: 'lead',
