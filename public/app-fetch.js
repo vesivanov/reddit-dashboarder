@@ -70,6 +70,10 @@
     return summary;
   }
 
+  function hasCoverageBreakdown(payload) {
+    return Boolean(payload?.coverage_summary && typeof payload.coverage_summary === 'object');
+  }
+
   function getTargetWindowLabel(targetWindowDays) {
     if (Number(targetWindowDays) >= 5) return '5d';
     if (Number(targetWindowDays) >= 3) return '3d';
@@ -88,7 +92,7 @@
     const erroredSubs = Array.isArray(perSub) ? perSub.filter(group => group?.error).map(group => group.subreddit) : [];
     const attemptedSubs = Array.isArray(perSub) ? perSub.length : 0;
     const coverageSummary = deriveCoverageSummary(payload, perSub);
-    const coverageDetail = coverageSummary && attemptedSubs > 0
+    const coverageDetail = hasCoverageBreakdown(payload) && coverageSummary && attemptedSubs > 0
       ? ` Coverage: ${Number(coverageSummary.complete1dCount) || 0}/${attemptedSubs} at 1d, ${Number(coverageSummary.complete3dCount) || 0}/${attemptedSubs} at 3d, ${Number(coverageSummary.complete5dCount) || 0}/${attemptedSubs} at 5d.`
       : '';
     const targetWindowLabel = getTargetWindowLabel(targetWindowDays);

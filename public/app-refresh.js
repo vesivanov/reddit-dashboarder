@@ -1,4 +1,32 @@
 (function initDashboardRefreshController(globalScope) {
+  function mergeCoverageStateFromSnapshotResult({
+    match,
+    previousCoverageState,
+    targetWindowDays,
+  }) {
+    const previous = previousCoverageState && typeof previousCoverageState === 'object'
+      ? previousCoverageState
+      : null;
+
+    if (!match || match.error || match.partial) {
+      return previous;
+    }
+
+    const nextState = {
+      ...(previous || {}),
+      complete_1d: Boolean(previous?.complete_1d),
+      complete_3d: Boolean(previous?.complete_3d),
+      complete_5d: Boolean(previous?.complete_5d),
+      source: 'snapshot_target_window',
+    };
+
+    if (Number(targetWindowDays) >= 1) nextState.complete_1d = true;
+    if (Number(targetWindowDays) >= 3) nextState.complete_3d = true;
+    if (Number(targetWindowDays) >= 5) nextState.complete_5d = true;
+
+    return nextState;
+  }
+
   function runAutoRefreshNotifications({
     triggeredByAuto,
     perSub,
@@ -289,7 +317,12 @@
           meta: match.meta || previous?.meta || null,
           posts: Array.isArray(match.posts) ? match.posts : [],
           partial: Boolean(match.partial),
-          coverage_state: match.coverage_state || null,
+          coverage_state: mergeCoverageStateFromSnapshotResult({
+            match,
+            previousCoverageState: match.coverage_state || previous?.coverage_state || null,
+            targetWindowDays: days,
+          }),
+          fetch_diagnostics: match.fetch_diagnostics || null,
           error: match.error || null,
           stale: false,
         };
@@ -341,6 +374,7 @@
   }
 
   globalScope.RDDRefreshController = {
+    mergeCoverageStateFromSnapshotResult,
     runAutoRefreshNotifications,
     runSnapshotRefreshFlow,
   };

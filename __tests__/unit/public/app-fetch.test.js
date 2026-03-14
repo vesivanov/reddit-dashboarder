@@ -40,6 +40,11 @@ describe('app fetch helpers', () => {
     const summary = fetchClient.buildFetchSummary({
       request_capped: true,
       days: 5,
+      coverage_summary: {
+        complete1dCount: 0,
+        complete3dCount: 0,
+        complete5dCount: 0,
+      },
     }, [
       {
         subreddit: 'alpha',
@@ -144,5 +149,40 @@ describe('app fetch helpers', () => {
     expect(summary.targetCoverageCount).toBe(2);
     expect(summary.targetCoverageComplete).toBe(true);
     expect(summary.detail).toContain('All 2/2 subreddits reached 3d coverage.');
+  });
+
+  test('does not show cross-window coverage breakdown when the snapshot response did not include one', () => {
+    const fetchClient = loadFetchClient();
+
+    const summary = fetchClient.buildFetchSummary({
+      request_capped: false,
+      days: 1,
+    }, [
+      {
+        subreddit: 'alpha',
+        posts: [{ id: 'a1' }],
+        partial: false,
+        error: null,
+        coverage_state: { complete_1d: true, complete_3d: false, complete_5d: false, source: 'snapshot_target_window' },
+      },
+      {
+        subreddit: 'beta',
+        posts: [{ id: 'b1' }],
+        partial: false,
+        error: null,
+        coverage_state: { complete_1d: true, complete_3d: false, complete_5d: false, source: 'snapshot_target_window' },
+      },
+    ], {
+      requestedFetchAllPages: false,
+      depthAutoCapped: false,
+      effectiveMaxPages: 2,
+      subsCount: 2,
+      targetWindowDays: 1,
+    });
+
+    expect(summary.status).toBe('Complete');
+    expect(summary.targetCoverageCount).toBe(2);
+    expect(summary.detail).toContain('All 2/2 subreddits reached 1d coverage.');
+    expect(summary.detail).not.toContain('Coverage:');
   });
 });

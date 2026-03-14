@@ -18,6 +18,44 @@ function loadRefreshController() {
 }
 
 describe('app refresh controller', () => {
+  test('marks the selected target window covered from a successful snapshot pass', () => {
+    const controller = loadRefreshController();
+
+    expect(controller.mergeCoverageStateFromSnapshotResult({
+      match: {
+        subreddit: 'alpha',
+        partial: false,
+        error: null,
+      },
+      previousCoverageState: null,
+      targetWindowDays: 1,
+    })).toMatchObject({
+      complete_1d: true,
+      complete_3d: false,
+      complete_5d: false,
+      source: 'snapshot_target_window',
+    });
+
+    expect(controller.mergeCoverageStateFromSnapshotResult({
+      match: {
+        subreddit: 'alpha',
+        partial: false,
+        error: null,
+      },
+      previousCoverageState: {
+        complete_1d: true,
+        complete_3d: false,
+        complete_5d: false,
+      },
+      targetWindowDays: 3,
+    })).toMatchObject({
+      complete_1d: true,
+      complete_3d: true,
+      complete_5d: false,
+      source: 'snapshot_target_window',
+    });
+  });
+
   test('uses the overall capped depth and passes total_subs_count to snapshot chunks', async () => {
     const controller = loadRefreshController();
     const requestedParams = [];
