@@ -1820,7 +1820,7 @@ const {
         if (keyword.trim()) pills.push({ key: 'keyword', label: `Keyword: ${truncateText(keyword.trim(), 24)}` });
         if (minUpvoteFilter) pills.push({ key: 'upvotes', label: `Upvotes: ${minUpvoteFilter}+` });
         if (minCommentFilter) pills.push({ key: 'comments', label: `Comments: ${minCommentFilter}+` });
-        if (minPriorityFilter) pills.push({ key: 'ai', label: `Priority: ${minPriorityFilter}+` });
+        if (minPriorityFilter) pills.push({ key: 'ai', label: `AI: ${minPriorityFilter}+` });
         return pills;
       }, [keyword, minUpvoteFilter, minCommentFilter, minPriorityFilter, truncateText]);
       const showingFilteredResults = visiblePosts.length !== preFilterPostCount;
@@ -2278,13 +2278,13 @@ const {
                 opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
                   h('div', { key: 'priority-divider', className: 'w-px h-5 bg-zinc-200 dark:bg-white/[0.08] shrink-0' }),
                   h('div', { key: 'priority-group', className: 'flex items-center gap-1' },
-                    h('span', { className: 'font-display text-[9px] uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mr-0.5' }, 'P'),
+                    h('span', { className: 'font-display text-[9px] uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500 mr-0.5' }, 'AI'),
                     OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
                       h('button', {
                         key: `ai-${preset.value}`,
                         onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
                         'aria-pressed': minPriorityFilter === preset.value,
-                        title: `Priority ${preset.label}`,
+                        title: `AI score ${preset.label}`,
                         className: `px-2 py-1 rounded text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] ${minPriorityFilter === preset.value ? 'bg-amber-500 text-white' : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.07] hover:text-zinc-700 dark:hover:text-zinc-200'}`
                       }, preset.label)
                     )
@@ -2334,7 +2334,7 @@ const {
                 // Save preset
                 filtersActive && filterPresets.length < 5 && h('button', {
                   onClick: () => {
-                    const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `P${minPriorityFilter}+`, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
+                    const label = [minUpvoteFilter && `▲${minUpvoteFilter}+`, minCommentFilter && `💬${minCommentFilter}+`, minPriorityFilter && `AI${minPriorityFilter}+`, keyword && `"${truncateText(keyword, 12)}"`].filter(Boolean).join(' ');
                     setFilterPresets(prev => [...prev, { id: Date.now(), label: label || `Preset ${prev.length + 1}`, upvote: minUpvoteFilter, comment: minCommentFilter, priority: minPriorityFilter, keyword }]);
                   },
                   title: 'Save current filters as a preset',
@@ -2422,7 +2422,7 @@ const {
                               minPriorityFilter && h('button', {
                                 onClick: () => setMinPriorityFilter(''),
                                 className: 'px-4 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700'
-                              }, 'Remove priority filter')
+                              }, 'Remove AI filter')
                             )
                           ]
                         : [
