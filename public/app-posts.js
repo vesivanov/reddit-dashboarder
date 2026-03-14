@@ -63,6 +63,10 @@
       items.push({
         label: 'Momentum',
         value: `${formatVelocity(velocity.upvotesPerHour)}/h upvotes · ${formatVelocity(velocity.commentsPerHour)}/h comments`,
+        upvotesPerHour: velocity.upvotesPerHour,
+        commentsPerHour: velocity.commentsPerHour,
+        upvotesLabel: `${formatVelocity(velocity.upvotesPerHour)}/h`,
+        commentsLabel: `${formatVelocity(velocity.commentsPerHour)}/h`,
       });
     }
     if (!items.length) {
@@ -115,6 +119,7 @@
     renderGlyph,
     timeAgo,
     absoluteDate,
+    openedPostIds,
   }) {
     const hasAiData = postScoreProxies.size > 0;
 
@@ -143,6 +148,14 @@
         const upvotesPerHour = velocity?.upvotesPerHour || 0;
         const commentsPerHour = velocity?.commentsPerHour || 0;
 
+        // ── Post age for temporal amber ────────────────────────────────
+        const postAgeMinutes = (Date.now() / 1000 - post.created_utc) / 60;
+        const isVeryRecent = postAgeMinutes < 15;
+        const timeClass = isVeryRecent || isSpiking
+          ? 'text-amber-500 dark:text-amber-400'
+          : 'text-zinc-400 dark:text-zinc-600';
+
+        // ── Tier ──────────────────────────────────────────────────────
         let cardTier = 'standard';
         if (hasAiData) {
           if (isVeryHighRelevant) cardTier = 'hero';
@@ -155,76 +168,110 @@
         const rationale = opportunity?.explanation?.summary
           || buildWhyLine({ post, relevanceMeta, upvotesPerHour, commentsPerHour });
 
-        // Score badge
+        // ── Score badge ───────────────────────────────────────────────
         const scoreDisplay = priorityScore !== null
           ? `P${Math.round(priorityScore * 100)}`
           : (relevanceScore !== undefined && relevanceScore !== null
               ? `${aiScoresStale ? '~' : ''}${relevanceScore}/5`
               : null);
 
-        // Tier: expressed only via left border
+        const scoreColorClass = cardTier === 'hero'
+          ? 'text-amber-400 dark:text-amber-400'
+          : cardTier === 'feature'
+            ? 'text-amber-500/80 dark:text-amber-400/70'
+            : 'text-amber-500/55 dark:text-amber-400/45';
+
+        // ── Tier ambient background ────────────────────────────────────
+        const tierBg = cardTier === 'hero'
+          ? 'dark:bg-amber-400/[0.04]'
+          : cardTier === 'feature'
+            ? 'dark:bg-white/[0.015]'
+            : '';
+
+        // ── Left border accent ─────────────────────────────────────────
         const borderAccent = cardTier === 'hero'
           ? 'border-l-2 border-amber-400/80'
           : cardTier === 'feature'
-            ? 'border-l-2 border-amber-400/30'
+            ? 'border-l-2 border-amber-400/25'
             : 'border-l-2 border-transparent';
 
-        const suppressedClass = cardTier === 'suppressed' && !isSelected ? 'opacity-40 hover:opacity-70' : '';
+        // ── Selection / hover bg ───────────────────────────────────────
         const selectedBg = isSelected
-          ? 'bg-zinc-100 dark:bg-white/[0.04]'
-          : 'hover:bg-zinc-50 dark:hover:bg-white/[0.02]';
+          ? 'bg-zinc-100 dark:bg-white/[0.05]'
+          : 'hover:bg-zinc-50 dark:hover:bg-white/[0.025]';
+
+        // ── Read tracking: title class ─────────────────────────────────
+        const isRead = openedPostIds && openedPostIds.has(post.id);
+        const titleClass = isSelected
+          ? 'text-[13px] leading-snug line-clamp-2 text-zinc-800 dark:text-zinc-200'
+          : isRead
+            ? 'text-[13px] leading-snug line-clamp-2 text-zinc-500 dark:text-zinc-500'
+            : cardTier === 'suppressed'
+              ? 'text-[13px] leading-snug line-clamp-2 text-zinc-500 dark:text-zinc-500'
+              : 'text-[13px] leading-snug line-clamp-2 text-zinc-700 dark:text-zinc-300';
 
         return h('li', {
           key: post.id,
-          className: `group relative border-b border-zinc-100 dark:border-white/[0.035] last:border-0 transition-colors ${borderAccent} ${selectedBg} ${suppressedClass}`,
+          className: `group relative border-b border-zinc-100 dark:border-white/[0.035] last:border-0 transition-colors ${borderAccent} ${selectedBg} ${tierBg}`,
           onMouseEnter: () => handlePostHoverStart(post),
           onMouseLeave: handlePostHoverEnd,
         },
           h('button', {
             onClick: () => onSelectPost(post),
-            className: 'w-full text-left px-3.5 py-2 pr-8',
+            className: 'w-full text-left px-3 py-2 pr-8',
           },
-            // ── Row 1: meta ─────────────────────────────────────────────
-            h('div', { className: 'flex items-center gap-1 mb-1 min-w-0' },
-              // Left meta: sub · type · flair · spiking
-              h('div', { className: 'flex items-center gap-1 min-w-0 flex-1 overflow-hidden' },
-                h('span', { className: 'text-[10px] font-medium text-zinc-500 dark:text-zinc-500 shrink-0' }, `r/${post.subreddit}`),
-                opportunityType && h('span', { className: 'text-[10px] text-zinc-300 dark:text-zinc-700' }, '·'),
-                opportunityType && h('span', {
-                  className: 'font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500/80 dark:text-amber-500/70 shrink-0',
-                }, opportunityType.replace(/_/g, ' ')),
-                flair && h('span', {
-                  className: 'px-1 rounded text-[9px] font-medium shrink-0',
-                  style: { backgroundColor: flairBg, color: flairTextColor, opacity: 0.85 },
-                }, flair),
-                isSpiking && h('span', {
-                  className: 'text-[9px] font-semibold text-rose-400 dark:text-rose-400/80 shrink-0',
-                }, '⚡spiking')
-              ),
-              // Right meta: time · score · comments · velocity · AI score
-              h('div', { className: 'flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums shrink-0 ml-2' },
-                h('span', { title: absoluteDate(post.created_utc), className: 'text-zinc-400 dark:text-zinc-600' }, timeAgo(post.created_utc)),
-                h('span', { className: 'text-zinc-300 dark:text-zinc-700' }, '·'),
-                h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/70 dark:text-emerald-500/60' },
-                  renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'), score),
-                h('span', { className: 'inline-flex items-center gap-0.5 text-zinc-400/70 dark:text-zinc-500/70' },
-                  renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments),
-                upvotesPerHour > 0 && h('span', { className: 'text-zinc-400/60 dark:text-zinc-600/60' },
-                  `${formatVelocity(upvotesPerHour)}/h`),
-                scoreDisplay && h('span', { className: 'font-mono font-semibold text-amber-500/80 dark:text-amber-400/70' }, scoreDisplay)
+            h('div', { className: 'flex gap-2 items-start' },
+
+              // ── Left: score column ───────────────────────────────────
+              scoreDisplay
+                ? h('div', { className: 'shrink-0 flex flex-col items-center pt-0.5 w-8' },
+                    h('span', { className: `font-mono text-[11px] font-bold leading-none ${scoreColorClass}` }, scoreDisplay),
+                    cardTier === 'hero' && h('div', { className: 'w-3 h-px bg-amber-400/50 rounded-full mt-1.5' })
+                  )
+                : null,
+
+              // ── Right: content ───────────────────────────────────────
+              h('div', { className: 'flex-1 min-w-0' },
+
+                // Row 1: meta
+                h('div', { className: 'flex items-center gap-1 mb-1 min-w-0' },
+                  h('div', { className: 'flex items-center gap-1 min-w-0 flex-1 overflow-hidden' },
+                    h('span', { className: 'text-[10px] font-medium text-zinc-500 dark:text-zinc-500 shrink-0' }, `r/${post.subreddit}`),
+                    opportunityType && h('span', { className: 'text-[10px] text-zinc-300 dark:text-zinc-700' }, '·'),
+                    opportunityType && h('span', {
+                      className: 'font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500/80 dark:text-amber-500/70 shrink-0',
+                    }, opportunityType.replace(/_/g, ' ')),
+                    flair && h('span', {
+                      className: 'px-1 rounded text-[9px] font-medium shrink-0',
+                      style: { backgroundColor: flairBg, color: flairTextColor, opacity: 0.85 },
+                    }, flair),
+                    isSpiking && h('span', {
+                      className: 'text-[9px] font-semibold text-rose-400 dark:text-rose-400/80 shrink-0',
+                    }, '⚡spiking')
+                  ),
+                  // Right meta: time · upvotes · comments (score moved to left column)
+                  h('div', { className: 'flex items-center gap-1.5 text-[10px] tabular-nums shrink-0 ml-2' },
+                    h('span', { title: absoluteDate(post.created_utc), className: timeClass }, timeAgo(post.created_utc)),
+                    h('span', { className: 'text-zinc-300 dark:text-zinc-700' }, '·'),
+                    h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/70 dark:text-emerald-500/60' },
+                      renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'), score),
+                    h('span', { className: 'inline-flex items-center gap-0.5 text-zinc-400/70 dark:text-zinc-500/70' },
+                      renderGlyph('M8 10h8M8 14h5m-9 7l2.5-2.5H19a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2h1.5L4 21z', 'w-2.5 h-2.5'), comments)
+                  )
+                ),
+
+                // Row 2: title
+                h('p', { className: titleClass }, post.title),
+
+                // Row 3: rationale + author
+                h('div', { className: 'flex items-center gap-2 mt-0.5' },
+                  rationale && showAiReasons && h('p', {
+                    className: 'flex-1 text-[10px] text-zinc-400 dark:text-zinc-600 line-clamp-1 leading-relaxed',
+                  }, rationale),
+                  h('span', { className: 'text-[10px] text-zinc-400/60 dark:text-zinc-700 shrink-0 truncate max-w-[80px]' },
+                    `u/${post.author}`)
+                )
               )
-            ),
-            // ── Row 2: title ─────────────────────────────────────────────
-            h('p', {
-              className: 'text-[13px] leading-snug line-clamp-2 text-zinc-700 dark:text-zinc-300',
-            }, post.title),
-            // ── Row 3: rationale + author ─────────────────────────────────
-            h('div', { className: 'flex items-center gap-2 mt-0.5' },
-              rationale && h('p', {
-                className: 'flex-1 text-[10px] text-zinc-400 dark:text-zinc-600 line-clamp-1 leading-relaxed',
-              }, rationale),
-              h('span', { className: 'text-[10px] text-zinc-400/60 dark:text-zinc-700 shrink-0 truncate max-w-[80px]' },
-                `u/${post.author}`)
             )
           ),
 
@@ -298,7 +345,8 @@
         }, h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
           h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
         )),
-        h('span', { className: 'font-mono text-[9px] uppercase tracking-[0.18em] text-zinc-300 dark:text-zinc-600 hidden lg:block' }, 'Brief'),
+        // Typography #6: BRIEF label → font-display
+        h('span', { className: 'font-display text-[9px] uppercase tracking-[0.2em] text-zinc-300 dark:text-zinc-600 hidden lg:block' }, 'Brief'),
         h('button', {
           onClick: () => setDetailCollapsed(true),
           'aria-label': 'Collapse',
@@ -325,8 +373,8 @@
               return h('div', null,
 
                 // ── Post header ───────────────────────────────────────────
-                h('div', { className: 'px-4 pt-3 pb-3 border-b border-zinc-100 dark:border-white/[0.05]' },
-                  h('div', { className: 'flex items-center gap-1.5 flex-wrap mb-1.5' },
+                h('div', { className: 'px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-white/[0.05]' },
+                  h('div', { className: 'flex items-center gap-1.5 flex-wrap mb-2' },
                     h('span', { className: 'text-[10px] text-zinc-400 dark:text-zinc-500' }, `r/${selectedPost.subreddit}`),
                     detailType && h('span', { className: 'font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500/70 dark:text-amber-400/60' }, formatOpportunityLabel(detailType)),
                     selectedPost.link_flair_text && h('span', {
@@ -338,10 +386,11 @@
                     }, selectedPost.link_flair_text),
                     h('span', { className: 'text-[10px] text-zinc-300 dark:text-zinc-600 ml-auto', title: absoluteDate(selectedPost.created_utc) }, timeAgo(selectedPost.created_utc))
                   ),
-                  h('h2', { className: 'text-sm font-medium text-zinc-700 dark:text-zinc-300 leading-snug mb-2' }, selectedPost.title),
+                  // Typography #3: title → font-display, larger
+                  h('h2', { className: 'font-display text-[15px] font-semibold text-zinc-800 dark:text-zinc-100 leading-snug mb-2.5' }, selectedPost.title),
                   h('div', { className: 'flex items-center gap-2.5 text-[10px] text-zinc-400 dark:text-zinc-600 tabular-nums' },
-                    detailPriority !== null && h('span', { className: 'font-mono font-semibold text-amber-500/80 dark:text-amber-400/70' }, `P${Math.round(detailPriority * 100)}`),
-                    detailPriority === null && detailRelevanceScore !== undefined && detailRelevanceScore !== null && h('span', { className: 'font-mono font-semibold text-amber-500/80 dark:text-amber-400/70' }, `${aiScoresStale ? '~' : ''}${detailRelevanceScore}/5`),
+                    detailPriority !== null && h('span', { className: 'font-mono font-bold text-amber-500/90 dark:text-amber-400/80' }, `P${Math.round(detailPriority * 100)}`),
+                    detailPriority === null && detailRelevanceScore !== undefined && detailRelevanceScore !== null && h('span', { className: 'font-mono font-bold text-amber-500/90 dark:text-amber-400/80' }, `${aiScoresStale ? '~' : ''}${detailRelevanceScore}/5`),
                     h('span', { className: 'inline-flex items-center gap-0.5 text-emerald-600/70 dark:text-emerald-500/60' },
                       renderGlyph('M7 14l5-5 5 5', 'w-2.5 h-2.5'), selectedPost.score),
                     h('span', { className: 'inline-flex items-center gap-0.5' },
@@ -373,14 +422,69 @@
                   }, renderGlyph('M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21', 'w-3 h-3'), 'Hide')
                 ),
 
-                // ── Intelligence brief ────────────────────────────────────
-                hasBrief && selectedPostWhyItems.length > 0 && h('div', { className: 'px-4 py-3 border-b border-zinc-100 dark:border-white/[0.05]' },
-                  selectedPostNextAction && h('p', { className: 'text-[11px] text-zinc-500 dark:text-zinc-500 leading-relaxed mb-2.5' }, selectedPostNextAction),
-                  h('div', { className: 'space-y-1.5' },
-                    selectedPostWhyItems.slice(0, 5).map((item) =>
-                      h('div', { key: item.label, className: 'flex gap-2' },
-                        h('span', { className: 'font-mono text-[8px] uppercase tracking-[0.08em] text-zinc-300 dark:text-zinc-600 pt-0.5 shrink-0 w-16' }, item.label),
-                        h('span', { className: 'text-[10px] text-zinc-500 dark:text-zinc-500 leading-relaxed' }, item.value)
+                // ── Intelligence brief (redesigned) ──────────────────────
+                hasBrief && selectedPostWhyItems.length > 0 && h('div', { className: 'border-b border-zinc-100 dark:border-white/[0.05]' },
+
+                  // Next action callout
+                  selectedPostNextAction && h('div', {
+                    className: 'mx-4 mt-3 border-l-2 border-amber-500 dark:border-amber-400 bg-amber-50/60 dark:bg-amber-500/[0.06] px-3 py-2.5 rounded-r-lg',
+                  },
+                    h('p', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-amber-600/60 dark:text-amber-400/50 mb-1' }, 'Next action'),
+                    h('p', { className: 'text-[11px] font-medium text-zinc-700 dark:text-zinc-200 leading-relaxed' }, selectedPostNextAction)
+                  ),
+
+                  // Why items
+                  h('div', { className: 'px-4 pt-3 pb-4 space-y-3' },
+                    selectedPostWhyItems.slice(0, 6).map((item) =>
+                      h('div', { key: item.label },
+                        // Typography #6: section labels → font-display
+                        h('p', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-zinc-400/60 dark:text-zinc-600 mb-1' }, item.label),
+
+                        item.label === 'Why now'
+                          // Bulleted list instead of dot-joined string
+                          ? h('div', { className: 'space-y-1' },
+                              item.value.split(' • ').filter(Boolean).map((bullet, i) =>
+                                h('div', { key: i, className: 'flex items-baseline gap-1.5' },
+                                  h('span', { className: 'text-amber-400/50 dark:text-amber-500/40 shrink-0 text-[10px]' }, '·'),
+                                  h('span', { className: 'text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed' }, bullet)
+                                )
+                              )
+                            )
+
+                          : item.label === 'Scores'
+                          // Score chips
+                          ? h('div', { className: 'flex flex-wrap gap-1' },
+                              item.value.split(' · ').filter(Boolean).map((s, i) =>
+                                h('span', { key: i, className: 'font-mono text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-white/[0.05] text-zinc-600 dark:text-zinc-400' }, s)
+                              )
+                            )
+
+                          : item.label === 'Momentum'
+                          // Visual momentum bars
+                          ? h('div', { className: 'space-y-2' },
+                              h('div', { className: 'flex items-center gap-2' },
+                                h('span', { className: 'font-mono text-[10px] text-zinc-500 dark:text-zinc-400 w-14 shrink-0' }, item.upvotesLabel || '—'),
+                                h('span', { className: 'font-display text-[9px] text-zinc-400/60 dark:text-zinc-600 shrink-0' }, 'upvotes'),
+                                h('div', { className: 'flex-1 h-1 rounded-full bg-zinc-100 dark:bg-white/[0.06] overflow-hidden' },
+                                  h('div', {
+                                    className: 'h-full rounded-full bg-emerald-400/60 dark:bg-emerald-500/40',
+                                    style: { width: `${Math.min(100, ((item.upvotesPerHour || 0) / 20) * 100)}%` },
+                                  })
+                                )
+                              ),
+                              h('div', { className: 'flex items-center gap-2' },
+                                h('span', { className: 'font-mono text-[10px] text-zinc-500 dark:text-zinc-400 w-14 shrink-0' }, item.commentsLabel || '—'),
+                                h('span', { className: 'font-display text-[9px] text-zinc-400/60 dark:text-zinc-600 shrink-0' }, 'comments'),
+                                h('div', { className: 'flex-1 h-1 rounded-full bg-zinc-100 dark:bg-white/[0.06] overflow-hidden' },
+                                  h('div', {
+                                    className: 'h-full rounded-full bg-zinc-400/40 dark:bg-zinc-500/30',
+                                    style: { width: `${Math.min(100, ((item.commentsPerHour || 0) / 5) * 100)}%` },
+                                  })
+                                )
+                              )
+                            )
+
+                          : h('p', { className: 'text-[11px] text-zinc-600 dark:text-zinc-400 leading-relaxed' }, item.value)
                       )
                     )
                   )

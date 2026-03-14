@@ -244,6 +244,9 @@ const {
       const [activePostMenu, setActivePostMenu] = useState(null);
       const [hoverPost, setHoverPost] = useState(null);
       const [lastHiddenPost, setLastHiddenPost] = useState(null);
+      const [statusExpanded, setStatusExpanded] = useState(false);
+      const [filterOpen, setFilterOpen] = useState(false);
+      const [openedPostIds, setOpenedPostIds] = useState(() => new Set());
       const hoverTimeoutRef = useRef(null);
       const hideUndoTimeoutRef = useRef(null);
       const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
@@ -1942,6 +1945,50 @@ const {
         return acc;
       }, { complete1d: 0, complete3d: 0, complete5d: 0 });
 
+      // Activity map: new posts per subreddit in the last hour
+      const subNewPostMap = useMemo(() => {
+        const cutoff = Date.now() / 1000 - 3600;
+        const map = new Map();
+        for (const post of allPosts) {
+          if ((post.created_utc || 0) > cutoff) {
+            const sub = (post.subreddit || '').toLowerCase();
+            if (sub) map.set(sub, (map.get(sub) || 0) + 1);
+          }
+        }
+        return map;
+      }, [allPosts]);
+
+      // Feed health for collapsed status bar
+      const feedHealth = loading ? 'loading'
+        : error ? 'error'
+        : (rateLimitPauseUntil && rateLimitPauseUntil > Date.now()) ? 'ratelimit'
+        : staleSubCount > 0 ? 'stale'
+        : fetchedAt && (Date.now() - fetchedAt) < 5 * 60 * 1000 ? 'fresh'
+        : fetchedAt ? 'idle'
+        : 'empty';
+
+      const feedHealthDot = {
+        loading: 'bg-amber-400 animate-pulse',
+        error: 'bg-rose-500',
+        ratelimit: 'bg-orange-400',
+        stale: 'bg-amber-400',
+        fresh: 'bg-emerald-400',
+        idle: 'bg-zinc-400 dark:bg-zinc-600',
+        empty: 'bg-zinc-300 dark:bg-zinc-700',
+      }[feedHealth];
+
+      const feedHealthLabel = loading
+        ? (fetchActivity ? `${fetchActivity.status}: ${fetchActivity.detail}` : 'Fetching…')
+        : error
+          ? error
+          : (rateLimitPauseUntil && rateLimitPauseUntil > Date.now())
+            ? `Rate limited · ${formatTimeUntil(rateLimitPauseUntil)}`
+            : staleSubCount > 0
+              ? `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'} stale`
+              : fetchedAt
+                ? `Updated ${timeAgo(fetchedAt / 1000)}`
+                : 'No data yet';
+
       return h('div', { 
         className: 'h-screen flex flex-col bg-zinc-100 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100',
         onTouchStart: handleTouchStart,
@@ -2003,49 +2050,42 @@ const {
           )
         ),
 
-        // Status bar
-        h('div', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.05] px-4 py-1.5 flex items-center justify-between gap-4 text-sm shrink-0' },
-          h('div', { className: 'flex flex-wrap items-center gap-2' },
-            loading
-              ? h('span', { className: 'flex items-center gap-2 text-zinc-600 dark:text-zinc-400' },
-                  h('div', { className: 'w-3 h-3 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin' }),
-                  'Fetching…'
-                )
-              : error
-                ? h('span', { className: 'flex items-center gap-2 flex-wrap' },
-                    h('span', { className: 'text-rose-600 dark:text-rose-400 font-medium' }, error),
-                    h('button', {
-                      onClick: () => refresh({ force: true }),
-                      className: 'text-xs font-semibold text-rose-700 dark:text-rose-400 underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded'
-                    }, 'Retry')
+        // Status bar — collapsed feed health indicator, expandable
+        h('div', { className: 'bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.05] px-4 py-1.5 flex items-center justify-between gap-4 shrink-0' },
+          // Left: feed health summary + expand toggle
+          h('div', { className: 'flex items-center gap-2 min-w-0 flex-1' },
+            needsAuth
+              ? h('span', { className: 'text-xs font-medium text-amber-700 dark:text-amber-400' }, 'Sign in required')
+              : h('button', {
+                  onClick: () => setStatusExpanded(!statusExpanded),
+                  className: 'flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity focus-visible:outline-none',
+                  title: statusExpanded ? 'Collapse status' : 'Expand status details',
+                },
+                  h('div', { className: `w-2 h-2 rounded-full shrink-0 ${feedHealthDot}` }),
+                  error
+                    ? h('span', { className: 'text-xs text-rose-600 dark:text-rose-400 font-medium truncate' }, feedHealthLabel)
+                    : h('span', { className: 'text-xs text-zinc-500 dark:text-zinc-400 truncate' }, feedHealthLabel),
+                  // AI engine inline status
+                  opportunityScanLoading && h('span', { className: 'text-xs text-amber-600 dark:text-amber-400 font-medium shrink-0' }, '· Ranking…'),
+                  !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && h('span', { className: 'font-mono text-xs text-zinc-400 dark:text-zinc-600 shrink-0' },
+                    `· ${aiScoreStats.scored}/${aiScoreStats.total} scored`
+                  ),
+                  aiScoresStale && h('span', { className: 'text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 shrink-0' }, 'Stale'),
+                  error && h('button', {
+                    onClick: (e) => { e.stopPropagation(); refresh({ force: true }); },
+                    className: 'text-xs font-semibold text-rose-700 dark:text-rose-400 underline hover:no-underline shrink-0'
+                  }, 'Retry'),
+                  h('svg', { className: `w-3 h-3 text-zinc-400 dark:text-zinc-600 shrink-0 transition-transform ${statusExpanded ? 'rotate-180' : ''}`, fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 9l-7 7-7-7' })
                   )
-                : needsAuth
-                  ? h('span', { className: 'text-amber-700 dark:text-amber-400 font-medium' }, 'Sign in required')
-                  : [
-                      renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0, 'neutral', 'Total visible posts after filters'),
-                      fetchedAt && !loading && renderStatusChip('Updated', timeAgo(fetchedAt / 1000), 'neutral', `Last fetched: ${absoluteDate(fetchedAt / 1000)}`),
-                      fetchSummary && !loading && renderStatusChip('Scope', fetchSummary.status, fetchSummary.tone),
-                      data.length > 0 && !loading && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral', `1-day depth: ${coverageCounts.complete1d} of ${data.length} subreddits have posts from the last 24h`),
-                      data.length > 0 && !loading && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral', `3-day depth: ${coverageCounts.complete3d} of ${data.length} subreddits have posts from the last 3 days`),
-                      data.length > 0 && !loading && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral', `5-day depth: ${coverageCounts.complete5d} of ${data.length} subreddits have posts from the last 5 days`),
-                      storageStatus && !loading && !storageStatus.persistent && renderStatusChip('Storage', 'Memory', 'warning', 'Posts stored in memory only — data will be lost on page reload'),
-                      snapshotInfo?.cached && !loading && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
-                      staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning', `${staleSubCount} subreddit${staleSubCount === 1 ? ' has' : 's have'} cached data from a previous session`),
-                      rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning', 'Reddit rate limit — fetching paused temporarily'),
-                      autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt), 'neutral', 'Scheduled auto-refresh time'),
-                      BUILD_INFO?.commit && !loading && renderStatusChip('Build', BUILD_INFO.commit),
-                      opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success', 'AI opportunity scan in progress'),
-                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success', 'Opportunity engine is active and scoring posts'),
-                      !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success', `${aiScoreStats.llm} posts scored by AI out of ${aiScoreStats.total} total`),
-                      !opportunityScanLoading && aiScoresStale && renderStatusChip('AI Scores', 'Stale', 'warning', 'Cached AI scores — goals or model changed since last scan. Re-run to get fresh scores.'),
-                      !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Engine', 'Off', 'neutral', 'Opportunity engine is off — configure it in Settings'),
-                    ],
+                )
+          ),
+          // Right: refresh + alerts
+          h('div', { className: 'flex items-center gap-2 shrink-0' },
             (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
               onClick: () => setSettingsOpen(true),
-              className: 'text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 rounded'
-            }, renderStatusChip('Alerts', 'On', 'accent'))
-          ),
-          h('div', { className: 'flex items-center gap-2' },
+              className: 'text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 focus-visible:outline-none rounded'
+            }, renderStatusChip('Alerts', 'On', 'accent')),
             h('button', {
               onClick: () => refresh({ force: true }),
               disabled: loading,
@@ -2056,8 +2096,28 @@ const {
                 h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' })
               ),
               'Refresh'
-            ),
+            )
           )
+        ),
+        // Expanded status chips — all the engineering details
+        statusExpanded && h('div', { className: 'bg-zinc-50 dark:bg-zinc-900/80 border-b border-zinc-100 dark:border-white/[0.04] px-4 py-2 flex flex-wrap items-center gap-2 animate-fadeIn' },
+          renderStatusChip('Posts', visiblePosts.length > 0 ? visiblePosts.length : 0, 'neutral', 'Total visible posts after filters'),
+          fetchedAt && renderStatusChip('Updated', timeAgo(fetchedAt / 1000), 'neutral', `Last fetched: ${absoluteDate(fetchedAt / 1000)}`),
+          fetchSummary && renderStatusChip('Scope', fetchSummary.status, fetchSummary.tone),
+          data.length > 0 && renderStatusChip('1d', `${coverageCounts.complete1d}/${data.length}`, coverageCounts.complete1d === data.length ? 'success' : 'neutral', `1-day depth`),
+          data.length > 0 && renderStatusChip('3d', `${coverageCounts.complete3d}/${data.length}`, coverageCounts.complete3d === data.length ? 'success' : 'neutral', `3-day depth`),
+          data.length > 0 && renderStatusChip('5d', `${coverageCounts.complete5d}/${data.length}`, coverageCounts.complete5d === data.length ? 'success' : 'neutral', `5-day depth`),
+          storageStatus && !storageStatus.persistent && renderStatusChip('Storage', 'Memory', 'warning', 'Posts stored in memory only'),
+          snapshotInfo?.cached && renderStatusChip('Cache', `${snapshotInfo.age_seconds || 0}s old`),
+          staleSubCount > 0 && renderStatusChip('Stale', `${staleSubCount} subreddit${staleSubCount === 1 ? '' : 's'}`, 'warning'),
+          rateLimitPauseUntil && rateLimitPauseUntil > Date.now() && renderStatusChip('Cooldown', formatTimeUntil(rateLimitPauseUntil), 'warning'),
+          autoRefreshEnabled && nextRefreshAt && !loading && renderStatusChip('Next refresh', formatTimeUntil(nextRefreshAt), 'neutral'),
+          BUILD_INFO?.commit && renderStatusChip('Build', BUILD_INFO.commit),
+          opportunityScanLoading && renderStatusChip('AI', 'Ranking…', 'success'),
+          !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && renderStatusChip('Engine', 'On', 'success'),
+          !opportunityScanLoading && opportunityEngineEnabled && hasOpportunityGoals && aiScoreStats.total > 0 && renderStatusChip('Reviewed', `${aiScoreStats.llm}/${aiScoreStats.total}`, 'success'),
+          !opportunityScanLoading && aiScoresStale && renderStatusChip('AI Scores', 'Stale', 'warning'),
+          !opportunityScanLoading && (!opportunityEngineEnabled || !hasOpportunityGoals) && postScoreProxies.size === 0 && renderStatusChip('Engine', 'Off', 'neutral')
         ),
         loading && fetchActivity && h('div', {
           className: 'border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200'
@@ -2099,6 +2159,7 @@ const {
             formatSubs,
             renderCoveragePill,
             handleRemoveSub,
+            subNewPostMap,
           }),
 
           // Center - Post list
@@ -2164,137 +2225,169 @@ const {
                 )
               )
             ),
-            // Filter toolbar
-            h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center gap-3 shrink-0 flex-wrap' },
-              h('div', { className: 'relative flex-1 min-w-[120px] max-w-[180px]' },
-                h('label', { htmlFor: 'search-input', className: 'sr-only' }, 'Search posts'),
-                h('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                  h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+            // Filter toolbar — search always visible, rest in collapsible drawer
+            h('div', { className: 'bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 shrink-0' },
+              // Always-visible row: search + filter toggle + saved presets
+              h('div', { className: 'flex items-center gap-2 px-3 py-2' },
+                h('div', { className: 'relative flex-1 min-w-0' },
+                  h('label', { htmlFor: 'search-input', className: 'sr-only' }, 'Search posts'),
+                  h('svg', { className: 'absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+                    h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                  ),
+                  h('input', {
+                    id: 'search-input',
+                    type: 'text',
+                    value: keyword,
+                    onChange: (e) => setKeyword(e.target.value),
+                    placeholder: 'Search…',
+                    className: 'w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:border-transparent'
+                  })
                 ),
-                h('input', {
-                  id: 'search-input',
-                  type: 'text',
-                  value: keyword,
-                  onChange: (e) => setKeyword(e.target.value),
-                  placeholder: 'Search keywords… (⌘K)',
-                  className: 'w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                })
-              ),
-              h('div', { className: 'flex items-center gap-1.5' },
-                h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Upvotes'),
-                UPVOTE_PRESETS.map(preset =>
-                  h('button', {
-                    key: `upvote-${preset.value}`,
-                    onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
-                    'aria-pressed': minUpvoteFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minUpvoteFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
-                  }, preset.label)
-                )
-              ),
-              h('div', { className: 'flex items-center gap-1.5' },
-                h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Comments'),
-                COMMENT_PRESETS.map(preset =>
-                  h('button', {
-                    key: `comment-${preset.value}`,
-                    onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
-                    'aria-pressed': minCommentFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minCommentFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
-                  }, preset.label)
-                )
-              ),
-              // Opportunity priority filter (legacy AI score thresholds still apply as fallback)
-              opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'flex items-center gap-1.5' },
-                h('span', { className: 'font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400 dark:text-zinc-500 mr-1' }, 'Priority'),
-                OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
-                  h('button', {
-                    key: `ai-${preset.value}`,
-                    onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
-                    'aria-pressed': minPriorityFilter === preset.value,
-                    className: `px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900 ${minPriorityFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
-                  }, preset.label)
-                )
-              ),
-              (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
-                onClick: () => setSettingsOpen(true),
-                className: 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-[#D97706]/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900',
-                title: 'Alerts settings'
-              }, h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24', 'aria-hidden': 'true' },
-                h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
-              ), 'Alerts'),
-              h('select', {
-                value: `${sortBy}-${sortOrder}`,
-                onChange: (e) => {
-                  const value = e.target.value;
-                  // Handle special case: "priority-desc" or legacy "ai-relevance-desc"
-                  let by, order;
-                  if (value.startsWith('priority-')) {
-                    by = 'priority';
-                    order = value.replace('priority-', '');
-                  } else if (value.startsWith('ai-relevance-')) {
-                    by = 'priority';
-                    order = value.replace('ai-relevance-', '');
-                  } else {
-                    // For other sorts like "date-desc", "upvotes-asc", etc.
-                    const lastDashIndex = value.lastIndexOf('-');
-                    by = value.substring(0, lastDashIndex);
-                    order = value.substring(lastDashIndex + 1);
-                  }
-                  setSortBy(by);
-                  setSortOrder(order);
+                // Filter toggle button
+                h('button', {
+                  onClick: () => setFilterOpen(!filterOpen),
+                  'aria-expanded': filterOpen,
+                  className: `flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D97706] ${
+                    filterOpen || (filtersActive && !keyword)
+                      ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300 border border-amber-200 dark:border-[#D97706]/30'
+                      : 'border border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'
+                  }`,
                 },
-                className: 'px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-900 focus:border-transparent'
-                },
-                h('option', { value: 'date-desc' }, 'Latest posts'),
-                h('option', { value: 'date-asc' }, 'Oldest posts'),
-                h('option', { value: 'upvotes-desc' }, 'Most upvotes'),
-                h('option', { value: 'upvotes-asc' }, 'Least upvotes'),
-                h('option', { value: 'comments-desc' }, 'Most comments'),
-                h('option', { value: 'comments-asc' }, 'Least comments'),
-                h('option', { value: 'velocity-upvotes-desc' }, 'Highest upvote velocity'),
-                h('option', { value: 'velocity-comments-desc' }, 'Highest comment velocity'),
-                opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
-                  h('option', { key: 'priority-desc', value: 'priority-desc' }, 'Highest opportunity priority'),
-                  h('option', { key: 'priority-asc', value: 'priority-asc' }, 'Lowest opportunity priority')
-                ]
-              ),
-                filtersActive && h('button', {
-                onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
-                className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-              }, 'Clear all'),
-              filtersActive && filterPresets.length < 5 && h('button', {
-                onClick: () => {
-                  const label = [
-                    minUpvoteFilter && `▲${minUpvoteFilter}+`,
-                    minCommentFilter && `💬${minCommentFilter}+`,
-                    minPriorityFilter && `P${minPriorityFilter}+`,
-                    keyword && `"${truncateText(keyword, 12)}"`,
-                  ].filter(Boolean).join(' ');
-                  setFilterPresets(prev => [...prev, {
-                    id: Date.now(),
-                    label: label || `Preset ${prev.length + 1}`,
-                    upvote: minUpvoteFilter,
-                    comment: minCommentFilter,
-                    priority: minPriorityFilter,
-                    keyword,
-                  }]);
-                },
-                title: 'Save current filters as a reusable preset',
-                className: 'text-xs text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 font-medium shrink-0'
-              }, '+ Save filters'),
-              filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1.5 flex-wrap' },
-                filterPresets.map(preset =>
-                  h('span', { key: preset.id, className: 'inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-[#D97706]/15 border border-amber-200 dark:border-[#D97706]/30 text-[11px] font-medium text-[#B45309] dark:text-amber-300' },
-                    h('button', {
-                      onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setKeyword(preset.keyword); },
-                      title: `Apply: ${preset.label}`,
-                      className: 'pl-2.5 pr-1 py-1 hover:text-[#D97706] dark:hover:text-amber-100 transition-colors'
-                    }, preset.label),
-                    h('button', {
-                      onClick: () => setFilterPresets(prev => prev.filter(p => p.id !== preset.id)),
-                      'aria-label': `Remove preset "${preset.label}"`,
-                      className: 'pr-2 py-1 text-amber-400 hover:text-[#B45309] dark:hover:text-amber-100 transition-colors'
-                    }, '×')
+                  h('svg', { className: 'w-3.5 h-3.5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' })
+                  ),
+                  'Filter',
+                  (() => {
+                    const nonKeywordFilters = [minUpvoteFilter, minCommentFilter, minPriorityFilter].filter(Boolean).length;
+                    return nonKeywordFilters > 0 && h('span', {
+                      className: 'inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#D97706] text-white font-bold text-[9px]'
+                    }, nonKeywordFilters);
+                  })()
+                ),
+                // Saved presets (inline, always visible)
+                filterPresets.length > 0 && h('div', { className: 'flex items-center gap-1 overflow-x-auto scrollbar-none' },
+                  filterPresets.map(preset =>
+                    h('span', { key: preset.id, className: 'inline-flex items-center gap-0.5 rounded-full bg-amber-50 dark:bg-[#D97706]/15 border border-amber-200 dark:border-[#D97706]/30 text-[10px] font-medium text-[#B45309] dark:text-amber-300 shrink-0' },
+                      h('button', {
+                        onClick: () => { setMinUpvoteFilter(preset.upvote); setMinCommentFilter(preset.comment); setMinPriorityFilter(preset.priority); setKeyword(preset.keyword); },
+                        title: `Apply: ${preset.label}`,
+                        className: 'pl-2 pr-1 py-0.5 hover:text-[#D97706] dark:hover:text-amber-100 transition-colors'
+                      }, preset.label),
+                      h('button', {
+                        onClick: () => setFilterPresets(prev => prev.filter(p => p.id !== preset.id)),
+                        'aria-label': `Remove preset "${preset.label}"`,
+                        className: 'pr-1.5 py-0.5 text-amber-400 hover:text-[#B45309] dark:hover:text-amber-100 transition-colors'
+                      }, '×')
+                    )
                   )
+                )
+              ),
+
+              // Collapsible filter drawer
+              filterOpen && h('div', { className: 'px-3 pb-3 pt-1 border-t border-zinc-100 dark:border-white/[0.04] space-y-2.5 animate-fadeIn' },
+                // Row 1: upvotes + comments
+                h('div', { className: 'flex items-center gap-4 flex-wrap' },
+                  h('div', { className: 'flex items-center gap-1.5' },
+                    h('span', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500' }, 'Upvotes'),
+                    UPVOTE_PRESETS.map(preset =>
+                      h('button', {
+                        key: `upvote-${preset.value}`,
+                        onClick: () => setMinUpvoteFilter(minUpvoteFilter === preset.value ? '' : preset.value),
+                        'aria-pressed': minUpvoteFilter === preset.value,
+                        className: `px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${minUpvoteFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                      }, preset.label)
+                    )
+                  ),
+                  h('div', { className: 'flex items-center gap-1.5' },
+                    h('span', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500' }, 'Comments'),
+                    COMMENT_PRESETS.map(preset =>
+                      h('button', {
+                        key: `comment-${preset.value}`,
+                        onClick: () => setMinCommentFilter(minCommentFilter === preset.value ? '' : preset.value),
+                        'aria-pressed': minCommentFilter === preset.value,
+                        className: `px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${minCommentFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                      }, preset.label)
+                    )
+                  )
+                ),
+                // Row 2: priority (AI) + alerts + sort
+                h('div', { className: 'flex items-center gap-4 flex-wrap' },
+                  opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && h('div', { className: 'flex items-center gap-1.5' },
+                    h('span', { className: 'font-display text-[9px] uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500' }, 'Priority'),
+                    OPPORTUNITY_PRIORITY_PRESETS.map(preset =>
+                      h('button', {
+                        key: `ai-${preset.value}`,
+                        onClick: () => setMinPriorityFilter(minPriorityFilter === preset.value ? '' : preset.value),
+                        'aria-pressed': minPriorityFilter === preset.value,
+                        className: `px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${minPriorityFilter === preset.value ? 'bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'}`
+                      }, preset.label)
+                    )
+                  ),
+                  (alertKeywords.trim() || notifyStrongOpportunities || notificationsEnabled) && h('button', {
+                    onClick: () => setSettingsOpen(true),
+                    className: 'flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-[#D97706]/15 text-[#B45309] dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-[#D97706]/20 transition-colors',
+                    title: 'Alerts settings'
+                  }, h('svg', { className: 'w-3 h-3', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' })
+                  ), 'Alerts'),
+                  h('select', {
+                    value: `${sortBy}-${sortOrder}`,
+                    onChange: (e) => {
+                      const value = e.target.value;
+                      let by, order;
+                      if (value.startsWith('priority-')) {
+                        by = 'priority'; order = value.replace('priority-', '');
+                      } else if (value.startsWith('ai-relevance-')) {
+                        by = 'priority'; order = value.replace('ai-relevance-', '');
+                      } else {
+                        const lastDashIndex = value.lastIndexOf('-');
+                        by = value.substring(0, lastDashIndex);
+                        order = value.substring(lastDashIndex + 1);
+                      }
+                      setSortBy(by); setSortOrder(order);
+                    },
+                    className: 'px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-600 text-xs bg-white dark:bg-zinc-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D97706] focus:border-transparent'
+                  },
+                    h('option', { value: 'date-desc' }, 'Latest'),
+                    h('option', { value: 'date-asc' }, 'Oldest'),
+                    h('option', { value: 'upvotes-desc' }, 'Most upvotes'),
+                    h('option', { value: 'upvotes-asc' }, 'Least upvotes'),
+                    h('option', { value: 'comments-desc' }, 'Most comments'),
+                    h('option', { value: 'comments-asc' }, 'Least comments'),
+                    h('option', { value: 'velocity-upvotes-desc' }, 'Upvote velocity'),
+                    h('option', { value: 'velocity-comments-desc' }, 'Comment velocity'),
+                    opportunityEngineEnabled && hasOpportunityGoals && postScoreProxies.size > 0 && [
+                      h('option', { key: 'priority-desc', value: 'priority-desc' }, 'Highest priority'),
+                      h('option', { key: 'priority-asc', value: 'priority-asc' }, 'Lowest priority')
+                    ]
+                  )
+                ),
+                // Row 3: clear + save (only when relevant)
+                filtersActive && h('div', { className: 'flex items-center gap-3' },
+                  h('button', {
+                    onClick: () => { setMinUpvoteFilter(''); setMinCommentFilter(''); setMinPriorityFilter(''); setKeyword(''); },
+                    className: 'text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }, 'Clear all'),
+                  filterPresets.length < 5 && h('button', {
+                    onClick: () => {
+                      const label = [
+                        minUpvoteFilter && `▲${minUpvoteFilter}+`,
+                        minCommentFilter && `💬${minCommentFilter}+`,
+                        minPriorityFilter && `P${minPriorityFilter}+`,
+                        keyword && `"${truncateText(keyword, 12)}"`,
+                      ].filter(Boolean).join(' ');
+                      setFilterPresets(prev => [...prev, {
+                        id: Date.now(),
+                        label: label || `Preset ${prev.length + 1}`,
+                        upvote: minUpvoteFilter,
+                        comment: minCommentFilter,
+                        priority: minPriorityFilter,
+                        keyword,
+                      }]);
+                    },
+                    title: 'Save current filters as a reusable preset',
+                    className: 'text-xs text-[#D97706] dark:text-amber-400 hover:text-[#B45309] dark:hover:text-amber-300 font-medium'
+                  }, '+ Save preset')
                 )
               )
             ),
@@ -2401,7 +2494,7 @@ const {
                     getRecommendedActionLabel,
                     handlePostHoverStart,
                     handlePostHoverEnd,
-                    onSelectPost: (post) => { setSelectedPost(post); setDetailCollapsed(false); setMobileView('detail'); },
+                    onSelectPost: (post) => { setSelectedPost(post); setOpenedPostIds(prev => { const next = new Set(prev); next.add(post.id); return next; }); setDetailCollapsed(false); setMobileView('detail'); },
                     activePostMenu,
                     setActivePostMenu,
                     handleCopyLink,
@@ -2415,6 +2508,7 @@ const {
                     renderGlyph,
                     timeAgo,
                     absoluteDate,
+                    openedPostIds,
                   }),
               // Hover preview tooltip
               hoverPost && h('div', { 

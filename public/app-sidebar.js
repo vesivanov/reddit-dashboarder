@@ -25,6 +25,7 @@
     formatSubs,
     renderCoveragePill,
     handleRemoveSub,
+    subNewPostMap,
   }) {
     const isAllSelected = selectedSub === 'ALL';
 
@@ -52,6 +53,11 @@
         );
       }
 
+      // Total new posts across all subs for the "All" row
+      const totalNewPosts = subNewPostMap
+        ? Array.from(subNewPostMap.values()).reduce((a, b) => a + b, 0)
+        : 0;
+
       const allRow = h('button', {
         key: 'all',
         onClick: () => setSelectedSub('ALL'),
@@ -63,13 +69,21 @@
       },
         isAllSelected && h('div', { className: 'absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-amber-400' }),
         h('span', { className: 'text-[11px] font-medium pl-1' }, 'All subreddits'),
-        h('span', { className: 'text-[10px] tabular-nums text-zinc-500 dark:text-zinc-600' }, allPosts.length)
+        h('div', { className: 'flex items-center gap-1.5 shrink-0' },
+          totalNewPosts > 0 && h('span', {
+            className: 'font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-amber-400/20 dark:bg-amber-400/15 text-amber-600 dark:text-amber-400',
+            title: `${totalNewPosts} new post${totalNewPosts === 1 ? '' : 's'} in the last hour`,
+          }, `+${totalNewPosts}`),
+          h('span', { className: 'text-[10px] tabular-nums text-zinc-500 dark:text-zinc-600' }, allPosts.length)
+        )
       );
 
       const subRows = subs.map((sub) => {
         const isSelected = selectedSub.toLowerCase() === sub.toLowerCase();
         const postCount = allPosts.filter((p) => p.subreddit?.toLowerCase() === sub.toLowerCase()).length;
         const dotColor = getSubDotColor(sub);
+        const newCount = subNewPostMap ? (subNewPostMap.get(sub.toLowerCase()) || 0) : 0;
+        const hasActivity = newCount > 0;
 
         return h('div', {
           key: sub,
@@ -85,11 +99,20 @@
           },
             isSelected && h('div', { className: 'absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full bg-amber-400' }),
             h('div', {
-              className: 'w-1.5 h-1.5 rounded-full shrink-0 ml-1 transition-all',
-              style: { backgroundColor: isSelected ? dotColor : 'currentColor', opacity: isSelected ? 1 : 0.3 },
+              className: `w-1.5 h-1.5 rounded-full shrink-0 ml-1 transition-all ${hasActivity ? 'ring-1 ring-amber-400/40' : ''}`,
+              style: {
+                backgroundColor: isSelected ? dotColor : hasActivity ? dotColor : 'currentColor',
+                opacity: isSelected ? 1 : hasActivity ? 0.8 : 0.3,
+              },
             }),
             h('span', { className: 'flex-1 text-[11px] font-medium truncate' }, sub),
-            h('span', { className: 'text-[10px] tabular-nums text-zinc-500 dark:text-zinc-600 group-hover:opacity-0 transition-opacity shrink-0' }, postCount),
+            h('div', { className: 'flex items-center gap-1 shrink-0' },
+              hasActivity && h('span', {
+                className: 'font-mono text-[9px] font-bold text-amber-500 dark:text-amber-400 group-hover:opacity-0 transition-opacity',
+                title: `${newCount} new post${newCount === 1 ? '' : 's'} in the last hour`,
+              }, `+${newCount}`),
+              h('span', { className: 'text-[10px] tabular-nums text-zinc-500 dark:text-zinc-600 group-hover:opacity-0 transition-opacity' }, postCount)
+            ),
             h('button', {
               onClick: (e) => { e.stopPropagation(); handleRemoveSub(sub); },
               className: 'absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-white/[0.1] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-all',
@@ -111,7 +134,8 @@
       'aria-label': 'Subreddits',
     },
       h('div', { className: 'px-3 py-2 border-b border-zinc-700 flex items-center justify-between shrink-0' },
-        h('span', { className: 'font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-600' }, 'Subreddits'),
+        // Typography #6: SUBREDDITS → font-display
+        h('span', { className: 'font-display text-[9px] uppercase tracking-[0.2em] text-zinc-600' }, 'Subreddits'),
         h('button', {
           onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
           'aria-label': 'Add subreddit',
@@ -133,7 +157,7 @@
       style: { width: '100%' },
     },
       h('div', { className: 'px-3 py-2.5 border-b border-zinc-700 flex items-center justify-between shrink-0' },
-        h('span', { className: 'font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-600' }, 'Subreddits'),
+        h('span', { className: 'font-display text-[9px] uppercase tracking-[0.2em] text-zinc-600' }, 'Subreddits'),
         h('button', {
           onClick: () => { setAddSubOpen(true); setTimeout(() => addSubInputRef.current?.focus(), 50); },
           'aria-label': 'Add subreddit',
