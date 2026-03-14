@@ -568,7 +568,7 @@ describe('/api/reddit aggregation', () => {
             },
           })
           .get(`/r/${sub}/new.json`)
-          .query((query) => query.limit === '25' && query.raw_json === '1' && query.after === 'page-3')
+          .query((query) => query.limit === '100' && query.raw_json === '1' && query.after === 'page-3')
           .reply(200, {
             data: {
               children: [buildPost(sub, `${sub}-3`, now - 7200)],
@@ -610,6 +610,7 @@ describe('/api/reddit aggregation', () => {
     expect(res.body.results.find((result) => result.subreddit === activeSub).fetch_diagnostics).toMatchObject({
       pagesFetched: 3,
       adaptiveExtraPagesUsed: 1,
+      adaptiveOverflowLimitUsed: 100,
       stoppedByAdaptiveCap: false,
       stoppedByAdaptiveBudget: false,
       remainingAfter: false,
@@ -618,12 +619,14 @@ describe('/api/reddit aggregation', () => {
       overallSubredditCount: 31,
       metadataRequestCount: 0,
       metadataSkippedCount: 6,
-      pageBudgetTotal: 3,
+      pageBudgetTotal: 6,
       pageBudgetConsumed: 1,
-      pageBudgetUnused: 2,
+      pageBudgetUnused: 5,
       adaptiveMode: 'chunk_overflow',
       adaptivePageRedistributionEnabled: true,
-      adaptiveAbsoluteMaxPages: 4,
+      adaptiveAbsoluteMaxPages: 8,
+      adaptiveOverflowLimit: 100,
+      maxAdaptiveExtraPagesPerSub: 6,
     });
     expect(oauth.isDone()).toBe(true);
   });
