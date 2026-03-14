@@ -1,5 +1,6 @@
 (function initDashboardAiController(globalScope) {
   const aiClient = globalScope.RDDAiClient || {};
+  const aiAuditClient = globalScope.RDDAiAuditClient || {};
   const fetchClient = globalScope.RDDFetchClient || {};
 
   const {
@@ -21,6 +22,10 @@
     mergeAiRankResponse = ({ items, scores, metadata, opportunities, cacheObject }) => ({ items, scores, metadata, opportunities, cacheObject }),
     appendNotifiedPostIds = (previousIds) => new Set(previousIds || []),
   } = aiClient;
+  const {
+    createAiAuditRunId = () => `airun_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    saveAiAuditRun = async () => null,
+  } = aiAuditClient;
   const { requestAiRank = null } = fetchClient;
   const MAX_POSTS_PER_AI_REQUEST = 250;
 
@@ -78,8 +83,37 @@
     }));
   }
 
-  function createClientAiRunId() {
-    return `client_airun_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  function buildAuditSummary(items) {
+    const values = Array.from((items || new Map()).values());
+    return {
+      totalItems: values.length,
+      llmReviewedCount: values.filter((item) => item.review?.status === 'llm_reviewed').length,
+      heuristicOnlyCount: values.filter((item) => item.review?.status === 'heuristic_only').length,
+      failedReviewCount: values.filter((item) => item.review?.status === 'failed').length,
+      topPriority: values
+        .map((item) => Number(item?.opportunity?.scores?.priority))
+        .filter((value) => Number.isFinite(value))
+        .sort((left, right) => right - left)
+        .slice(0, 10),
+    };
+  }
+
+  function sanitizeChunkAudit(result, requestChunk) {
+    return {
+      chunkIndex: requestChunk.index,
+      totalChunks: requestChunk.totalChunks,
+      chunkPostCount: requestChunk.posts.length,
+      llmPostLimit: requestChunk.llmPostLimit,
+      requestedModel: result?.requestedModel || null,
+      resolvedModel: result?.model || null,
+      modelsUsed: Array.isArray(result?.modelsUsed) ? result.modelsUsed : [],
+      requestStrategiesUsed: Array.isArray(result?.requestStrategiesUsed) ? result.requestStrategiesUsed : [],
+      fallbackUsed: Boolean(result?.fallbackUsed),
+      routingFallbackUsed: Boolean(result?.routingFallbackUsed),
+      metrics: result?.metrics || null,
+      failedPostIds: Array.isArray(result?.failedPostIds) ? result.failedPostIds : [],
+      items: Array.isArray(result?.items) ? result.items : [],
+    };
   }
 
   function maybeSendStrongOpportunityNotifications({
@@ -242,10 +276,45 @@
 
       let scoresForNotifications = cachedScores;
       let opportunitiesForNotifications = cachedOpportunities;
+      const auditRunId = createAiAuditRunId();
+      const auditRecord = {
+        runId: auditRunId,
+        createdAt: Date.now(),
+        status: 'running',
+        requestedModel: openRouterModel,
+        resolvedModels: [],
+        totalFeedPosts: allNewPosts.length,
+        chunkCount: 0,
+        llmPostLimit: effectiveLlmLimit,
+        promptVersion: aiPromptVersion,
+        scoringMode: 'hybrid',
+        goalText: effectiveGoalText,
+        contextText: effectiveContextText,
+        avoidText: effectiveAvoidText,
+        examples: {
+          perfect: aiExamplePerfect,
+          strong: aiExampleStrong,
+          reject: aiExampleReject,
+        },
+        posts: allNewPosts,
+        chunks: [],
+        items: [],
+        events: [],
+        summary: {},
+        error: null,
+      };
 
       try {
         const requestChunks = buildAiRequestChunks(allNewPosts, effectiveLlmLimit);
-        const clientRunId = createClientAiRunId();
+        const clientRunId = auditRunId;
+        auditRecord.chunkCount = requestChunks.length;
+        auditRecord.events.push({
+          time: Date.now(),
+          type: 'run_started',
+          totalFeedPosts: allNewPosts.length,
+          chunkCount: requestChunks.length,
+          llmPostLimit: effectiveLlmLimit,
+        });
         let mergedAiState = {
           items: new Map(),
           scores: new Map(),
@@ -264,6 +333,14 @@
             detail: requestChunk.totalChunks > 1
               ? `Reviewing chunk ${requestChunk.index + 1}/${requestChunk.totalChunks} (${requestChunk.posts.length} posts).`
               : `Reviewing ${allNewPosts.length} post${allNewPosts.length === 1 ? '' : 's'} for the best opportunities.`,
+          });
+          auditRecord.events.push({
+            time: Date.now(),
+            type: 'chunk_started',
+            chunkIndex: requestChunk.index,
+            totalChunks: requestChunk.totalChunks,
+            chunkPostCount: requestChunk.posts.length,
+            llmPostLimit: requestChunk.llmPostLimit,
           });
 
           const aiRankResult = requestAiRank
@@ -305,6 +382,18 @@
 
           setAiRateLimitPauseUntil(null);
           const result = aiRankResult.body;
+          auditRecord.chunks.push(sanitizeChunkAudit(result, requestChunk));
+          auditRecord.events.push({
+            time: Date.now(),
+            type: 'chunk_completed',
+            chunkIndex: requestChunk.index,
+            totalChunks: requestChunk.totalChunks,
+            chunkPostCount: requestChunk.posts.length,
+            llmReviewedCount: Number(result?.metrics?.llmReviewedCount) || 0,
+            heuristicOnlyCount: Number(result?.metrics?.heuristicOnlyCount) || 0,
+            failedReviewCount: Number(result?.metrics?.failedReviewCount) || 0,
+            durationMs: Number(result?.metrics?.durationMs) || 0,
+          });
           latestPromptVersion = result.promptVersion || latestPromptVersion;
           latestModel = result.model || latestModel;
           persistAiModelInfo({
@@ -346,12 +435,30 @@
           return;
         }
 
+        const heuristicOnlyCount = Array.from(mergedAiState.items.values()).filter((item) => item.review?.status === 'heuristic_only').length;
+        const failedReviewCount = Array.from(mergedAiState.items.values()).filter((item) => item.review?.status === 'failed').length;
+        auditRecord.status = failedReviewCount > 0 ? 'partial' : 'success';
+        auditRecord.resolvedModels = Array.from(new Set(
+          auditRecord.chunks.flatMap((chunk) => Array.isArray(chunk.modelsUsed) && chunk.modelsUsed.length ? chunk.modelsUsed : [chunk.resolvedModel]).filter(Boolean)
+        ));
+        if (!auditRecord.resolvedModels.length && latestModel) {
+          auditRecord.resolvedModels = [latestModel];
+        }
+        auditRecord.promptVersion = latestPromptVersion;
+        auditRecord.items = Array.from(mergedAiState.items.values());
+        auditRecord.summary = buildAuditSummary(mergedAiState.items);
+        auditRecord.events.push({
+          time: Date.now(),
+          type: 'run_completed',
+          status: auditRecord.status,
+          summary: auditRecord.summary,
+        });
+        void saveAiAuditRun(auditRecord);
+
         setPostAiItems(mergedAiState.items);
         setScoresVersion((version) => version + 1);
         setAiScoresStale(false);
 
-        const heuristicOnlyCount = Array.from(mergedAiState.items.values()).filter((item) => item.review?.status === 'heuristic_only').length;
-        const failedReviewCount = Array.from(mergedAiState.items.values()).filter((item) => item.review?.status === 'failed').length;
         setAiActivity({
           status: failedReviewCount > 0 ? 'Ready with fallback' : 'Ready',
           detail: failedReviewCount > 0
@@ -368,6 +475,17 @@
         if (opportunityScanRequestIdRef.current !== thisRequestId) {
           return;
         }
+        auditRecord.status = 'error';
+        auditRecord.error = aiError.message || 'Opportunity ranking failed.';
+        auditRecord.items = Array.from(cachedItems.values());
+        auditRecord.summary = buildAuditSummary(cachedItems);
+        auditRecord.events.push({
+          time: Date.now(),
+          type: 'run_failed',
+          error: auditRecord.error,
+          summary: auditRecord.summary,
+        });
+        void saveAiAuditRun(auditRecord);
         setPostAiItems(cachedItems);
         setScoresVersion((version) => version + 1);
         setAiScoresStale(cachedScores.size > 0);
