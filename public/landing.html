@@ -20,26 +20,40 @@
   <meta name="twitter:image" content="https://reddit-dashboarder.vercel.app/dashboard-feed.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Montserrat:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/tailwind.css?v=20260319" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Unbounded:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/tailwind.css?v=20260321" />
   <style>
     :root {
-      --signal:        #D97706;
-      --signal-hover:  #B45309;
-      --signal-active: #92400E;
-      --signal-glow:   rgba(217, 119, 6, 0.22);
-      /* 2015 dark: rich navy, not dead black */
-      --bg:            #111827;
-      --surface:       #1A2535;
-      --surface-2:     #1F2D40;
-      --surface-3:     #0E1520;
+      --signal:        #F5A623;
+      --signal-hover:  #D97706;
+      --signal-active: #B45309;
+      --signal-glow:   rgba(245,166,35,0.28);
+      /* Retro-futurist slate navy */
+      --bg:            #152438;
+      --surface:       #1C2F47;
+      --surface-2:     #243852;
+      --surface-3:     #0F1E32;
       --border:        rgba(255,255,255,0.08);
       --border-mid:    rgba(255,255,255,0.14);
     }
 
     html { background-color: var(--bg); }
-    body { font-family: 'Lato', system-ui, sans-serif; font-size: 14px; }
-    .font-display, h1, h2, h3 { font-family: 'Montserrat', 'Lato', sans-serif; letter-spacing: -0.02em; }
+    /* CRT scanline overlay on landing too */
+    html::after {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 1px,
+        transparent 1px, transparent 4px
+      );
+    }
+    body { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 14px; }
+    .font-display, h1, h2, h3 {
+      font-family: 'Unbounded', 'Space Grotesk', sans-serif;
+      letter-spacing: 0.02em;
+    }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -91,12 +105,13 @@
     }
 
     .label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.65rem;
-      font-weight: 500;
-      letter-spacing: 0.14em;
+      font-family: 'Unbounded', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
       color: var(--signal);
+      text-shadow: 0 0 10px rgba(245,166,35,0.4);
     }
     .divider { border-color: var(--border); }
 
@@ -105,8 +120,8 @@
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      background: rgba(217,119,6,0.12);
-      border: 1px solid rgba(217,119,6,0.3);
+      background: rgba(245,166,35,0.10);
+      border: 1px solid rgba(245,166,35,0.32);
       border-radius: 4px;
       padding: 0.3rem 0.75rem;
       font-family: 'JetBrains Mono', monospace;
@@ -114,11 +129,13 @@
       font-weight: 500;
       color: #FCD34D;
       letter-spacing: 0.02em;
+      box-shadow: 0 0 8px rgba(245,166,35,0.15);
     }
     .score-dot {
       width: 6px; height: 6px;
-      border-radius: 999px;
-      background: #D97706;
+      border-radius: 2px;
+      background: #F5A623;
+      box-shadow: 0 0 6px rgba(245,166,35,0.7);
       animation: pulse-dot 2s ease-in-out infinite;
     }
 
