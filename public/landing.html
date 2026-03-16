@@ -628,22 +628,102 @@
       </div>
 
       <div class="mt-14 grid gap-6 lg:grid-cols-2">
+        <!-- Feed View mock -->
         <div class="surface-card p-4 sr sr-d1">
-          <div class="screen-frame">
-            <img src="/dashboard-feed.png" alt="Reddit Dashboarder feed view with ranked posts and subreddit filters" class="screen-shot feed" />
+          <div class="mock-window" style="height:320px;overflow:hidden;">
+            <div style="display:flex;height:100%;">
+              <!-- Sidebar -->
+              <div style="width:130px;flex-shrink:0;background:#091628;border-right:1px solid rgba(255,255,255,0.07);padding:12px 8px;display:flex;flex-direction:column;gap:0;">
+                <div style="font-family:'Unbounded',sans-serif;font-size:9px;letter-spacing:0.14em;color:#F5A623;text-shadow:0 0 12px rgba(245,166,35,0.5);padding:0 4px;margin-bottom:14px;">Reddit Dashboarder</div>
+                <div style="font-family:'Unbounded',sans-serif;font-size:8px;letter-spacing:0.16em;color:#2E5070;text-transform:uppercase;padding:0 4px;margin-bottom:6px;">Workspaces</div>
+                <div style="background:rgba(245,166,35,0.12);border-radius:4px;padding:5px 8px;font-size:11px;color:#F5A623;font-weight:600;margin-bottom:2px;">SEO Agency</div>
+                <div style="padding:5px 8px;font-size:11px;color:#4E7098;margin-bottom:2px;">SaaS Monitor</div>
+                <div style="padding:5px 8px;font-size:11px;color:#4E7098;">Competitor Watch</div>
+              </div>
+              <!-- Post list -->
+              <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+                <div class="mock-toolbar" style="padding:7px 12px;display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#4E7098;">24 posts · 5 strong</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#F5A623;">● AI active</span>
+                </div>
+                <div style="padding:8px;display:flex;flex-direction:column;gap:4px;overflow:hidden;">
+                  <div class="mock-post active" style="border-left:3px solid #F5A623;box-shadow:-3px 0 10px rgba(245,166,35,0.22);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4E7098;">r/seo · 12m</span>
+                      <span class="ai-badge high">5/5</span>
+                    </div>
+                    <p style="margin-top:4px;font-size:11.5px;font-weight:600;color:#D0E4F8;line-height:1.35;">Need help finding an SEO consultant for a local services business</p>
+                    <p style="margin-top:4px;font-size:10px;color:#4E7098;font-style:italic;font-family:'Lora',serif;">Clear need, likely budget, active thread.</p>
+                  </div>
+                  <div class="mock-post" style="border-left:2px solid rgba(245,166,35,0.38);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4E7098;">r/marketing · 28m</span>
+                      <span class="ai-badge high">4/5</span>
+                    </div>
+                    <p style="margin-top:4px;font-size:11.5px;font-weight:600;color:#D0E4F8;line-height:1.35;">What agency would you trust for technical content and search growth?</p>
+                    <p style="margin-top:4px;font-size:10px;color:#4E7098;font-style:italic;font-family:'Lora',serif;">Active evaluation, clear intent.</p>
+                  </div>
+                  <div class="mock-post" style="opacity:0.42;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4E7098;">r/entrepreneur · 44m</span>
+                      <span class="ai-badge low">1/5</span>
+                    </div>
+                    <p style="margin-top:4px;font-size:11.5px;font-weight:600;color:#D0E4F8;line-height:1.35;">Share your favorite marketing meme</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="mt-4">
             <p class="label mb-2">Feed View</p>
-            <p class="text-sm text-zinc-400 leading-relaxed">View multiple subreddits in one place and sort through posts more quickly.</p>
+            <p class="text-sm text-zinc-400 leading-relaxed">Subreddits in one place, posts ranked by relevance. High-scoring threads surface first.</p>
           </div>
         </div>
+
+        <!-- Detail View mock -->
         <div class="surface-card p-4 sr sr-d2">
-          <div class="screen-frame">
-            <img src="/dashboard-detail.png" alt="Reddit Dashboarder detail view highlighting why a post matters" class="screen-shot detail" />
+          <div class="mock-window" style="height:320px;overflow:hidden;">
+            <div class="mock-toolbar" style="padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <span style="font-size:11px;font-weight:600;color:#D0E4F8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;">Need help finding an SEO consultant for a local services business</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4E7098;flex-shrink:0;">r/seo · 12m</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden;">
+              <!-- Action row -->
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+                <div>
+                  <div style="font-family:'Unbounded',sans-serif;font-size:8px;letter-spacing:0.16em;color:#F5A623;text-transform:uppercase;text-shadow:0 0 10px rgba(245,166,35,0.4);">Recommended Action</div>
+                  <p style="margin-top:4px;font-size:15px;font-weight:700;color:#fff;">Reply now</p>
+                  <p style="margin-top:2px;font-size:11px;color:#80A0C0;">Open the thread and add a helpful reply.</p>
+                </div>
+                <span class="ai-badge high" style="font-size:13px;padding:5px 10px;flex-shrink:0;">5/5</span>
+              </div>
+              <div style="border-top:1px solid rgba(255,255,255,0.07);"></div>
+              <!-- Signals -->
+              <div style="display:flex;flex-direction:column;gap:9px;">
+                <div class="annot-line">
+                  <div style="font-family:'Unbounded',sans-serif;font-size:8px;letter-spacing:0.15em;color:#2E5070;text-transform:uppercase;">Matched Signals</div>
+                  <p style="margin-top:3px;font-size:11px;color:#80A0C0;">need help · consultant · local business · budget-ready</p>
+                </div>
+                <div class="annot-line">
+                  <div style="font-family:'Unbounded',sans-serif;font-size:8px;letter-spacing:0.15em;color:#2E5070;text-transform:uppercase;">Momentum</div>
+                  <p style="margin-top:3px;font-size:11px;color:#80A0C0;">82 upvotes/h · 11 comments/h · fresh thread</p>
+                </div>
+                <div class="annot-line">
+                  <div style="font-family:'Unbounded',sans-serif;font-size:8px;letter-spacing:0.15em;color:#2E5070;text-transform:uppercase;">Summary</div>
+                  <p style="margin-top:3px;font-size:11px;color:#80A0C0;font-style:italic;font-family:'Lora',serif;">Local services company searching for an SEO consultant and appears ready to hire.</p>
+                </div>
+              </div>
+              <!-- Action buttons -->
+              <div style="display:flex;gap:6px;margin-top:2px;">
+                <span style="background:#D97706;color:#fff;border-radius:4px;padding:5px 12px;font-size:11px;font-weight:700;">Reply</span>
+                <span style="background:rgba(255,255,255,0.05);color:#80A0C0;border-radius:4px;padding:5px 10px;font-size:11px;border:1px solid rgba(255,255,255,0.1);">Save</span>
+                <span style="background:rgba(255,255,255,0.05);color:#80A0C0;border-radius:4px;padding:5px 10px;font-size:11px;border:1px solid rgba(255,255,255,0.1);">Open Reddit →</span>
+              </div>
+            </div>
           </div>
           <div class="mt-4">
             <p class="label mb-2">Detail View</p>
-            <p class="text-sm text-zinc-400 leading-relaxed">Open a post and see the score, the reason, and the post details in one view.</p>
+            <p class="text-sm text-zinc-400 leading-relaxed">Open a post and see the score, the reason, and the recommended action in one view.</p>
           </div>
         </div>
       </div>
