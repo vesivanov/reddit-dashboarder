@@ -365,13 +365,12 @@
     }
 
     /* ── Pill chips → rectangular ── */
-    html.dark span.rounded-full.border,
-    html.dark span.rounded-full.bg-zinc-100,
-    html.dark span.rounded-full.dark\:bg-zinc-700,
-    html.dark span.rounded-full.text-xs          { border-radius: 4px !important; }
-    html.dark button.rounded-full.border         { border-radius: 4px !important; }
-    html.dark .max-w-lg button.rounded-full,
-    html.dark .max-w-3xl button.rounded-full     { border-radius: 4px !important; }
+    /* Any chip/badge with horizontal padding (px-*) is a label, not a dot — 4px corners.
+       Excludes: toggle tracks (w-11), toggle thumbs (w-5 h-5 / w-4 h-4 inside tracks),
+       dots (no px-*), spinners (animate-spin), progress bar fills */
+    html.dark span.rounded-full[class*="px-"],
+    html.dark div.rounded-full[class*="px-"]:not([class*="w-11"]):not([class*="h-6"]),
+    html.dark button.rounded-full[class*="px-"]:not([class*="w-11"]) { border-radius: 4px !important; }
 
     /* ── Modals ── */
     html.dark .bg-white.dark\:bg-zinc-800.rounded-xl,
