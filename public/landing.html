@@ -38,6 +38,15 @@
     }
 
     html { background-color: var(--bg); }
+    /* ── Film grain ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 9998;
+      opacity: 0.032;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
     /* CRT scanline overlay on landing too */
     html::after {
       content: '';
@@ -54,6 +63,10 @@
       font-family: 'Unbounded', 'Space Grotesk', sans-serif;
       letter-spacing: 0.02em;
     }
+    /* At large display sizes, Unbounded's wide geometry reads best with
+       tight or slightly negative tracking — counteract the built-in width */
+    h1 { letter-spacing: -0.02em; }
+    h2 { letter-spacing: -0.01em; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }

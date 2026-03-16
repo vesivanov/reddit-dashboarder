@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Unbounded:wght@600;700;800;900&family=Lora:ital,wght@1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/tailwind.css?v=20260321" />
+  <link rel="stylesheet" href="/tailwind.css?v=20260322" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -65,6 +65,19 @@
     .post-body p, .post-body li { margin-bottom: 0.75em; }
     .post-body a { color: #F5A623; text-decoration: underline; text-underline-offset: 2px; }
 
+    /* ── Film grain — analog noise texture ── */
+    /* SVG fractalNoise at 3% opacity. Sits below scanlines (z-index 9998). */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9998;
+      opacity: 0.032;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
     /* ── CRT Scanline overlay — analog texture ── */
     /* Very subtle: 1px dark line every 4px, pointer-events none */
     html::after {
@@ -83,7 +96,7 @@
     }
 
     /* ── Scrollbars — amber tinted ── */
-    html.dark { --scrollbar-thumb: rgba(217,119,6,0.3); --scrollbar-thumb-hover: rgba(217,119,6,0.55); }
+    html.dark { --scrollbar-thumb: rgba(245,166,35,0.25); --scrollbar-thumb-hover: rgba(245,166,35,0.5); }
     .scrollbar-thin::-webkit-scrollbar { width: 5px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
@@ -113,6 +126,14 @@
     /* ── Suppressed cards ── */
     .post-card-suppressed { opacity: 0.35; transition: opacity 0.15s; }
     .post-card-suppressed:hover { opacity: 0.65; }
+
+    /* ── Phosphor glow on pulsing amber status dot ── */
+    html.dark .bg-amber-400.animate-pulse {
+      box-shadow: 0 0 8px rgba(245,166,35,0.75), 0 0 3px rgba(245,166,35,0.9) !important;
+    }
+    html.dark .bg-amber-400.animate-pulse.rounded-full {
+      border-radius: 50% !important;
+    }
 
     /* ════════════════════════════════════
        SKY → AMBER REPLACEMENTS
@@ -189,14 +210,18 @@
       border-top: 3px solid #F5A623 !important;
       border-bottom: 1px solid rgba(0,0,0,0.5) !important;
     }
-    /* Sidebar brand title: Unbounded, amber glow */
+    /* Sidebar/header brand title: Unbounded, amber phosphor glow */
     html.dark .bg-zinc-900 h1,
     html.dark .bg-zinc-900 .text-lg.font-bold {
       font-family: 'Unbounded', sans-serif !important;
-      font-size: 11px !important;
-      letter-spacing: 0.12em !important;
+      font-size: 10px !important;
+      letter-spacing: 0.14em !important;
       color: #F5A623 !important;
-      text-shadow: 0 0 12px rgba(245,166,35,0.45) !important;
+      text-shadow: 0 0 14px rgba(245,166,35,0.55) !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      max-width: 200px !important;
     }
     html.dark .bg-zinc-900 .text-zinc-400 { color: #4E6E90 !important; }
     html.dark .bg-zinc-900 .text-zinc-500 { color: #3A5570 !important; }
@@ -208,7 +233,7 @@
     html.dark .bg-zinc-900 .text-amber-400 {
       color: #F5A623 !important;
       font-weight: 700 !important;
-      text-shadow: 0 0 10px rgba(245,166,35,0.5) !important;
+      text-shadow: 0 0 12px rgba(245,166,35,0.6) !important;
     }
     html.dark .bg-zinc-900 .bg-amber-400\/20 {
       background-color: rgba(245,166,35,0.15) !important;
@@ -228,7 +253,10 @@
       transition: box-shadow 0.18s ease, transform 0.18s ease !important;
     }
     html.dark li.group:hover {
-      box-shadow: 0 5px 18px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.2) !important;
+      box-shadow:
+        inset 2px 0 0 rgba(245,166,35,0.18),
+        0 5px 18px rgba(0,0,0,0.35),
+        0 2px 6px rgba(0,0,0,0.2) !important;
       transform: translateY(-1px);
     }
     /* Selected card */
@@ -305,9 +333,9 @@
 
     /* Detail section labels: Unbounded, dimmed amber ── */
     html.dark p.font-display.text-\[9px\].uppercase {
-      font-size: 9px !important;
-      letter-spacing: 0.2em !important;
-      font-weight: 800 !important;
+      font-size: 10px !important;
+      letter-spacing: 0.18em !important;
+      font-weight: 700 !important;
       color: #2E5070 !important;
     }
     html.dark h2.font-display.text-\[15px\] {
@@ -331,8 +359,8 @@
     html.dark span.font-mono.uppercase {
       font-family: 'Unbounded', sans-serif !important;
       font-weight: 700 !important;
-      letter-spacing: 0.18em !important;
-      font-size: 9px !important;
+      letter-spacing: 0.16em !important;
+      font-size: 10px !important;
       color: #2E5070 !important;
     }
 
@@ -406,13 +434,20 @@
     html.dark .rounded-xl  { border-radius: 7px !important; }
     html.dark .rounded-lg  { border-radius: 6px !important; }
 
-    /* ── Amber accent ── */
-    html.dark .text-amber-400 { color: #FBBF24 !important; }
-    html.dark .text-amber-300 { color: #FCD34D !important; }
-    html.dark .text-amber-600 { color: #F5A623 !important; }
+    /* ── Amber accent — consolidated phosphor hierarchy ── */
+    /* #F5A623 = primary phosphor (active, selected, glow)  */
+    /* #FBBF24 = bright readable amber for text             */
+    /* #D97706 = pressed / background fill state            */
+    html.dark .text-amber-400 { color: #F5A623 !important; }
+    html.dark .text-amber-300 { color: #FBBF24 !important; }
+    html.dark .text-amber-600 { color: #D97706 !important; }
+    html.dark .text-amber-500 { color: #F5A623 !important; }
     html.dark .bg-amber-50    { background-color: rgba(245,166,35,0.08) !important; }
-    html.dark .border-amber-200 { border-color: rgba(245,166,35,0.25) !important; }
+    html.dark .bg-amber-500   { background-color: #D97706 !important; }
+    html.dark .border-amber-200 { border-color: rgba(245,166,35,0.28) !important; }
     html.dark .border-amber-500 { border-color: #F5A623 !important; }
+    /* Amber text in AI section: consistent phosphor color */
+    html.dark .text-amber-700 { color: #F5A623 !important; }
   </style>
 </head>
 <body class="bg-zinc-100 dark:bg-zinc-900 min-h-screen text-zinc-900 dark:text-zinc-100 transition-colors">

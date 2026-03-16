@@ -165,35 +165,51 @@ Dark mode is the primary environment. Light mode uses a cool blue-gray palette �
 
 ---
 
-## Design Era: 2015 Flat Dashboard
+## Design Era: Retro-Futurist 2026
 
-This app targets the 2014–2016 "pro dashboard" aesthetic — not modern ultra-flat or skeuomorphic. The defining characteristics:
+This app targets a specific aesthetic: what a 1985 designer would have built in 2026. Not nostalgia-driven kitsch, not clean modern SaaS — something with genuine analog character expressed through contemporary craft.
+
+**The palette is a visible slate navy**, not near-black. `#152438` background, `#1C2F47` cards, `#0F1E32` sidebar. Dark enough to feel like a control room, light enough to feel like a professional tool, not a terminal.
+
+**The amber is phosphor amber** (`#F5A623`), not burnt orange. Active states glow. The AI status dot pulses with a `box-shadow` glow. Hero card borders cast a lateral glow. Focused inputs have an amber aura. This is the CRT phosphor effect — a single accent color that feels alive.
+
+**Amber color hierarchy:**
+- `#F5A623` — primary phosphor (active states, selected items, glowing elements)
+- `#FBBF24` — bright readable amber for text labels on dark
+- `#D97706` — pressed state, background fills (buttons, badges)
+- `#FCD34D` — score numbers (maximum contrast)
+
+**Three analog texture layers (stacked):**
+1. Film grain — SVG `feTurbulence` fractalNoise at 3.2% opacity, `z-index: 9998`
+2. CRT scanlines — 1px dark line every 4px, `z-index: 9999`, both on the `html::after` pseudo-element
+3. Depth gradients — radial-gradient atmospheric depth on the body background
+
+**Typography stack (2025/2026 top-tier):**
+| Role | Font | Notes |
+|------|------|-------|
+| Body / UI | Space Grotesk | Mechanical letterforms, analog warmth — not clinical |
+| Structural labels | Unbounded | Wide geometric, 1970s instrument panel. Min 10px. |
+| Data / numbers | JetBrains Mono | Terminal precision, tabular alignment |
+| AI rationale | Lora italic | Editorial voice, distinct from UI chrome |
+
+**Unbounded at small sizes:** minimum 10px. The typeface has wide, detailed letterforms that collapse below this threshold. Section labels use `font-size: 10px`, `letter-spacing: 0.16–0.18em`, `font-weight: 700`. At display sizes (h1, h2), counteract the built-in width with `letter-spacing: -0.02em` for h1 and `-0.01em` for h2.
 
 **What makes it old-school:**
-- **No glassmorphism.** No backdrop blur on navbars. No frosted glass surfaces. Solid colors only.
-- **No pill buttons.** Buttons are rectangular with 4–6px radius, not rounded-full. They feel like controls, not tags.
-- **No gradient fills on interactive elements.** Amber is amber — not a gradient from amber to orange.
-- **Typography has weight contrast.** Lato 300 vs 700 vs 900 — not subtle weight differences but a full dynamic range that signals hierarchy at a glance.
-- **Structural labels are loud.** Montserrat 800, all-caps, 0.18em tracking. In modern design, section labels whisper. Here they speak.
-- **Serif italic for editorial content.** Lora italic on AI rationale rows signals "interpretation" — a typographic convention from editorial design, not tech dashboards.
-- **Depth through box-shadow, not border.** Cards float. They don't sit on a grid of dividers.
-- **Brand stripe.** A solid 3px amber bar at the top of the sidebar. Unambiguous. From an era when brands stamped their color on every control surface.
-- **The sidebar is always dark.** Even in light mode. This is a product decision from 2014 when dark sidebars read as "control panel." It still does.
-- **No animations for hover states.** Card elevation on hover is a shadow+translate — not a color fade, not a scale pop.
+- No glassmorphism — solid surfaces only, no `backdrop-filter`
+- No pill shapes — chips and badges are `border-radius: 4px`, not `rounded-full`
+- No gradient fills on buttons — flat solid amber `#D97706`
+- No animations on hover states beyond shadow lift and `translateY(-1px)`
+- Card hover reveals a ghost amber inset bar (`box-shadow: inset 2px 0 0 rgba(245,166,35,0.18)`) — like a terminal row selection
+- Sidebar brand always dark, always with 3px amber top stripe
+- Scrollbars amber-tinted (`rgba(245,166,35,0.25)`)
 
 **What it is not:**
-- Not Bootstrap 3 blue-gray (that's 2013)
-- Not Material Design (that's exactly 2015 but too rounded, too colorful, too Google)
-- Not flat iOS 7 (too white, no depth)
-- Not modern 2022+ style (no blurs, no neons, no variable fonts, no large rounded corners)
+- Not 2015 flat SaaS (Mixpanel, Segment era) — that was the previous direction
+- Not Material Design
+- Not modern 2022+ (no blur, no neons, no variable font animations)
+- Not skeuomorphic
 
-The mental model: a professional analytics dashboard from a well-funded startup in early 2015. Polished, data-first, slightly serious.
-
-**Compact** — post list, sidebar, filter bar, AI status bar. The user is scanning. Every pixel of vertical space is another post in view.
-
-**Comfortable** — detail pane, modals, settings, onboarding. The user is reading and deciding. Content should breathe.
-
-Never mix these in the same region.
+The mental model: a precision instrument built by people who grew up on amber terminals and now have access to the best type foundries in the world.
 
 ---
 
