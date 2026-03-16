@@ -1,29 +1,49 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="light dark" />
+  <meta name="color-scheme" content="dark" />
   <title>Reddit Dashboarder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700&family=Lora:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/tailwind.css?v=20260318" />
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Montserrat:wght@600;700;800&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/tailwind.css?v=20260320" />
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
   <script src="/lib/ui-helpers.js?v=20260309b"></script>
   <style>
-    html { color-scheme: light; }
-    html.dark { color-scheme: dark; }
+    html { color-scheme: dark; }
 
-    /* ── Typography ── */
-    body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
-    /* Soften dark-mode body text — zinc-100 (#f4f4f5) is too glaring on dark bg */
+    /* ════════════════════════════════════════════════════════════
+       BASE TYPOGRAPHY — Lato + Montserrat + JetBrains Mono
+       The 2015 SaaS trifecta. Lato 300 for muted / 700 for UI /
+       900 for big numbers. Montserrat 700–800 for structural labels.
+       ════════════════════════════════════════════════════════════ */
+    body {
+      font-family: 'Lato', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
     html.dark body { color: #C2C2CC; }
-    .font-display { font-family: 'Syne', 'Plus Jakarta Sans', sans-serif; }
+
+    /* Montserrat for structural / section labels */
+    .font-display {
+      font-family: 'Montserrat', 'Lato', sans-serif;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    /* JetBrains Mono for all data */
     .font-mono, code, [class*="mono"] { font-family: 'JetBrains Mono', monospace; }
+
+    button, a, select { cursor: pointer; }
 
     button {
       appearance: none;
@@ -41,96 +61,62 @@
       font: inherit;
       letter-spacing: inherit;
     }
+
+    /* Post body uses Lora — the editorial serif of 2015 */
     .post-body { font-family: 'Lora', Georgia, serif; font-size: 0.875rem; line-height: 1.75; color: inherit; }
     .post-body p, .post-body li { margin-bottom: 0.75em; }
-    .post-body a { color: #F59E0B; text-decoration: underline; text-underline-offset: 2px; }
+    .post-body a { color: #D97706; text-decoration: underline; text-underline-offset: 2px; }
 
     /* ── Scrollbars ── */
-    :root { --scrollbar-thumb: #ccc7be; --scrollbar-thumb-hover: #aaa49b; }
+    :root { --scrollbar-thumb: #CBD5E0; --scrollbar-thumb-hover: #A0AEC0; }
     html.dark { --scrollbar-thumb: #3D3820; --scrollbar-thumb-hover: #6B6030; }
-    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar { width: 5px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 99px; }
     .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
     /* ── Animations ── */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     .animate-fadeIn { animation: fadeIn 0.15s ease-out; }
 
-    /* ── Glass / overlays ── */
+    /* ── Login card — 2015 solid card, no glass/blur ── */
+    /* 2015 login was a solid white card on a dimmed bg — zero backdrop blur */
     .glass {
-      background: rgba(253, 252, 250, 0.88);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+      background: #FFFFFF;
+      border: 1px solid #D0DAEA;
+      box-shadow: 0 12px 48px rgba(16,30,54,0.22), 0 2px 10px rgba(16,30,54,0.10);
     }
     .dark .glass {
-      background: rgba(24, 24, 29, 0.88);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      background: #1A2535;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 2px 10px rgba(0,0,0,0.3);
     }
     .login-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px) saturate(1.2);
-      -webkit-backdrop-filter: blur(8px) saturate(1.2);
+      /* 2015: dim + very slight blur on underlying content only — not on overlay */
+      background: rgba(16, 24, 40, 0.60);
       z-index: 50;
     }
-    .dark .login-overlay { background: rgba(0, 0, 0, 0.55); }
+    .dark .login-overlay { background: rgba(0, 0, 8, 0.72); }
+    /* 2015: no blur on content. Dim via overlay only. */
     .dashboard-preview {
-      filter: blur(2px) brightness(0.95);
+      filter: brightness(0.88) saturate(0.7);
       pointer-events: none;
       user-select: none;
     }
-    .dark .dashboard-preview { filter: blur(2px) brightness(0.82); }
+    .dark .dashboard-preview { filter: brightness(0.65) saturate(0.5); }
 
-    /* ════════════════════════════════════════════════════════
-       DESIGN SYSTEM v2 — Amber Signal
-       Surface and accent overrides. Loaded after tailwind.css
-       so document-order wins on equal specificity.
-       ════════════════════════════════════════════════════════ */
-
-    /* ── Light mode surfaces (warm paper, not clinical white) ── */
-    /* Scoped to light mode only — dark mode must NOT inherit these warm overrides */
-    html:not(.dark) .bg-zinc-100 { background-color: #F0EEE9 !important; }
-    html:not(.dark) .bg-zinc-50  { background-color: #F8F6F1 !important; }
-
-    /* ── Dark mode surfaces (softer, warmer — less eye fatigue) ── */
-    html.dark .dark\:bg-zinc-900     { background-color: #16161E !important; }
-    html.dark .dark\:bg-zinc-800     { background-color: #1C1C26 !important; }
-    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(28,28,38,0.5) !important; }
-    html.dark .dark\:bg-zinc-700     { background-color: #24242F !important; }
-
-    /* ── Dark mode borders ── */
-    html.dark .dark\:border-zinc-700 { border-color: rgba(255,255,255,0.06) !important; }
-    html.dark .dark\:border-zinc-600 { border-color: rgba(255,255,255,0.09) !important; }
-    html.dark .dark\:divide-zinc-700 > * + * { border-color: rgba(255,255,255,0.05) !important; }
-
-    /* ── Hero post cards (high-priority signal glow) ── */
-    .post-card-hero {
-      background: linear-gradient(90deg, rgba(245,158,11,0.07) 0%, transparent 55%) !important;
-    }
-    .post-card-hero:hover {
-      background: linear-gradient(90deg, rgba(245,158,11,0.12) 0%, transparent 55%) !important;
-    }
-    html.dark .post-card-hero {
-      background: linear-gradient(90deg, rgba(245,158,11,0.06) 0%, transparent 55%) !important;
-    }
-    html.dark .post-card-hero:hover {
-      background: linear-gradient(90deg, rgba(245,158,11,0.10) 0%, transparent 55%) !important;
-    }
-    /* ── Suppressed post cards (noise) ── */
-    .post-card-suppressed { opacity: 0.45; transition: opacity 0.15s; }
-    .post-card-suppressed:hover { opacity: 0.75; }
-
-    /* ── Sidebar icon rail ── */
+    /* ── Sidebar rail ── */
     .scrollbar-none::-webkit-scrollbar { display: none; }
     .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
-    /* ── Amber accent replacing sky blue (#0284C7) ── */
-    /* Backgrounds */
+    /* ── Suppressed post cards ── */
+    .post-card-suppressed { opacity: 0.4; transition: opacity 0.15s; }
+    .post-card-suppressed:hover { opacity: 0.7; }
+    /* ════════════════════════════════════
+       SKY → AMBER ACCENT REPLACEMENTS
+       ════════════════════════════════════ */
     .bg-\[\#0284C7\]                          { background-color: #D97706 !important; }
     .hover\:bg-\[\#0369A1\]:hover             { background-color: #B45309 !important; }
     .active\:bg-\[\#075985\]:active           { background-color: #92400E !important; }
@@ -140,8 +126,6 @@
     .bg-sky-50                                 { background-color: #FFFBEB !important; }
     .bg-sky-100                                { background-color: #FEF3C7 !important; }
     html.dark .dark\:bg-sky-900\/30           { background-color: rgba(120,53,15,0.3) !important; }
-
-    /* Text */
     .text-\[\#0284C7\]                        { color: #D97706 !important; }
     .text-\[\#0369A1\]                        { color: #B45309 !important; }
     .hover\:text-\[\#0284C7\]:hover           { color: #D97706 !important; }
@@ -153,24 +137,245 @@
     html.dark .dark\:text-sky-400             { color: #FBBF24 !important; }
     html.dark .dark\:text-sky-300             { color: #FCD34D !important; }
     html.dark .dark\:hover\:text-sky-300:hover { color: #FDE68A !important; }
-
-    /* Borders */
     .border-\[\#0284C7\]                      { border-color: #D97706 !important; }
     html.dark .dark\:border-\[\#0284C7\]      { border-color: #D97706 !important; }
     html.dark .dark\:border-\[\#0284C7\]\/25  { border-color: rgba(217,119,6,0.32) !important; }
     html.dark .dark\:border-\[\#0284C7\]\/30  { border-color: rgba(217,119,6,0.35) !important; }
     .border-sky-200                            { border-color: #FDE68A !important; }
     .border-sky-200\/80                        { border-color: rgba(253,230,138,0.8) !important; }
-
-    /* Ring / focus */
     .ring-\[\#0284C7\]                              { --tw-ring-color: #D97706 !important; }
     .focus-visible\:ring-\[\#0284C7\]:focus-visible { --tw-ring-color: #D97706 !important; }
     .focus\:ring-\[\#0284C7\]:focus                 { --tw-ring-color: #D97706 !important; }
     html.dark .dark\:ring-\[\#0284C7\]\/30          { --tw-ring-color: rgba(217,119,6,0.35) !important; }
-
-    /* Selected post left-bar accent */
     .border-\[\#0284C7\].border-l-4 { border-left-color: #D97706 !important; }
     html.dark .dark\:text-sky-200   { color: #FDE68A !important; }
+
+    /* ════════════════════════════════════════════════════════════
+       DARK MODE — 2015 Navy Dashboard
+       ─────────────────────────────────────────────────────────────
+       Same era as the light mode. Deep navy surfaces, not purple-zinc.
+       Think Mixpanel dark, Segment dark (2015): navy blue-charcoal,
+       white cards replaced by slightly lighter navy panels,
+       amber accent, JetBrains Mono for data, Montserrat for labels.
+       ════════════════════════════════════════════════════════════ */
+
+    /* ── Dark mode body bg: deep navy, not dead black ── */
+    html.dark body {
+      background-color: #0D1520;
+      background-image:
+        radial-gradient(ellipse 70% 45% at 10% 5%, rgba(26,45,75,0.5) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 90% 95%, rgba(10,20,40,0.6) 0%, transparent 55%);
+      color: #C8D6E8;
+    }
+    html.dark .bg-zinc-100 { background-color: #0D1520 !important; }
+    html.dark main { background-color: #0D1520 !important; }
+
+    /* ── Dark surfaces ── */
+    html.dark .dark\:bg-zinc-900     { background-color: #0D1520 !important; }
+    html.dark .dark\:bg-zinc-800     { background-color: #14202E !important; }
+    html.dark .dark\:bg-zinc-800\/50 { background-color: rgba(20,32,46,0.5) !important; }
+    html.dark .dark\:bg-zinc-700     { background-color: #1C2D40 !important; }
+    html.dark .dark\:bg-zinc-600     { background-color: #243550 !important; }
+
+    /* ── Dark borders ── */
+    html.dark .dark\:border-zinc-700 { border-color: rgba(255,255,255,0.07) !important; }
+    html.dark .dark\:border-zinc-600 { border-color: rgba(255,255,255,0.10) !important; }
+    html.dark .dark\:divide-zinc-700 > * + * { border-color: rgba(255,255,255,0.06) !important; }
+
+    /* ── Dark sidebar: same deep navy with amber brand stripe ── */
+    html.dark .bg-zinc-900 {
+      background-color: #0A1628 !important;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.4);
+    }
+    html.dark .bg-zinc-900 > div:first-child {
+      background-color: #060F1C !important;
+      border-top: 3px solid #D97706 !important;
+      border-bottom: 1px solid rgba(0,0,0,0.4) !important;
+    }
+    html.dark .bg-zinc-900 .text-zinc-400 { color: #6A8FAF !important; }
+    html.dark .bg-zinc-900 .text-zinc-500 { color: #4D7299 !important; }
+    html.dark .bg-zinc-900 button.text-amber-400 {
+      background-color: rgba(217,119,6,0.16) !important;
+      border-radius: 4px !important;
+    }
+    html.dark .bg-zinc-900 .text-amber-400 { color: #FBBF24 !important; font-weight: 700 !important; }
+    html.dark .bg-zinc-900 .bg-amber-400\/20 {
+      background-color: rgba(217,119,6,0.18) !important;
+      border: 1px solid rgba(217,119,6,0.30) !important;
+      border-radius: 4px !important;
+    }
+
+    /* ── Dark post cards: navy panels with subtle elevation ── */
+    html.dark ul[role="list"] { padding: 8px 0 !important; }
+    html.dark li.group {
+      background: #14202E !important;
+      border-bottom: none !important;
+      border-radius: 6px !important;
+      margin: 0 8px 4px !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2) !important;
+      overflow: hidden !important;
+      transition: box-shadow 0.2s ease, transform 0.2s ease !important;
+    }
+    html.dark li.group:hover {
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.25) !important;
+      transform: translateY(-1px);
+    }
+    html.dark li.group.bg-zinc-100,
+    html.dark li.group.dark\:bg-zinc-700\/50 { background: #1A2D42 !important; }
+
+    /* Dark load-more row: not a card */
+    html.dark li.flex.items-center.justify-center.py-4 {
+      background: transparent !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* Dark card typography */
+    html.dark li.group p.font-semibold.leading-snug {
+      font-weight: 700 !important;
+      font-size: 13.5px !important;
+      color: #D8E8F8 !important;
+    }
+    html.dark li.group .text-zinc-400.tabular-nums { font-weight: 300 !important; color: #5A7A9A !important; }
+    html.dark li.group .font-semibold.tabular-nums { font-weight: 700 !important; }
+    html.dark li.group p.text-zinc-600.leading-relaxed,
+    html.dark li.group p.dark\:text-zinc-400.leading-relaxed {
+      font-style: italic !important;
+      font-family: 'Lora', Georgia, serif !important;
+      font-size: 11.5px !important;
+      color: #6A8AAA !important;
+    }
+
+    /* ── Dark filter toolbar ── */
+    html.dark .bg-zinc-50.dark\:bg-zinc-900 {
+      background-color: #0A1628 !important;
+      border-bottom-color: rgba(255,255,255,0.07) !important;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.25) !important;
+    }
+
+    /* ── Dark detail pane ── */
+    html.dark .bg-white.dark\:bg-zinc-800 {
+      background-color: #14202E !important;
+    }
+    html.dark .bg-white.dark\:bg-zinc-800 > div:first-child {
+      background-color: #0F1A28 !important;
+      border-bottom-color: rgba(255,255,255,0.07) !important;
+    }
+    html.dark .border-l.border-zinc-100 { border-left-color: rgba(255,255,255,0.07) !important; }
+    html.dark .border-zinc-100 { border-color: rgba(255,255,255,0.06) !important; }
+    html.dark .dark\:border-white\/\[0\.05\] { border-color: rgba(255,255,255,0.06) !important; }
+
+    /* Dark detail section labels: Montserrat, same as light */
+    html.dark p.font-display.text-\[9px\].uppercase {
+      font-size: 10px !important;
+      letter-spacing: 0.18em !important;
+      font-weight: 800 !important;
+      color: #3D6080 !important;
+    }
+    html.dark h2.font-display.text-\[15px\] {
+      font-size: 15px !important;
+      font-weight: 800 !important;
+      color: #D8E8F8 !important;
+    }
+
+    /* Dark "Next action" callout */
+    html.dark .border-l-2.border-amber-500 {
+      border-left-color: #D97706 !important;
+      border-left-width: 3px !important;
+      background-color: rgba(217,119,6,0.10) !important;
+    }
+
+    /* ── Dark section labels: ALL font-mono uppercase → Montserrat ── */
+    html.dark .font-mono.uppercase,
+    html.dark p.font-mono.uppercase,
+    html.dark span.font-mono.uppercase {
+      font-family: 'Montserrat', 'Lato', sans-serif !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.18em !important;
+      font-size: 10px !important;
+      color: #3D6080 !important;
+    }
+
+    /* ── Dark pill chips → rectangular 4px ── */
+    html.dark span.rounded-full.border,
+    html.dark span.rounded-full.bg-zinc-100,
+    html.dark span.rounded-full.dark\:bg-zinc-700,
+    html.dark span.rounded-full.text-xs {
+      border-radius: 4px !important;
+    }
+    html.dark button.rounded-full.border { border-radius: 4px !important; }
+    html.dark .max-w-lg button.rounded-full,
+    html.dark .max-w-3xl button.rounded-full { border-radius: 4px !important; }
+
+    /* ── Dark modals ── */
+    html.dark .bg-white.dark\:bg-zinc-800.rounded-xl,
+    html.dark .bg-white.dark\:bg-zinc-800.rounded-2xl {
+      background-color: #14202E !important;
+      box-shadow: 0 16px 60px rgba(0,0,0,0.6), 0 2px 12px rgba(0,0,0,0.3) !important;
+      border-radius: 8px !important;
+    }
+    html.dark .dark\:border-zinc-700 { border-color: rgba(255,255,255,0.08) !important; }
+
+    /* ── Dark inputs ── */
+    html.dark input[type="text"],
+    html.dark input[type="search"],
+    html.dark input:not([type]),
+    html.dark textarea,
+    html.dark select {
+      background: #0F1A28 !important;
+      border-color: rgba(255,255,255,0.10) !important;
+      border-radius: 5px !important;
+      color: #C8D6E8 !important;
+    }
+    html.dark input:focus,
+    html.dark textarea:focus,
+    html.dark select:focus {
+      border-color: #D97706 !important;
+      box-shadow: 0 0 0 3px rgba(217,119,6,0.20) !important;
+      outline: none !important;
+    }
+
+    /* ── Dark primary buttons ── */
+    html.dark .dark\:bg-\[\#D97706\]   { background-color: #D97706 !important; }
+    html.dark .dark\:hover\:bg-\[\#B45309\]:hover { background-color: #B45309 !important; }
+
+    /* ── Dark text ── */
+    html.dark .dark\:text-zinc-100 { color: #D8E8F8 !important; }
+    html.dark .dark\:text-zinc-200 { color: #B8CEE0 !important; }
+    html.dark .dark\:text-zinc-300 { color: #90A8BE !important; }
+    html.dark .dark\:text-zinc-400 { color: #6A8AAA !important; }
+    html.dark .dark\:text-zinc-500 { color: #4D7298 !important; }
+
+    /* ── Dark hover bg ── */
+    html.dark .dark\:hover\:bg-zinc-700:hover { background-color: #1C2D40 !important; }
+    html.dark .dark\:hover\:bg-zinc-700\/50:hover { background-color: rgba(28,45,64,0.5) !important; }
+    html.dark .dark\:hover\:bg-zinc-700\/60:hover { background-color: rgba(28,45,64,0.6) !important; }
+    html.dark .dark\:bg-zinc-900\/40 { background-color: rgba(13,21,32,0.4) !important; }
+
+    /* ── Dark dropdown / shadow-lg panels ── */
+    html.dark .shadow-lg { box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3) !important; }
+
+    /* ── Dark score / action badges ── */
+    html.dark .dark\:bg-zinc-700 { background-color: #1C2D40 !important; }
+    html.dark .bg-zinc-100.dark\:bg-white\/\[0\.08\] { background-color: rgba(255,255,255,0.07) !important; border-radius: 4px !important; }
+
+    /* ── Dark toast ── */
+    html.dark .dark\:bg-zinc-700 { background-color: #1C2D40 !important; }
+
+    /* ── Dark momentum bars ── */
+    html.dark .dark\:bg-white\/\[0\.06\] { background-color: rgba(255,255,255,0.05) !important; }
+
+    /* ── Corner radius — dark mode same 6-8px ── */
+    html.dark .rounded-2xl { border-radius: 8px !important; }
+    html.dark .rounded-xl  { border-radius: 7px !important; }
+    html.dark .rounded-lg  { border-radius: 6px !important; }
+
+    /* ── Dark amber accent ── */
+    html.dark .text-amber-400 { color: #FBBF24 !important; }
+    html.dark .text-amber-300 { color: #FCD34D !important; }
+    html.dark .bg-amber-50    { background-color: rgba(217,119,6,0.10) !important; }
+    html.dark .border-amber-200 { border-color: rgba(217,119,6,0.25) !important; }
   </style>
 </head>
 <body class="bg-zinc-100 dark:bg-zinc-900 min-h-screen text-zinc-900 dark:text-zinc-100 transition-colors">

@@ -1,28 +1,12 @@
 (function initDashboardAuthModule() {
-  const THEME_PREFERENCE_KEY = 'dashboard_theme_preference';
   window.RDDAppAuth = {
     createAppWithAuth({ App, h, useState, useEffect }) {
       function LoginPage({ showPreview = true }) {
         const [loggingIn, setLoggingIn] = useState(false);
-        const [isDark, setIsDark] = useState(() => {
-          if (typeof window !== 'undefined') {
-            const savedPreference = localStorage.getItem(THEME_PREFERENCE_KEY);
-            if (savedPreference === 'dark') return true;
-            if (savedPreference === 'light') return false;
-          }
-          return false;
-        });
 
         useEffect(() => {
-          if (isDark) {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
-          localStorage.setItem(THEME_PREFERENCE_KEY, isDark ? 'dark' : 'light');
-          localStorage.setItem('dashboard_dark_mode', isDark ? '1' : '0');
-          localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        }, [isDark]);
+          document.documentElement.classList.add('dark');
+        }, []);
 
         const handleLogin = () => {
           setLoggingIn(true);
@@ -74,20 +58,6 @@
                       ),
                   loggingIn ? 'Redirecting...' : 'Sign in with Reddit'
                 ),
-                h('div', { className: 'border-t border-zinc-200 dark:border-zinc-700 pt-3' }),
-                h('button', {
-                  onClick: () => setIsDark(!isDark),
-                  className: 'text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors inline-flex items-center gap-2 mx-auto'
-                },
-                  isDark
-                    ? h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' })
-                      )
-                    : h('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        h('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' })
-                      ),
-                  h('span', null, isDark ? 'Light mode' : 'Dark mode')
-                )
               )
             )
           )

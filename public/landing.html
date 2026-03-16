@@ -20,28 +20,29 @@
   <meta name="twitter:image" content="https://reddit-dashboarder.vercel.app/dashboard-feed.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/tailwind.css?v=20260311b" />
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=Montserrat:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/tailwind.css?v=20260319" />
   <style>
     :root {
       --signal:        #D97706;
       --signal-hover:  #B45309;
       --signal-active: #92400E;
-      --signal-glow:   rgba(217, 119, 6, 0.18);
-      --bg:            #0C0D0F;
-      --surface:       #161619;
-      --surface-2:     #1D1D22;
-      --surface-3:     #111115;
-      --border:        rgba(255,255,255,0.07);
-      --border-mid:    rgba(255,255,255,0.12);
+      --signal-glow:   rgba(217, 119, 6, 0.22);
+      /* 2015 dark: rich navy, not dead black */
+      --bg:            #111827;
+      --surface:       #1A2535;
+      --surface-2:     #1F2D40;
+      --surface-3:     #0E1520;
+      --border:        rgba(255,255,255,0.08);
+      --border-mid:    rgba(255,255,255,0.14);
     }
 
     html { background-color: var(--bg); }
-    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
-    .font-display, h1, h2, h3 { font-family: 'Syne', 'Plus Jakarta Sans', sans-serif; }
+    body { font-family: 'Lato', system-ui, sans-serif; font-size: 14px; }
+    .font-display, h1, h2, h3 { font-family: 'Montserrat', 'Lato', sans-serif; letter-spacing: -0.02em; }
 
     @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(18px); }
+      from { opacity: 0; transform: translateY(16px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @keyframes pulse-dot {
@@ -51,57 +52,62 @@
 
     .reveal {
       opacity: 0;
-      animation: fadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      animation: fadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
-    .d1 { animation-delay: 0.08s; }
-    .d2 { animation-delay: 0.2s; }
-    .d3 { animation-delay: 0.34s; }
-    .d4 { animation-delay: 0.48s; }
+    .d1 { animation-delay: 0.06s; }
+    .d2 { animation-delay: 0.16s; }
+    .d3 { animation-delay: 0.28s; }
+    .d4 { animation-delay: 0.40s; }
 
     .sr {
       opacity: 0;
-      transform: translateY(22px);
-      transition: opacity 0.55s ease-out, transform 0.55s ease-out;
+      transform: translateY(20px);
+      transition: opacity 0.5s ease-out, transform 0.5s ease-out;
     }
-    .sr.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    .sr.visible { opacity: 1; transform: translateY(0); }
     .sr-d1 { transition-delay: 0.05s; }
     .sr-d2 { transition-delay: 0.12s; }
     .sr-d3 { transition-delay: 0.19s; }
     .sr-d4 { transition-delay: 0.26s; }
 
+    /* ── Top bar: solid amber stripe (very 2015 SaaS) ── */
     .top-bar {
-      height: 2px;
-      background: linear-gradient(90deg, var(--signal) 0%, rgba(217,119,6,0.35) 40%, transparent 100%);
+      height: 3px;
+      background: linear-gradient(90deg, #F5A623 0%, #D97706 60%, #B45309 100%);
     }
+
+    /* ── Nav: solid dark navy — no glass blur (2015 was solid) ── */
     .nav-blur {
-      background: rgba(12, 12, 13, 0.88);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
     }
+
+    /* ── Hero section ── */
     .hero-glow {
       background:
-        radial-gradient(ellipse 75% 55% at 50% -5%, rgba(217, 119, 6, 0.14) 0%, transparent 65%),
-        linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+        radial-gradient(ellipse 70% 50% at 50% -10%, rgba(217,119,6,0.12) 0%, transparent 65%),
+        var(--bg);
     }
+
     .label {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.65rem;
       font-weight: 500;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--signal);
     }
     .divider { border-color: var(--border); }
+
+    /* ── Score pill ── */
     .score-pill {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      background: rgba(217, 119, 6, 0.1);
-      border: 1px solid rgba(217, 119, 6, 0.28);
-      border-radius: 999px;
+      background: rgba(217,119,6,0.12);
+      border: 1px solid rgba(217,119,6,0.3);
+      border-radius: 4px;
       padding: 0.3rem 0.75rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.72rem;
@@ -110,159 +116,181 @@
       letter-spacing: 0.02em;
     }
     .score-dot {
-      width: 6px;
-      height: 6px;
+      width: 6px; height: 6px;
       border-radius: 999px;
       background: #D97706;
       animation: pulse-dot 2s ease-in-out infinite;
     }
+
+    /* ── Buttons: flat solid (pure 2015 flat design) ── */
     .btn-primary {
-      background: var(--signal);
+      background: #D97706;
       color: #fff;
-      box-shadow: 0 6px 28px var(--signal-glow);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      border-radius: 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25), 0 0 20px rgba(217,119,6,0.2);
       transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
     }
     .btn-primary:hover {
-      background: var(--signal-hover);
+      background: #B45309;
       transform: translateY(-1px);
-      box-shadow: 0 10px 36px rgba(217,119,6,0.32);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3), 0 0 28px rgba(217,119,6,0.25);
     }
     .btn-primary:active {
-      background: var(--signal-active);
+      background: #92400E;
       transform: translateY(0);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
     }
     .btn-ghost {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border-mid);
-      color: #d4d4d8;
-      transition: background 0.15s, color 0.15s, transform 0.15s;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.22);
+      color: #c8d4e0;
+      border-radius: 5px;
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     .btn-ghost:hover {
-      background: rgba(255,255,255,0.09);
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.35);
       color: #fff;
     }
-    .btn-ghost:active {
-      transform: translateY(1px);
-    }
+    .btn-ghost:active { transform: translateY(1px); }
+
+    /* ── Cards / surfaces (2015: solid colors, subtle border, moderate radius) ── */
     .surface-card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%);
+      background: var(--surface);
       border: 1px solid var(--border-mid);
-      border-radius: 18px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
     .trust-pill {
-      border: 1px solid rgba(255,255,255,0.11);
-      background: rgba(255,255,255,0.04);
-      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.13);
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
       padding: 0.65rem 0.9rem;
-      color: #d4d4d8;
-      font-size: 0.8rem;
-      line-height: 1.1;
+      color: #c0ccd8;
+      font-size: 0.82rem;
+      line-height: 1.2;
     }
     .metric-card {
       background: var(--surface-3);
       border: 1px solid var(--border-mid);
-      border-radius: 16px;
+      border-radius: 6px;
       padding: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
     .proof-row {
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.02);
-      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
       padding: 1rem;
     }
+
+    /* ── Mock product UI ── */
     .mock-shell {
-      background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 24px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 8px;
       padding: 1rem;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.42), 0 0 80px rgba(217,119,6,0.08);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.3);
     }
     .mock-window {
-      background: #111114;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 18px;
+      background: #0E1824;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
       overflow: hidden;
     }
     .mock-toolbar {
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid rgba(255,255,255,0.09);
+      background: rgba(255,255,255,0.03);
     }
     .mock-post {
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.02);
-      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.09);
+      background: rgba(255,255,255,0.03);
+      border-radius: 5px;
       padding: 0.9rem;
     }
     .mock-post.active {
-      border-color: rgba(217,119,6,0.45);
+      border-color: rgba(217,119,6,0.5);
       background: rgba(217,119,6,0.1);
     }
+
+    /* ── AI score badges ── */
     .ai-badge {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      border-radius: 999px;
+      border-radius: 4px;
       padding: 0.25rem 0.55rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.68rem;
-      font-weight: 500;
+      font-weight: 700;
     }
     .ai-badge.high {
-      background: rgba(16, 185, 129, 0.16);
+      background: rgba(16,185,129,0.15);
       color: #6EE7B7;
-      border: 1px solid rgba(16, 185, 129, 0.24);
+      border: 1px solid rgba(16,185,129,0.25);
     }
     .ai-badge.low {
-      background: rgba(244, 63, 94, 0.12);
+      background: rgba(244,63,94,0.12);
       color: #FDA4AF;
-      border: 1px solid rgba(244, 63, 94, 0.18);
+      border: 1px solid rgba(244,63,94,0.2);
     }
+
+    /* ── Annotation / detail cards ── */
     .annot-card {
       background: var(--surface);
       border: 1px solid var(--border-mid);
-      border-radius: 18px;
+      border-radius: 6px;
       padding: 1.25rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
     }
     .annot-line {
-      border-left: 2px solid rgba(217,119,6,0.6);
+      border-left: 3px solid #D97706;
       padding-left: 0.9rem;
     }
+
+    /* ── Step cards ── */
     .step-card {
       position: relative;
-      background: rgba(255,255,255,0.02);
+      background: rgba(255,255,255,0.03);
       border: 1px solid var(--border-mid);
-      border-radius: 18px;
+      border-radius: 8px;
       padding: 1.5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
     .step-num {
-      font-family: 'Syne', 'JetBrains Mono', monospace;
+      font-family: 'Montserrat', sans-serif;
       font-size: 2.75rem;
-      font-weight: 700;
+      font-weight: 800;
       line-height: 1;
-      letter-spacing: -0.02em;
-      color: rgba(217, 119, 6, 0.22);
+      letter-spacing: -0.03em;
+      color: rgba(217,119,6,0.25);
       margin-bottom: 1.25rem;
       user-select: none;
     }
+
     .icp-card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+      background: rgba(255,255,255,0.04);
       border: 1px solid var(--border-mid);
-      border-radius: 18px;
+      border-radius: 8px;
       padding: 1.5rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
     .use-case-strip {
-      background:
-        linear-gradient(135deg, rgba(2,132,199,0.12) 0%, rgba(255,255,255,0.02) 55%),
-        rgba(255,255,255,0.02);
-      border: 1px solid rgba(2,132,199,0.2);
-      border-radius: 22px;
+      background: rgba(217,119,6,0.06);
+      border: 1px solid rgba(217,119,6,0.18);
+      border-radius: 8px;
     }
+
+    /* ── Screen frames ── */
     .screen-frame {
-      background: #0f1012;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
+      background: #0e1824;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
       overflow: hidden;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .screen-shot {
       width: 100%;

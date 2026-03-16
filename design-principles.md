@@ -101,36 +101,55 @@ Show less, mean more.
 
 ## Typography
 
-Three fonts. No substitutions.
+Four fonts. No substitutions.
 
-| Role | Font |
-|------|------|
-| Body / UI copy | Plus Jakarta Sans |
-| Structural labels / headers | Syne |
-| Data / numbers / scores | JetBrains Mono |
+| Role | Font | Notes |
+|------|------|-------|
+| Body / UI copy | Lato | 300 for muted/secondary, 400 body, 700 titles, 900 for display |
+| Structural labels / section headers | Montserrat | 700–800 weight, all-caps, letter-spacing 0.12–0.18em |
+| Data / numbers / scores | JetBrains Mono | 400–500 for values, 600 for emphasis |
+| Post rationale / AI explanation | Lora | Italic only — editorial weight, signals editorial prose vs UI chrome |
 
 Numbers are data. Scores, counts, timestamps, and rates always use JetBrains Mono. This makes them visually distinct from prose and scannable in dense lists.
 
-Section labels: all-caps, tracked out, small. They are wayfinding, not content.
+Section labels: Montserrat, all-caps, tight tracking (0.18em), small (10px). They are wayfinding, not content. Color: `#8AA0BE` — recessive but legible.
 
-No italic. No serif.
+Post rationale rows use Lora italic at 11.5px. The serif italic signals "this is an interpretation, not a fact" — it gives the AI's reasoning a distinct editorial voice separate from metadata and titles. This is intentional and load-bearing.
+
+Lato weight hierarchy:
+- `300` — timestamps, counts, secondary metadata (recessive)
+- `400` — body prose, descriptions
+- `700` — post titles, primary labels
+- `900` — display text only (landing page, empty states)
 
 ---
 
 ## Color
 
-Dark mode is the primary environment.
+Dark mode is the primary environment. Light mode uses a cool blue-gray palette — not warm paper, not stark white. The goal is a professional dashboard aesthetic from the 2014–2016 era: considered depth, not flat minimalism.
 
 **Surface layers** (dark → light):
 
-| Token | Dark | Light |
-|-------|------|-------|
-| Page background | zinc-950 | zinc-100 |
-| Panel / sidebar | zinc-900 | zinc-50 |
-| Raised / cards | zinc-800 | white |
-| Overlay / modal | zinc-800 + backdrop blur | white + backdrop blur |
+| Token | Dark | Light | Light hex |
+|-------|------|-------|-----------|
+| Page background | zinc-900 | cool blue-gray | `#E8EDF4` |
+| Panel / sidebar | zinc-800 | deep navy | `#1A2332` |
+| Sidebar header | — | darkest navy | `#141D2B` |
+| Filter toolbar | zinc-900 | white | `#FFFFFF` |
+| Post cards | zinc-800 | white (floating) | `#FFFFFF` |
+| Selected card | zinc-700 | light blue tint | `#EBF4FF` |
+| Overlay / modal | zinc-800 + backdrop | white + backdrop | — |
 
-**Accent**: Amber only. It appears on active states, high-relevance signals, the primary CTA button, and the AI status dot. Amber at full saturation is reserved for moments that must be noticed — hero tier borders, the run-ranking button, live AI status. Everywhere else, use tinted amber (low opacity).
+**Light mode depth system**: The page background has a layered radial gradient to create subtle atmospheric depth. Cards float above it with `box-shadow: 0 1px 3px rgba(16,30,54,0.08)`. On hover, cards elevate with stronger shadow + 1px translateY. This elevation system replaces flat row separators.
+
+**Sidebar in light mode**: Deep navy `#1A2332`, not light. The sidebar is always dark — it is a control surface, not a content surface. An amber top border (3px) marks the brand and anchors the eye. Selected items get an amber-tinted background `rgba(217,119,6,0.14)`.
+
+**Accent**: Amber only. `#D97706` (amber-600) for backgrounds and borders. `#FBBF24` (amber-400) for text on dark surfaces. `#F5B040` for selected sidebar items. Amber at full saturation is reserved for moments that must be noticed — hero tier borders, the primary CTA button, live AI status, selected nav. Everywhere else, use tinted amber (low opacity).
+
+**Button treatment**:
+- Primary action: flat solid amber `#D97706`, Lato 700, radius 5px — no gradient, no bevel, no glow
+- Secondary action: dark slate `#2D3748`, radius 4px — recessive but readable
+- No gradients on interactive elements in light mode
 
 **Semantic colors** (do not repurpose):
 
@@ -138,7 +157,7 @@ Dark mode is the primary environment.
 - Orange — warning, stale data, caution (distinct from amber on purpose)
 - Rose — error, danger, destructive action, controversy (upvote ratio < 70%)
 
-**Borders**: `white/7%` in dark mode. They suggest separation, they don't enforce it. A border that competes visually with content has failed.
+**Borders in dark mode**: `white/7%` (`rgba(255,255,255,0.07)`). They suggest separation, they don't enforce it. Use Zinc colors only — no Stone variants.
 
 **Timestamps and velocity**: amber when very recent (< 15 min) or spiking — recency is a decision factor. Velocity surfaces as a number, not just a signal: spiking posts show `⚡N/h` (rose, with the rate); rising posts (> 2 upvotes/h, not spiking) show `+N/h` in amber next to the score. The upvote icon is amber — it is a positive engagement signal and the accent color applies.
 
@@ -146,7 +165,29 @@ Dark mode is the primary environment.
 
 ---
 
-## Density
+## Design Era: 2015 Flat Dashboard
+
+This app targets the 2014–2016 "pro dashboard" aesthetic — not modern ultra-flat or skeuomorphic. The defining characteristics:
+
+**What makes it old-school:**
+- **No glassmorphism.** No backdrop blur on navbars. No frosted glass surfaces. Solid colors only.
+- **No pill buttons.** Buttons are rectangular with 4–6px radius, not rounded-full. They feel like controls, not tags.
+- **No gradient fills on interactive elements.** Amber is amber — not a gradient from amber to orange.
+- **Typography has weight contrast.** Lato 300 vs 700 vs 900 — not subtle weight differences but a full dynamic range that signals hierarchy at a glance.
+- **Structural labels are loud.** Montserrat 800, all-caps, 0.18em tracking. In modern design, section labels whisper. Here they speak.
+- **Serif italic for editorial content.** Lora italic on AI rationale rows signals "interpretation" — a typographic convention from editorial design, not tech dashboards.
+- **Depth through box-shadow, not border.** Cards float. They don't sit on a grid of dividers.
+- **Brand stripe.** A solid 3px amber bar at the top of the sidebar. Unambiguous. From an era when brands stamped their color on every control surface.
+- **The sidebar is always dark.** Even in light mode. This is a product decision from 2014 when dark sidebars read as "control panel." It still does.
+- **No animations for hover states.** Card elevation on hover is a shadow+translate — not a color fade, not a scale pop.
+
+**What it is not:**
+- Not Bootstrap 3 blue-gray (that's 2013)
+- Not Material Design (that's exactly 2015 but too rounded, too colorful, too Google)
+- Not flat iOS 7 (too white, no depth)
+- Not modern 2022+ style (no blurs, no neons, no variable fonts, no large rounded corners)
+
+The mental model: a professional analytics dashboard from a well-funded startup in early 2015. Polished, data-first, slightly serious.
 
 **Compact** — post list, sidebar, filter bar, AI status bar. The user is scanning. Every pixel of vertical space is another post in view.
 
@@ -164,7 +205,7 @@ Three fixed panes:
 2. **Center** — scrollable post list, takes remaining width
 3. **Right** — detail pane, fixed width, visibly elevated surface
 
-The sidebar shares the page background in dark mode. A single right border is enough separation. The detail pane is a lighter surface — it must read as distinct from the list without a hard border between them.
+The sidebar is always dark — `#1A2332` in light mode, zinc-900 in dark mode. It is a control surface, not a content surface, and it should read as such regardless of the app's color scheme. A single right border separates it from the post list. The detail pane is a lighter surface — it must read as distinct from the list without a hard border between them.
 
 The filter toolbar sits above the post list, below the AI status bar. Search is always visible. Additional filters (subreddit, score, time range) are behind a "Filter" drawer — they're used occasionally, not constantly.
 

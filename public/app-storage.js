@@ -96,21 +96,11 @@
   }
 
   function loadThemePreference() {
-    const savedPreference = readString(THEME_PREFERENCE_KEY, '');
-    if (savedPreference === 'dark') return true;
-    if (savedPreference === 'light') return false;
-    return false;
+    return true; // dark mode only
   }
 
-  function persistThemePreference(darkMode) {
-    writeString(THEME_PREFERENCE_KEY, darkMode ? 'dark' : 'light');
-    writeString('dashboard_dark_mode', darkMode ? '1' : '0');
-    writeString('theme', darkMode ? 'dark' : 'light');
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+  function persistThemePreference() {
+    document.documentElement.classList.add('dark');
   }
 
   function loadSnapshotInfo() {
