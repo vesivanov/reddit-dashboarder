@@ -113,7 +113,7 @@ describe('Express contract tests (handler-level)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.scores.p1).toBe(5);
-    expect(res.body.scores.p2).toBeNull();
+    expect(res.body.scores.p2).toBe(1); // Default score for posts not in AI response
     expect(res.body.metrics).toMatchObject({ batchCount: 1, processedCount: 2 });
     expect(res.headers['x-rdd-metrics']).toBeDefined();
   });
